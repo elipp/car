@@ -3,4 +3,5 @@ calc:
 yet another calculator application. Written in C.
 Supports parsing of general mathematical expressions.
 
-dependencies: the GNU readline library.
+dependencies: the GNU readline library, 
+	      C99 for strtold (only with -DLONG_DOUBLE_PRECISION)
