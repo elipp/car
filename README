@@ -1,0 +1,6 @@
+calc:
+
+yet another calculator application. Written in C.
+Supports parsing of general mathematical expressions.
+
+dependencies: the GNU readline library.
