@@ -80,6 +80,29 @@ cant_strip:
 
 }
 
+char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
+	int beg = 0;
+
+	while (beg < arg_len) {
+		if(arg[beg] != ' ') { break; }
+		++beg;
+	}
+	if (beg == arg_len) { return NULL; }
+	int end = arg_len-1;
+	while (end > beg) { 
+		if (arg[end] != ' ') { break; }
+		--end;
+	}
+
+	if (beg == 0 && end == arg_len-1) { return arg; }
+
+	const size_t d = beg-end;
+	char *ret = substring(arg, beg, arg_len - d);
+
+	free(arg);
+	return ret;
+}
+
 _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 
 	// find out if argument matches with any of the function names
@@ -216,4 +239,13 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 }
 
+_double_t parse_input(char* arg) {
+	tree_t *stree = tree_generate(arg, strlen(arg), PRIO_ADD_SUB);
+	if (stree) {
+		_double_t res = tree_get_result(stree);
+		tree_delete(stree);
+		return res;
+	}
+	else { return 0; }
 
+}

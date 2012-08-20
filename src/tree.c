@@ -38,9 +38,7 @@ void tree_delete(tree_t *tree) {
 }
 
 tree_t *tree_generate(const char* input, size_t input_length, int priority_level) {
-
-		char operators[2];
-		int params[2];
+char operators[2]; int params[2];
 
 		switch(priority_level) {
 			case PRIO_ADD_SUB:
@@ -255,5 +253,7 @@ _double_t tree_get_result(tree_t *tree) {
 	}
 	return sum_res;
 }
+
+
 
 

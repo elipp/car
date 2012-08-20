@@ -1,4 +1,4 @@
-CC=gcc -O2 
+CC=gcc -g
 CFLAGS=-c -Wall
 
 # change this at will, default is long double
@@ -12,12 +12,15 @@ OBJDIR=objs
 SRCDIR=src
 objects = $(addprefix $(OBJDIR)/, $(OBJS))
 
-EXECUTABLE=calc
+EXECUTABLES=calc result_test
 
 all: calc
 
 calc: $(objects)
-	$(CC) $(DEFINES) $(LIBS) -lm $(objects) $(SRCDIR)/calc.c -o $(EXECUTABLE)
+	$(CC) $(DEFINES) $(LIBS) -lm $(objects) $(SRCDIR)/calc.c -o calc
+
+result_test: $(objects)
+	$(CC) $(DEFINES) -lm $(objects) src/result_test.c -o result_test 
 
 $(OBJDIR)/tree.o: $(SRCDIR)/tree.c
 	$(CC) $(DEFINES) $(CFLAGS) $< -o $@
@@ -32,4 +35,4 @@ $(OBJDIR)/utils.o: $(SRCDIR)/utils.c
 	$(CC) $(DEFINES) -lm $(CFLAGS) $< -o $@
 
 clean:
-	rm -rf $(EXECUTABLE) $(OBJDIR)/*.o
+	rm -rf $(EXECUTABLES) $(OBJDIR)/*.o

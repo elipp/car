@@ -4,6 +4,7 @@
 
 #include "definitions.h"
 #include "tree.h"
+#include "utils.h"
 
 #ifdef LONG_DOUBLE_PRECISION
 static const char* intfmt = "= \033[1;29m%1.0Lf\033[m\n";
@@ -29,25 +30,20 @@ int main(int argc, char* argv[]) {
 	for (;;) {
 
 		input = readline("");
+		const size_t input_length = strlen(input);
+		char *input_stripped = strip_surrounding_whitespace(input, input_length);
+		if (input_stripped) { 
 
 		// check if any of the built-in command keywords have been input :P
+			_double_t result = parse_input(input_stripped);
+			if (floor_ptr(result) == result) {
+				printf(intfmt, result);
+			} else { printf(fracfmt, result); }
 
-//		gettimeofday(&tv_start, NULL);
-
-		// create a level-0 priority tree
-		tree_t *stree = tree_generate(input, strlen(input), PRIO_ADD_SUB);
-		if (stree) {  
-			_double_t res = tree_get_result(stree);
-			if (floor_ptr(res) == res) {
-				printf(intfmt, res);	
-			} else {
-				printf(fracfmt, res);
-			}				
 						
 		}
-		add_history(input);
-		free(input);
-
+		add_history(input_stripped);
+		free(input_stripped);
 	}
 
 
