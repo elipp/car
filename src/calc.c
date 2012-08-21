@@ -8,11 +8,11 @@
 
 #ifdef LONG_DOUBLE_PRECISION
 static const char* intfmt = "= \033[1;29m%1.0Lf\033[m\n";
-static const char* fracfmt = "= \033[1;29m%4.18Lf\033[m\n";
+static const char* fracfmt = "= \033[1;29m%1.16Lf\033[m\n";
 static const char* welcome = "calc. using long double.";
 #else
 static const char* intfmt = "= \033[1;29m%1.0f\033[m\n";
-static const char* fracfmt = "= \033[1;29m%4.14f\033[m\n";
+static const char* fracfmt = "= \033[1;29m%1.14f\033[m\n";
 static const char* welcome = "calc. using double-precision floating point";
 #endif
 static const size_t typesize = sizeof(_double_t) * 8;

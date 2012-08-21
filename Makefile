@@ -14,13 +14,13 @@ objects = $(addprefix $(OBJDIR)/, $(OBJS))
 
 EXECUTABLES=calc result_test
 
-all: calc
+all: $(EXECUTABLES)
 
 calc: $(objects)
 	$(CC) $(DEFINES) $(LIBS) -lm $(objects) $(SRCDIR)/calc.c -o calc
 
 result_test: $(objects)
-	$(CC) $(DEFINES) -lm $(objects) src/result_test.c -o result_test 
+	$(CC) $(DEFINES) -lm $(objects) src/test/result_test.c -o result_test 
 
 $(OBJDIR)/tree.o: $(SRCDIR)/tree.c
 	$(CC) $(DEFINES) $(CFLAGS) $< -o $@

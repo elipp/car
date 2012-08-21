@@ -167,6 +167,8 @@ char operators[2]; int params[2];
 	
 }
 
+// currently, there are ~8 levels of indentation in the implementation of the next function :X:DD
+
 _double_t tree_get_result(tree_t *tree) {
 
 	_double_t sum_elements[tree->num_terms];
