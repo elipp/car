@@ -6,8 +6,8 @@ DEFINES=-DLONG_DOUBLE_PRECISION
 #DEFINES=
 
 LIBS=-lreadline
-SOURCES=calc.c tree.c functions.c tables.c utils.c
-OBJS=tree.o functions.o tables.o utils.o
+SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c
+OBJS=tree.o commands.o functions.o tables.o ud_constants_tree.o utils.o
 OBJDIR=objs
 SRCDIR=src
 objects = $(addprefix $(OBJDIR)/, $(OBJS))
@@ -21,6 +21,14 @@ calc: $(objects)
 
 result_test: $(objects)
 	$(CC) $(DEFINES) -lm $(objects) src/test/result_test.c -o result_test 
+
+
+
+$(OBJDIR)/commands.o: $(SRCDIR)/commands.c
+	$(CC) $(DEFINES) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/ud_constants_tree.o: $(SRCDIR)/ud_constants_tree.c
+	$(CC) $(DEFINES) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/tree.o: $(SRCDIR)/tree.c
 	$(CC) $(DEFINES) $(CFLAGS) $< -o $@

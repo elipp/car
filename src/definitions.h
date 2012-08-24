@@ -38,13 +38,36 @@ typedef double _double_t;
 typedef struct {
 	const char* key;
 	_double_t (*funcptr)(_double_t);
-} key_funcptr_pair;
+} key_mathfuncptr_pair;
 
 typedef struct {
-	const char* key;
+	char* key;
 	_double_t value;
-
 } key_constant_pair;
+
+// udc. user-defined constant
+typedef struct _ud_constant_node {
+	struct _ud_constant_node *next;
+	key_constant_pair pair;
+} udc_node;
+
+typedef struct _word_node {
+	struct _word_node *next;
+	char* text;
+	size_t length;
+} word_node;
+
+typedef struct {
+	word_node *head;
+	word_node *root;
+	size_t num_words;
+} word_list;
+
+typedef struct {
+	const char *key;
+	void (*func)(void*);	// the argument is always either a NULL or a wlist*
+} key_funcptr_pair;
+
 
 _double_t func_pass_get_result(const char*, size_t, int*);
 _double_t constant_pass_get_result(const char*, size_t);

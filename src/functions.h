@@ -5,6 +5,7 @@
 #include "definitions.h"
 /* binary operators */
 
+// the binary operators are stubs :P
 _double_t func_binary_and(_double_t a, _double_t nil);
 _double_t func_binary_or(_double_t a, _double_t nil);
 _double_t func_factorial(_double_t a);

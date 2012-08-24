@@ -7,7 +7,7 @@ typedef struct {
 	_double_t result;
 } test_t;
 
-// results gathered from wolframalpha
+// correct results gathered from wolframalpha
 static const test_t tests[] = {
 { "(5+1*2)-23^2+1", -521 },
 { "sin(e*sin(sinh(pi/2)))", 0.8987498494059207598786 },
@@ -32,8 +32,8 @@ int main(int argc, char* argv[]) {
 	while (i < tests_size) {
 
 		printf("expr: \"%s\"\n", tests[i].expr);
-		_double_t real_res = parse_input(tests[i].expr);
-		printf("got\t\t%.10Lf\nshould be\t%.10Lf\n\n", real_res, tests[i].result);
+		_double_t real_res = parse_mathematical_input(tests[i].expr);
+		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result);
 
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {

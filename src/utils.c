@@ -1,9 +1,11 @@
 #include "utils.h"
 
-extern const key_funcptr_pair functions[];
+extern const key_mathfuncptr_pair functions[];
 extern const size_t functions_table_size;
 extern const key_constant_pair constants[];
 extern const size_t constants_table_size;
+extern const key_funcptr_pair commands[];
+extern const size_t commands_list_size;
 
 static const unsigned char lcase_letters_lower_bound = 'a';
 static const unsigned char lcase_letters_upper_bound = 'z';
@@ -13,7 +15,7 @@ static const unsigned char numbers_lower_bound = '0';
 static const unsigned char numbers_upper_bound = '9';
 
 // use either strtold/strtod instead of atof.
-static inline _double_t to_double_t(const char* arg) { 
+inline _double_t to_double_t(const char* arg) { 
 	char *end;
 #ifdef LONG_DOUBLE_PRECISION
 	_double_t res = strtold(arg, &end);
@@ -23,8 +25,13 @@ static inline _double_t to_double_t(const char* arg) {
 	return res;
 }
 
+inline int is_digit(char c) {
+	return IS_DIGIT(c);
+}
 
 char* substring(const char* string, size_t pos, size_t length) {
+
+	// consider: "if (length == 0) { return NULL; }"
 
 	char* ret = malloc(length+1);
 	memcpy(ret, &string[pos], length);
@@ -94,10 +101,11 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 		--end;
 	}
 
-	if (beg == 0 && end == arg_len-1) { return arg; }
+	// if no change was detected
+	if ((beg == 0) && (end == arg_len)) { return arg; }
 
-	const size_t d = beg-end;
-	char *ret = substring(arg, beg, arg_len - d);
+	const size_t d = (end-beg)+1;
+	char *ret = substring(arg, beg, d);
 
 	free(arg);
 	return ret;
@@ -118,7 +126,7 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 		if (arg[k] == '(') ++num_braces;
 		else if (arg[k] == ')') --num_braces;
 		else
-		if (!IS_NUMBER(arg[k]) && (num_braces == 0)) { break; }
+		if (!IS_DIGIT(arg[k]) && (num_braces == 0)) { break; }
 		++k;
 	}
 	if (num_braces != 0) { fprintf(stderr, "unmatched parenthesis @ \"%s\"\n", arg); *found = 0; return 0; }
@@ -203,7 +211,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 		if (arg[k] == '(') ++num_braces;
 		else if (arg[k] == ')') --num_braces;
 		else
-		if (!IS_NUMBER(arg[k]) && (num_braces == 0)) { break; }
+		if (!IS_DIGIT(arg[k]) && (num_braces == 0)) { break; }
 		++k;
 	}
 	// probably not even theoretically possible, but better to be sure
@@ -218,12 +226,27 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	char *word = substring(arg, word_beg_pos, arg_len-word_beg_pos);
 	int i = 0;
 
+	// first, go through builtins
+	
+	key_constant_pair *match = NULL;
+
 	while(i < constants_table_size) {
-		if (strcmp(word, constants[i].key) == 0) { break; }
+		if (strcmp(word, constants[i].key) == 0) { match = &constants[i]; break; }
 		++i;
 	}
 
-	if (i == constants_table_size) { free(word); return to_double_t(arg); }
+	if (i == constants_table_size) { 
+		i = 0;
+		const size_t udctree_sz = udctree_get_num_nodes();
+		while (i < udctree_sz) {
+			key_constant_pair *p = udctree_get(i);
+			if (strcmp(word, p->key) == 0) { match = p; break; }
+			++i;
+		}
+	}
+
+	if (match == NULL) { free(word); return to_double_t(arg); }
+
 	else {
 		_double_t r = 1.0;
 		if (word_beg_pos > 0) {
@@ -234,12 +257,12 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 			free(left);
 		}
 		free(word);
-		return r*constants[i].value;
+		return r*match->value;
 	}
 
 }
 
-_double_t parse_input(char* arg) {
+_double_t parse_mathematical_input(char* arg) {
 	tree_t *stree = tree_generate(arg, strlen(arg), PRIO_ADD_SUB);
 	if (stree) {
 		_double_t res = tree_get_result(stree);
@@ -249,3 +272,129 @@ _double_t parse_input(char* arg) {
 	else { return 0; }
 
 }
+
+// decompose argument into a list of words (delimited by whitespace, strtok)
+word_list *wlist_generate(const char* arg) {
+
+	word_list *ret = malloc(sizeof(word_list));
+	ret->num_words = 0;
+	char *arg_copy = strdup(arg);
+
+	static const char* delims = " ";
+	
+	char *token = strtok(arg_copy, delims);	
+	while (token != NULL) {
+		wlist_add(ret, strdup(token));
+		token = strtok(NULL, delims);
+	}	
+	
+	free(arg_copy);
+	return ret;
+}
+
+void wlist_add(word_list *list, char *arg) {
+
+	word_node *newnode = malloc(sizeof(word_node));
+	// should a copy be taken? :P
+	newnode->text = arg;
+	newnode->length = strlen(arg);
+
+	if (list->num_words == 0) {
+		list->head = newnode;
+		list->root = newnode;
+		newnode->next = NULL;
+	}
+	else {
+		list->head->next = newnode;
+		list->head = newnode;
+		newnode->next = NULL;
+	}
+	++list->num_words;
+}
+
+char *wlist_get(word_list *list, int index) {
+	const size_t num_words = list->num_words;
+	if (index < num_words) {
+		int i = 0;
+		word_node *iter = list->root;
+		while (i < index) {
+			iter = iter->next;
+			++i;
+		}
+		return iter->text;
+	
+	} else return NULL;
+}
+
+void wlist_print(word_list *list) {
+	int i = 0;
+
+	word_node *node = list->root;
+	while (i < list->num_words) {
+		printf("#%d: %s, length %lu\n", i, node->text, node->length);
+		node = node->next;
+		++i;
+	}
+
+}
+
+char *wlist_recompose(word_list *list, size_t *length) {
+	// find out total combined size
+	size_t sz = 0;
+
+	word_node *iter;
+	for (iter = list->root; iter != NULL; iter = iter->next) {
+		sz += iter->length + 1;	// need to reserve space for the whitespace (' ') character
+	}
+	--sz;	// the last element doesn't need a trailing ' '
+	*length = sz;
+	char *ret = malloc(sz);
+	ret[0] = '\0';
+
+	for (iter = list->root; iter->next != NULL; iter = iter->next) {
+		strcat(ret, iter->text);
+		strcat(ret, " ");
+	}
+	strcat(ret, iter->text);
+
+	return ret;
+}
+
+void wlist_delete(word_list *list) {
+
+	word_node *iter = list->root;
+	word_node *nexttmp = iter->next;
+	while (nexttmp != NULL) {
+		free(iter->text);
+		free(iter);
+		iter = nexttmp;
+		nexttmp = nexttmp->next;
+	}
+	free(iter->text);
+	free(iter);
+	free(list);
+
+}
+
+int wlist_parse_command(word_list *list) {
+	
+	// extern key_funcptr_pair commands[];
+	// extern const size_t commands_list_size;
+	
+	int i = 0;
+	const char *first = list->root->text;
+
+	while (i < commands_list_size) {
+		if (strcmp(first, commands[i].key) == 0) { break; }
+		++i;
+	}
+	if (i == commands_list_size) {
+		return 0;
+	}
+	else {
+		commands[i].func(list);
+		return 1;
+	}
+
+}
+
