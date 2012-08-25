@@ -9,6 +9,6 @@ void udctree_add(udc_node *node);
 key_constant_pair *udctree_get(int index);
 void udctree_delete();
 size_t udctree_get_num_nodes();
-int udctree_search(const char* term);
+udc_node *udctree_search(const char* term);
 
 #endif

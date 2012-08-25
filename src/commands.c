@@ -52,6 +52,9 @@ Try \"help functions\" for a list of supported functions,\n\
 			else if (strcmp(keyword, "my") == 0) {
 				help_my();
 			}
+			else { 
+				printf("\nhelp: unknown help index \"%s\".\n", keyword);
+			}
 		}
 		else { printf("help: trailing character(s) (\"%s...\")\n", wlist_get(wlist,2)); }
 	}
@@ -101,9 +104,9 @@ static void help_my() {
 	printf("\n\
 The \"my\" command can be used to add user-defined constants to the program, i.e. to associate\n\
 a string literal, either a single character or an arbitrarily long string, with a particular\n\
-(decimal) value. However, some naming restrictions apply: pre-defined (builtin) constants may\n\
-not be overridden (see \"help constants\" for a list of reserved keywords). Also, the identifier\n\
-shouldn't begin with a digit.\n\
+(decimal) value. However, some naming restrictions apply: pre-defined (builtin) constants or\n\
+function names can not be overridden (see \"help constants/functions\" for a list of reserved keywords).\n\
+Also, the identifier shouldn't begin with a digit.\n\
 \n\
 The lifetime of a variable added with \"my\" is until the session's termination.\n\
 \n\
@@ -154,17 +157,18 @@ void my(word_list *wlist) {
 					printf("\nmy: error: variable identifiers cannot begin with digits.\n");
 					goto cleanup;
 				}
-				else if (udctree_search(varname_stripped)) {
-					printf("\nmy: error: a variable with identifier \"%s\" is already defined (not overriding)!\n\n", varname_stripped);
-					goto cleanup;
-				}
 				else {
-					udc_node *newnode = malloc(sizeof(udc_node));
-					newnode->pair.key = varname_stripped;
+					udc_node *newnode; 
+					if ((newnode = udctree_search(varname_stripped)) == 0) {
+						newnode = malloc(sizeof(udc_node)); 
+						newnode->pair.key = varname_stripped;
+						udctree_add(newnode);
+					}
+					// kind of backward to do this after udctree_add :D
 					newnode->pair.value = parse_mathematical_input(valstring_stripped);
-					udctree_add(newnode);
+					
 					free(recomposed);
-					return;
+					return;	// to avoid the following goto label
 				}
 
 				cleanup:
@@ -176,7 +180,7 @@ void my(word_list *wlist) {
 		}
 	}
 	else {
-		my_list();
+		printf("\nmy: missing operand - see \"help my\".\n");
 	}
 
 }

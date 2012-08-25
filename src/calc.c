@@ -47,12 +47,12 @@ int main(int argc, char* argv[]) {
 				if (floor_ptr(result) == result) {
 					printf(intfmt, result);
 				} else { printf(fracfmt, result); }
+				add_history(input_stripped);
 
 			}
 			wlist_delete(wlist);
 						
 		}
-//		add_history(input_stripped);
 		free(input_stripped);
 	}
 

@@ -64,14 +64,14 @@ void udctree_delete() {
 
 size_t udctree_get_num_nodes() { return udctree_num_nodes; }
 
-int udctree_search(const char* term) {
-	if (udctree_num_nodes == 0) { return 0; }
+udc_node *udctree_search(const char* term) {
+	if (udctree_num_nodes == 0) { return NULL; }
 	udc_node *iter = udctree_root;
 
 	while (iter != NULL) {
-		if (strcmp(term, iter->pair.key) == 0) { return 1; }
+		if (strcmp(term, iter->pair.key) == 0) { return iter; }
 		iter = iter->next;
 	}
-	return 0;
+	return NULL;
 	
 }

@@ -38,7 +38,8 @@ void tree_delete(tree_t *tree) {
 }
 
 tree_t *tree_generate(const char* input, size_t input_length, int priority_level) {
-char operators[2]; int params[2];
+
+	char operators[2]; int params[2];
 
 		switch(priority_level) {
 			case PRIO_ADD_SUB:
@@ -167,7 +168,7 @@ char operators[2]; int params[2];
 	
 }
 
-// currently, there are ~8 levels of indentation in the implementation of the next function :X:DD
+// currently, there are ~8 levels of indentation in the following monstrosity :D
 
 _double_t tree_get_result(tree_t *tree) {
 
