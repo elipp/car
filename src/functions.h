@@ -2,7 +2,14 @@
 #define FUNCTIONS_H
 
 #include <math.h>
+#include <stdio.h>
 #include "definitions.h"
+
+#ifdef USE_CHEM_PLUGINS
+#include "chem/atomic_weights.h"
+_double_t func_molar_mass(const char* arg);
+#endif
+
 /* binary operators */
 
 // the binary operators are stubs :P

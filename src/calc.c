@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef NO_GNU_READLINE
+#include "vt100_readline_emul.h"
+#else
 #include <readline/readline.h>
+#endif
 
 #include "definitions.h"
 #include "tree.h"
@@ -27,13 +31,20 @@ int main(int argc, char* argv[]) {
 //	struct timeval tv_start;
 //	struct timeval tv_end;
 
+#ifdef NO_GNU_READLINE
+	e_readline_init();
+#endif
+
 	char *input;
 	printf("%s (sizeof(_double_t): %lu bits)\n", welcome, typesize);
 
 	while (quit_signal == 0) {
-
+		#ifdef NO_GNU_READLINE
+		input = e_readline("");
+		#else
 		input = readline("");
-
+		#endif
+		if (!input) break;	// to counter ^A^D (ctrl+A ctrl+D) segfault
 		const size_t input_length = strlen(input);
 		char *input_stripped = strip_surrounding_whitespace(input, input_length);
 
@@ -47,7 +58,11 @@ int main(int argc, char* argv[]) {
 				if (floor_ptr(result) == result) {
 					printf(intfmt, result);
 				} else { printf(fracfmt, result); }
+				#ifdef NO_GNU_READLINE
+				e_hist_add(input_stripped);
+				#else 
 				add_history(input_stripped);
+				#endif 
 
 			}
 			wlist_delete(wlist);

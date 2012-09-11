@@ -1,8 +1,14 @@
 calc:
 
-yet another calculator application. Written in C.
-Supports parsing of general mathematical expressions.
-User-defined constants (variables).
+Calculator application. Written in C.
 
-dependencies: the GNU readline library, 
+Supports parsing of general mathematical expressions
+and user-defined constants (variables).
+
+dependencies: the GNU readline library (recommended); 
+	      however, the drop-in readline replacement 
+	      library (vt100_readline_emul) can be used,
+	      but be sure to expect bugs. A lot of them.
+	      (see Makefile). It's not a fork of readline.
+
 	      C99 for strtold (only with -DLONG_DOUBLE_PRECISION)

@@ -5,8 +5,6 @@ extern const size_t functions_table_size;
 extern const key_constant_pair constants[];
 extern const size_t constants_table_size;
 
-extern int quit_signal;
-
 int quit_signal = 0;
 
 static void my_list() {
@@ -118,6 +116,21 @@ my x = sin((3/4)pi)\n\
 \n");
 }
 
+static int clashes_with_predefined(const char* arg) {
+	int i = 0;
+
+//	extern const size_t constants_table_size;
+
+	while (i < constants_table_size) {
+		if (strcmp(constants[i].key, arg) == 0) {
+			printf("my: error: operand varname clashes with predefined \"%s\" (= %Lf)\n", constants[i].key, constants[i].value);
+			return 1;
+		}
+		++i;
+	}
+	return 0;
+}
+
 void my(word_list *wlist) {
 	// add variable to user-defined list (udc_list)
 	// check that the my-invocation was properly formatted
@@ -141,6 +154,7 @@ void my(word_list *wlist) {
 			else {
 				// we now know that the var-name is found at substring [3->i], and that the
 				// value is found at [(i+1) -> recomposed_length]
+
 				const size_t varname_end_pos = i-1;
 				const size_t valstring_beg_pos = i+1;
 				char *varname = substring(recomposed, 3, varname_end_pos-2);
@@ -155,6 +169,10 @@ void my(word_list *wlist) {
 				}
 				else if (is_digit(varname_stripped[0])) {
 					printf("\nmy: error: variable identifiers cannot begin with digits.\n");
+					goto cleanup;
+				}
+				else if (clashes_with_predefined(varname_stripped)) {
+					// the call prints its own error message
 					goto cleanup;
 				}
 				else {
