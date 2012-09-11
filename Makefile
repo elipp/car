@@ -9,7 +9,7 @@ CFLAGS=-c -Wall
 
 #DEFINES=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE
 
-DEFINES=-DLONG_DOUBLE_PRECISION
+DEFINES=-DLONG_DOUBLE_PRECISION	# use GNU Readline by default
 
 LIBS=-lreadline
 SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c vt100_readline_emul.c
