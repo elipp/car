@@ -4,7 +4,7 @@
 /* readline emulation for vt100-compatible terminal emulators 
    (to remove the GPL'd GNU readline dependency) */
 
-/* THIS IS NOT A FORK OF THE GNU READLINE LIBRARY, ONLY PROVIDES 
+/* THIS IS NOT A FORK OF THE GNU READLINE LIBRARY, ONLY IMPLEMENTS 
  * A SMALL SUBSET OF THE LINE-EDITING FUNCTIONALITY PROVIDED IN READLINE. */
 
 
@@ -17,7 +17,7 @@
 // these two are really the only features we need
 void e_readline_init();
 
-char *e_readline(const char* prompt);
+char *e_readline();
 void e_history_add(const char *term);
 
 #endif
