@@ -4,14 +4,8 @@
 /* readline emulation for vt100-compatible terminal emulators 
    (to remove the GPL'd GNU readline dependency) */
 
-<<<<<<< HEAD
 /* THIS IS NOT A FORK OF THE GNU READLINE LIBRARY, ONLY IMPLEMENTS 
  * A SMALL SUBSET OF THE LINE-EDITING FUNCTIONALITY PROVIDED IN READLINE. */
-=======
-/* THIS IS NOT A FORK OF THE GNU READLINE LIBRARY, ONLY PROVIDES 
- * A SMALL SUBSET OF THE LINE-EDITING FUNCTIONALITY PROVIDED BY READLINE. */
->>>>>>> 07f40bb328560e37f5ac5053ed395e3d1defd770
-
 
 #include <string.h>
 #include <termios.h>
