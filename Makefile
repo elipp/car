@@ -15,7 +15,7 @@ objects = $(addprefix $(OBJDIR)/, $(OBJS))
 
 EXECUTABLES=calc result_test
 
-all: $(EXECUTABLES)
+all: objdir $(EXECUTABLES)
 
 calc: $(objects)
 	$(CC) $(CONFIG) $(LIBS) -lm $(objects) $(SRCDIR)/calc.c -o calc
@@ -24,6 +24,9 @@ result_test: $(objects)
 	$(CC) $(CONFIG) -lm $(objects) src/test/result_test.c -o result_test 
 
 
+# linux (well, bash) specific
+objdir:
+	[ ! -d objs ] && mkdir objs
 
 $(OBJDIR)/commands.o: $(SRCDIR)/commands.c
 	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
