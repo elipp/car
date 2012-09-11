@@ -26,7 +26,7 @@ result_test: $(objects)
 
 # linux (well, bash) specific
 objdir:
-	[ ! -d objs ] && mkdir objs
+	if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
 
 $(OBJDIR)/commands.o: $(SRCDIR)/commands.c
 	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
