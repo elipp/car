@@ -14,7 +14,7 @@
 static const char* intfmt = "= \033[1;29m%1.0Lf\033[m\n";
 //static const char* fracfmt = "= \033[1;29m%1.16Lf\033[m\n";
 static const char* fracfmt = "= \033[1;29m%.16Lg\033[m\n";
-static const char* welcome = "calc. using long double.";
+static const char* welcome = "calc. using long double precision";
 #else
 static const char* intfmt = "= \033[1;29m%1.0f\033[m\n";
 static const char* fracfmt = "= \033[1;29m%.14g\033[m\n";
@@ -36,7 +36,11 @@ int main(int argc, char* argv[]) {
 #endif
 
 	char *input;
-	printf("%s (sizeof(_double_t): %lu bits)\n", welcome, typesize);
+	#ifdef NO_GNU_READLINE
+	printf("%s & vt100_readline_emul.\n", welcome);
+	#else
+	printf("%s & the GNU readline library.\n", welcome);
+	#endif
 
 	while (quit_signal == 0) {
 		#ifdef NO_GNU_READLINE

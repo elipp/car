@@ -70,8 +70,7 @@
 static void gb_create_gap(char* buffer);
 static void gb_merge(char* buffer);
 
-static const char* hist_get_next(size_t*);
-static const char* hist_get_prev(size_t*);
+static const char* hist_get_current(size_t*);
 
 typedef struct _hist_node {
 	struct _hist_node *next;
@@ -115,18 +114,6 @@ void e_hist_add(const char *arg) {
 	buffer_current.next = NULL;
 	hist_current = &buffer_current;
 	++hist_size;
-}
-
-static const char* hist_get_next(size_t *histlen_ret) {	
-	hist_node *n = hist_current->next;
-	*histlen_ret = n ? n->line_length : 0;
-	return n->line_contents;
-}
-
-static const char* hist_get_prev(size_t *histlen_ret) {
-	hist_node *n = hist_current->prev;
-	*histlen_ret = n ? n->line_length : 0;
-	return n->line_contents;
 }
 
 static const char* hist_get_current(size_t *histlen_ret) {
@@ -183,21 +170,16 @@ static void gb_create_gap(char *buffer) {
 		gb_pre = buffer + cur_pos + 1;	// by definition, points to cur_pos + 1
 	}
 
-	//printf("post_len: %lu\n", post_len);
 	// relocate post-part of buffer
 	
-	// we could store posttmp in a static, global variable though
-	char posttmp[post_len+1];
+	char posttmp[post_len+1];	// we could store posttmp in a static, global variable though
 
 	memcpy(posttmp, gb_exists ? gb_post : buffer + cur_pos, post_len);
 	posttmp[post_len] = '\0';
 
-	//PRINT_RAW_CHARS(posttmp, post_len);
-
 	gb_post = gb_pre + gap_width;
 
-	// the gap could be filled with debug characters for the time being
-	memset(gb_pre, '!', gap_width);
+	// the gap could be filled with debug characters for the time being (memset(gb_pre, '!', gap_width)), for instance
 	memcpy(gb_post, posttmp, post_len);
 
 	*(gb_pre) = '\0';
@@ -218,7 +200,7 @@ static void gb_merge(char *buffer) {
 }
 
 
-char *e_readline(const char* prompt) {
+char *e_readline() {
 
 	static const char* esc_cur_1_left = "\033[1D";
 	static const char* esc_cur_1_right = "\033[1C";

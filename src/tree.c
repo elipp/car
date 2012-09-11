@@ -6,6 +6,28 @@ _double_t (*pow_ptr) (_double_t, _double_t) = powl;
 _double_t (*pow_ptr) (_double_t, _double_t) = pow;
 #endif
 
+#define OP_NOP 0x0
+#define OP_ADD '+'
+#define OP_SUB '-'
+#define OP_MUL '*'
+#define OP_DIV '/'
+#define OP_POW '^'
+#define OP_MOD '%'
+
+#define PARAM_FIRST 0xF
+#define PARAM_NOP 0x0
+#define PARAM_SGN_POS 0x1
+#define PARAM_SGN_NEG 0x2
+#define PARAM_MUL 0x3
+#define PARAM_DIV 0x4
+#define PARAM_POW 0x5
+#define PARAM_MOD 0x6
+#define PARAM_FAC 0x7
+
+
+// see tree_generate
+#define MATCHES_WITH_OPERATOR(x) (x == operators[0] || x == operators[1])
+
 static tree_t *tree_create(size_t num_terms, int priority_level) {
 	tree_t *tree = malloc(sizeof(tree_t));
 	tree->current_index = 0;
@@ -56,9 +78,9 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 				break;
 			case PRIO_POW_FAC:
 				operators[0] = OP_POW;
-				operators[1] = OP_POW;
+				operators[1] = OP_MOD;	// try with OP_MOD
 				params[0] = PARAM_POW;
-				params[1] = PARAM_POW;
+				params[1] = PARAM_MOD;
 				break;
 			default:
 				operators[0] = OP_NOP;
