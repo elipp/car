@@ -4,11 +4,11 @@ CFLAGS=-c -Wall
 # If the symbol NO_GNU_READLINE is defined, the replacement library (vt100_readline_emul)
 # will be used instead. You should, however, prefer the thoroughly tested GNU Readline library over this.
 
-CONFIG=-DLONG_DOUBLE_PRECISION -lreadline
-#CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE
+#CONFIG=-DLONG_DOUBLE_PRECISION -lreadline
+CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
 
-SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c vt100_readline_emul.c
-OBJS=tree.o commands.o functions.o tables.o ud_constants_tree.o utils.o vt100_readline_emul.o
+SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c vt100_readline_emul.c chem/chem.c
+OBJS=tree.o commands.o functions.o tables.o ud_constants_tree.o utils.o vt100_readline_emul.o chem.o
 OBJDIR=objs
 SRCDIR=src
 objects = $(addprefix $(OBJDIR)/, $(OBJS))
@@ -26,7 +26,7 @@ result_test: $(objects)
 
 # linux (well, bash) specific
 objdir:
-	[ ! -d objs ] && mkdir objs
+	if [ ! -d objs ]; then mkdir objs; fi
 
 $(OBJDIR)/commands.o: $(SRCDIR)/commands.c
 	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
@@ -47,6 +47,9 @@ $(OBJDIR)/utils.o: $(SRCDIR)/utils.c
 	$(CC) $(CONFIG) -lm $(CFLAGS) $< -o $@
 
 $(OBJDIR)/vt100_readline_emul.o: $(SRCDIR)/vt100_readline_emul.c
+	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/chem.o: $(SRCDIR)/chem/chem.c
 	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
 
 
