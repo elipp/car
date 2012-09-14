@@ -130,7 +130,7 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 		if (arg[i] != ' ') { stripped[j] = arg[i]; ++j; }
 		++i;
 	}
-	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as wanted
+	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as intended 
 	free(arg);
 	return stripped;
 }
