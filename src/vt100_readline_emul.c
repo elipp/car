@@ -382,8 +382,8 @@ char *e_readline() {
 						buffer[cur_pos] = '\0';
 						printf("%s%s%s%s", esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
 						memcpy(gb_pre, gb_post, rem_len);
+						DECREMENT_LINE_LEN_NZ();
 					}
-					DECREMENT_LINE_LEN_NZ();
 					break;
 				default:
 					fprintf(stderr, "WHOA! unknown ANSI X3.64 escape sequence 27 91 %d!\n", (int)ctrl_char_buf[1]);
