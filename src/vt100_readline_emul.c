@@ -50,7 +50,7 @@
 
 #define HIST_CURRENT_DECREMENT()\
 	do {\
-		hist_current = hist_current->prev ? hist_current->prev : hist_root;\
+			hist_current = hist_current->prev ? hist_current->prev : hist_root;\
 	} while(0)
 
 
@@ -82,12 +82,12 @@ typedef struct _hist_node {
 } hist_node;
 
 // the hist_ is a doubly-linked list of strings.
-static hist_node *hist_head = NULL;
-static hist_node *hist_root = NULL;
-static size_t hist_size = 0;
-static hist_node *hist_current = NULL;
-
 static hist_node buffer_current = { NULL, NULL, NULL, 0 };
+static hist_node *hist_current = &buffer_current;
+static hist_node *hist_head = &buffer_current;
+static hist_node *hist_root = &buffer_current;
+
+static size_t hist_size = 0;
 
 void e_hist_add(const char *arg) {
 	
@@ -98,7 +98,7 @@ void e_hist_add(const char *arg) {
 	newnode->line_contents = strndup(arg, arg_len);
 	newnode->line_length = arg_len;
 
-	if (hist_head == NULL) {
+	if (hist_head == &buffer_current) {
 		hist_head = newnode;
 		hist_root = newnode;
 		hist_head->next = NULL;
@@ -314,15 +314,15 @@ char *e_readline() {
 					}
 
 					HIST_CURRENT_DECREMENT();
-					//hist_line = hist_get_prev(&hist_line_len);
+
 					hist_line = hist_get_current(&hist_line_len);
 					if (hist_line) {
 						line_len = hist_line_len;
 						cur_pos = line_len;
 						memcpy(buffer, (const void*)hist_line, hist_line_len);
 						buffer[hist_line_len] = '\0';	// just to be sure :P
-					}
-				
+					} 
+						
 					printf("%s", buffer);
 
 					break;

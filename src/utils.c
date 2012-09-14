@@ -163,7 +163,7 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 	if (strcmp(func_string, chem_functions[0].key) == 0) { 
 		char* right_arg = substring(arg, word_end_pos, arg_len - word_end_pos);
 		// no trees need to be generated
-		_double_t r = func_molar_mass(right_arg);
+		_double_t r = chem_functions[0].funcptr(right_arg);
 		free(right_arg);
 		free(func_string);
 		*found = 1;
@@ -236,7 +236,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 	// first, go through builtins
 	
-	key_constant_pair *match = NULL;
+	const key_constant_pair *match = NULL;
 
 	while(i < constants_table_size) {
 		if (strcmp(word, constants[i].key) == 0) { match = &constants[i]; break; }
