@@ -386,7 +386,7 @@ char *e_readline() {
 					}
 					break;
 				default:
-					fprintf(stderr, "WHOA! unknown ANSI X3.64 escape sequence 27 91 %d!\n", (int)ctrl_char_buf[1]);
+
 					break;
 			}
 		}
