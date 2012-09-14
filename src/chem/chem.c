@@ -33,7 +33,6 @@ _double_t func_molar_mass(const char* arg) {
 	const size_t stripped_len = strlen(stripped);
 	
 	size_t i = 0;
-	printf("stripped: \"%s\"\n", stripped);
 	_double_t sum = 0.0;
 
 	while (i < stripped_len) {
