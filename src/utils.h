@@ -8,11 +8,18 @@
 #include "tree.h"
 #include "ud_constants_tree.h"
 
-#define IS_LOWERCASE_LETTER(x) (((x) >= lcase_letters_lower_bound && (x) <= lcase_letters_upper_bound))
-#define IS_UPPERCASE_LETTER(x) (((x) >= ucase_letters_lower_bound && (x) <= ucase_letters_upper_bound)) 
+#define LCASE_LETTERS_LOWER_BOUND 'a'
+#define LCASE_LETTERS_UPPER_BOUND 'z'
+#define UCASE_LETTERS_LOWER_BOUND 'A'
+#define UCASE_LETTERS_UPPER_BOUND 'Z'
+#define NUMBERS_LOWER_BOUND '0'
+#define NUMBERS_UPPER_BOUND '9'
+
+#define IS_LOWERCASE_LETTER(x) (((x) >= LCASE_LETTERS_LOWER_BOUND && (x) <= LCASE_LETTERS_UPPER_BOUND))
+#define IS_UPPERCASE_LETTER(x) (((x) >= UCASE_LETTERS_LOWER_BOUND && (x) <= UCASE_LETTERS_UPPER_BOUND)) 
 #define IS_LETTER(x) 	       (IS_LOWERCASE_LETTER(x) || IS_UPPERCASE_LETTER(x))
 
-#define IS_DIGIT(x) ((((x) >= numbers_lower_bound && (x) <= numbers_upper_bound)) || (x) == '.')
+#define IS_DIGIT(x) ((((x) >= NUMBERS_LOWER_BOUND && (x) <= NUMBERS_UPPER_BOUND)) || (x) == '.')
 #define IS_DIGIT_OR_BRACE(x) ((IS_NUMBER(x) || (x == '(' || x == ')')))
 
 inline _double_t to_double_t(const char*);

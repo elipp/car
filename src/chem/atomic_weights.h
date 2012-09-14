@@ -5,7 +5,8 @@
 
 // should probably be arranged by frequency of occurrence,
 // i.e. hydrogen, carbon, oxygen, nitrogen, sulfur/sulphur, phosphorus etc.,
-// since the lookup is done linearly: worst case requires ~120 strcmp()s :P
+// since the lookup is done linearly: worst case requires ~120 strcmp()s.
+// also, the last 50 elements can safely be dropped altogether :P
 
 const key_constant_pair atomic_mass_table[] = 
 
@@ -209,7 +210,7 @@ const key_constant_pair atomic_mass_table[] =
   162.500  },
 
 { "Ho",
-  164.930 32  },
+  164.930 },
 
 { "Er",
   167.259  },
@@ -361,6 +362,6 @@ const key_constant_pair atomic_mass_table[] =
 { "Uuo",
   294  } };
 
-extern const size_t atomic_mass_table_size;
+const size_t atomic_mass_table_size = sizeof(atomic_mass_table_size)/sizeof(atomic_mass_table_size[0]);
 
 #endif

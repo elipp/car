@@ -7,13 +7,6 @@ extern const size_t constants_table_size;
 extern const key_funcptr_pair commands[];
 extern const size_t commands_list_size;
 
-static const unsigned char lcase_letters_lower_bound = 'a';
-static const unsigned char lcase_letters_upper_bound = 'z';
-static const unsigned char ucase_letters_lower_bound = 'A';
-static const unsigned char ucase_letters_upper_bound = 'Z';
-static const unsigned char numbers_lower_bound = '0';
-static const unsigned char numbers_upper_bound = '9';
-
 // use either strtold/strtod instead of atof.
 inline _double_t to_double_t(const char* arg) { 
 	char *end;

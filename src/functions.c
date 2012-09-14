@@ -27,37 +27,3 @@ _double_t func_factorial(_double_t a) {
 _double_t func_binary_and(_double_t a, _double_t b) { return (int)a&(int)b; }
 _double_t func_binary_or(_double_t a, _double_t b) { return (int)a|(int)b; }
 
-#ifdef USE_CHEM_PLUGINS
-_double_t func_molar_mass(const char* arg) {
-	// assuming the whole M(...) has been passed in :P
-	const size_t braced_len = strlen(arg) - 1;
-	char *t = substring(arg, 1, braced_len);
-	char *inner = strip_outer_braces(t, braced_len);
-
-	const size_t inner_len = strlen(inner);
-
-	// ok, start parsing
-	
-	int i = 0;
-	size_t beg_pos = 0;
-	size_t end_pos;
-	
-	while (i < inner_len) {
-		if(IS_UPPERCASE_LETTER(arg[i])) {
-			// an uppercase letter always marks the beginning of a new term
-			beg_pos = i;
-			end_pos = i;
-
-		}
-		else if (IS_LOWERCASE_LETTER(arg[i])) {
-			end_pos = i;
-		}
-
-		else if (IS_DIGIT(arg[i])) {
-
-		}	
-		++i;
-	}
-
-}
-#endif
