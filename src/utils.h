@@ -30,6 +30,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len);
 char *substring(const char* string, size_t pos, size_t length);
 char *strip_outer_braces(char* term, size_t length);
 char *strip_surrounding_whitespace(char* arg, size_t length);
+char *strip_all_whitespace(char* arg, size_t length);
 
 // wrapper for tree_get_result
 _double_t parse_mathematical_input(char* arg);

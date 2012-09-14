@@ -12,7 +12,7 @@ static _double_t get_atomic_mass(const char* arg, int *found) {
 	}
 
 	if (i >= atomic_weight_table_size) {
-		printf("Chemical element \"%s\" not found in the table! Returning -1 for molar mass.\n", arg);
+		printf("get_atomic_mass: chemical element \"%s\" not found in the table!\n", arg);
 		*found = 0;
 		return 0.0;
 	}
@@ -31,8 +31,10 @@ _double_t func_molar_mass(const char* arg) {
 
 	const size_t arg_len = strlen(arg);
 	char *stripped = strip_outer_braces(strndup(arg, arg_len), arg_len);
-	const size_t stripped_len = strlen(stripped);
+	const size_t brace_stripped_len = strlen(stripped);
 	
+	stripped = strip_all_whitespace(stripped, brace_stripped_len);
+	const size_t stripped_len = strlen(stripped);	// kinda redundant though
 	size_t i = 0;
 	_double_t sum = 0.0;
 

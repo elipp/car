@@ -109,6 +109,32 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 	return ret;
 }
 
+char *strip_all_whitespace(char* arg, size_t arg_len) {
+	size_t i = 0;
+	// count whitespace
+	size_t num_whitespace = 0;
+	while (i < arg_len) {
+		if (arg[i] == ' ') ++num_whitespace;
+		++i;
+	}
+	if (num_whitespace == 0) {
+		return arg;
+	}
+	// allocate memory
+	const size_t stripped_len = arg_len - num_whitespace;// + 1; // we'll see about the +1
+	char *stripped = malloc(stripped_len);
+
+	i = 0;
+	size_t j = 0;
+	while (i < arg_len) {
+		if (arg[i] != ' ') { stripped[j] = arg[i]; ++j; }
+		++i;
+	}
+	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as wanted
+	free(arg);
+	return stripped;
+}
+
 _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 
 	// find out if argument matches with any of the function names
@@ -241,9 +267,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	while(i < constants_table_size) {
 		if (strcmp(word, constants[i].key) == 0) { match = &constants[i]; break; }
 		++i;
-	}
-
-	if (i == constants_table_size) { 
+	} if (i == constants_table_size) { 
 		i = 0;
 		const size_t udctree_sz = udctree_get_num_nodes();
 		while (i < udctree_sz) {
