@@ -228,12 +228,12 @@ char *e_readline() {
 	static const char* esc_cur_restore = "\0338";
 	static const char* esc_clear_cur_right = "\033[0K";
 	static const char* esc_composite_bkspc = "\033[1D \033[1D";
-	static const char* esc_cur_reset_left = "\033[120D";
+	static const char* esc_cur_reset_left = "\r";
 
 	/* i've yet to come across a really good, reliable way to reset cursor position 
 	 * to the beginning of the line with vt100/ANSI escape codes. This one just translates 
 	 * cursor position by 120 units to the left, and clears from cursor right :P */
-	static const char* esc_composite_clear_line_reset_left = "\033[120D\033[0K";
+	static const char* esc_composite_clear_line_reset_left = "\r\033[0K";
 
 	//printf("%s%s%s%s%s", esc_composite_bkspc, esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
 	static const char* esc_composite_ml_bk_pre = "\033[1D \033[1D\0337\033[0K";
