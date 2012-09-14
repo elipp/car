@@ -60,6 +60,8 @@
 #define TAB_STOP	'\t'
 #define BACKSPACE	0x7F
 
+// vt100 arrow keypress control sequence (0x1B5Bxx) last byte identifiers
+
 #define ARROW_UP 	0x41
 #define ARROW_DOWN 	0x42	
 #define ARROW_LEFT 	0x44
@@ -121,6 +123,7 @@ static const char* hist_get_current(size_t *histlen_ret) {
 	return hist_current->line_contents;
 }
 
+/*
 static void hist_print_entries() {
 	printf("\nHistory entries:\n");
 	hist_node *iter = NULL;
@@ -128,10 +131,8 @@ static void hist_print_entries() {
 		printf("%s\n", iter->line_contents);
 	}
 
-}
+} */
 
-// vt100 arrow keypress control sequence (0x1B5Bxx) last byte identifiers
-//
 // anything prefixed with gb_ is related to the line-editing [g]ap [b]uffer
 
 static enum { GB_NOEXIST = 0, GB_MIDLINE_INSERT, GB_MIDLINE_BACKSPACE } gb_exists;
@@ -237,7 +238,8 @@ char *e_readline() {
 			break;
 		}
 		else if (c == TAB_STOP) {
-			hist_print_entries();
+			// do nothing :P
+			// the real readline library has some autocompletion features
 		}
 		else if (c == CTRL_A) {
 			printf("%s", esc_cur_reset_left);
