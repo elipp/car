@@ -118,6 +118,17 @@ void e_hist_add(const char *arg) {
 	++hist_size;
 }
 
+void e_hist_destroy() {
+	// free node by node :P
+	hist_node *iter = hist_root;
+	while (iter != NULL && iter != &buffer_current) {
+		hist_node *nexttmp = iter->next;
+		free(iter->line_contents);
+		free(iter);
+		iter = nexttmp;
+	}
+}
+
 static const char* hist_get_current(size_t *histlen_ret) {
 	*histlen_ret = hist_current ? hist_current->line_length : 0;
 	return hist_current->line_contents;
@@ -150,15 +161,21 @@ static size_t line_len = 0; // this represents the net length of the line (i.e.,
 
 static size_t post_len = 0;	// represents the length of the post-gap portion of the line.
 
+static struct termios old;
+
 void e_readline_init() {
 
 	// to enable unbuffered stdin/out with getchar/putchar 
-	struct termios old, new;
+	struct termios new;
 	tcgetattr(0, &old);
 	new = old;
 	new.c_lflag &=(~ICANON & ~ECHO);
 	tcsetattr(0, TCSANOW, &new);
 
+}
+
+void e_readline_deinit() {
+	tcsetattr(0, TCSANOW, &old);
 }
 
 static void gb_create_gap(char *buffer) {

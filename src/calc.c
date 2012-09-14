@@ -75,6 +75,10 @@ int main(int argc, char* argv[]) {
 		free(input_stripped);
 	}
 
+	#ifdef NO_GNU_READLINE
+	e_hist_destroy();
+	e_readline_deinit();
+	#endif
 
 	return 0;
 
