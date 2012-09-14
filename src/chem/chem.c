@@ -27,7 +27,6 @@ static _double_t get_atomic_mass(const char* arg, int *found) {
 _double_t func_molar_mass(const char* arg) {
 
 	// the func_pass_get_result passes the inner argument WITH the outer braces included.
-	// no logic for processing braced stuff is implemented yet though 
 	// also, will need better error handling
 
 	const size_t arg_len = strlen(arg);
@@ -41,15 +40,17 @@ _double_t func_molar_mass(const char* arg) {
 		if (stripped[i] == '(') {
 			// find matching parenthesis	
 			const size_t par_beg = i;
-			while (stripped[i] != ')' && i < stripped_len) { 
-				printf("%c, %lu\n", stripped[i], i);
+			do {
 				++i;
 			}
+			while (stripped[i] != ')' && i < stripped_len);
+
 			if (i >= stripped_len) {
 				printf("func_molar_mass: error: unmatched parenthesis!\n");
 				break;
 			}
-			const size_t par_end = i;
+
+			const size_t par_end = i+1;	// for some reason, this is required
 
 			char *parenthesized = substring(stripped, par_beg, par_end - par_beg);
 			_double_t inner_molar_mass = func_molar_mass(parenthesized);
