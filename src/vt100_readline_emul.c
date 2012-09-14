@@ -67,6 +67,8 @@
 #define ARROW_LEFT 	0x44
 #define ARROW_RIGHT 	0x43	
 
+#define DELETE		0x33
+
 // function declarations
 
 static void gb_create_gap(char* buffer);
@@ -81,8 +83,8 @@ typedef struct _hist_node {
 	size_t line_length;
 } hist_node;
 
-// the hist_ is a doubly-linked list of strings.
-static hist_node buffer_current = { NULL, NULL, NULL, 0 };
+// the hist_ is essentially a doubly-linked list of strings.
+static hist_node buffer_current = { NULL, NULL, NULL, 0 }; // this node is always on top of the list :P
 static hist_node *hist_current = &buffer_current;
 static hist_node *hist_head = &buffer_current;
 static hist_node *hist_root = &buffer_current;
@@ -148,10 +150,7 @@ static void hist_print_entries() {
 
 // anything prefixed with gb_ is related to the line-editing [g]ap [b]uffer
 
-static enum { GB_NOEXIST = 0, GB_MIDLINE_INSERT, GB_MIDLINE_BACKSPACE } gb_exists;
-
-// this node is always on top of the list :P
-
+static enum { GB_NOEXIST = 0, GB_MIDLINE_INSERT, GB_MIDLINE_BACKSPACE} gb_exists;
 
 static char *gb_pre = NULL;	// if gb_exists, points to cur_pos + 1
 static char *gb_post = NULL;	// points to the first character after the gap.
@@ -357,10 +356,8 @@ char *e_readline() {
 						cur_pos = line_len;
 						memcpy(buffer, (const void*)buffer_current.line_contents, buffer_current.line_length);
 						buffer[buffer_current.line_length] = '\0';	
-						//printf("%s", hist_current->line_contents);
 					}
 					else {
-//						hist_line = hist_get_next(&hist_line_len);
 						hist_line = hist_get_current(&hist_line_len);
 						line_len = hist_line_len;
 						cur_pos = line_len;
@@ -371,8 +368,25 @@ char *e_readline() {
 					printf("%s", buffer);
 
 					break;
+				case DELETE:
+					// the delete doesn't use gap buffering.
+					// (would require an infrastructural overhaul)
+					getchar();	// discard the '~' (0x7F) character
+					if (gb_exists) {
+						gb_merge(buffer);
+					} 
+					if (cur_pos != line_len) {	// there can only be mid-line deletes :P
+						const size_t rem_len = line_len - cur_pos;
+						gb_pre = buffer+cur_pos;
+						gb_post = buffer+cur_pos+1;
+						buffer[cur_pos] = '\0';
+						printf("%s%s%s%s", esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
+						memcpy(gb_pre, gb_post, rem_len);
+					}
+					DECREMENT_LINE_LEN_NZ();
+					break;
 				default:
-					fprintf(stderr, "WHOA! unknown vt100 cursor ctrl escape sequence 27 91 %d!\n", (int)ctrl_char_buf[1]);
+					fprintf(stderr, "WHOA! unknown ANSI X3.64 escape sequence 27 91 %d!\n", (int)ctrl_char_buf[1]);
 					break;
 			}
 		}
