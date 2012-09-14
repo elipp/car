@@ -89,6 +89,8 @@ static hist_node *hist_root = &buffer_current;
 
 static size_t hist_size = 0;
 
+static void e_hist_destroy();
+
 void e_hist_add(const char *arg) {
 	
 	if (!arg) { return; }
@@ -118,7 +120,7 @@ void e_hist_add(const char *arg) {
 	++hist_size;
 }
 
-void e_hist_destroy() {
+static void e_hist_destroy() {
 	// free node by node :P
 	hist_node *iter = hist_root;
 	while (iter != NULL && iter != &buffer_current) {
@@ -176,6 +178,7 @@ void e_readline_init() {
 
 void e_readline_deinit() {
 	tcsetattr(0, TCSANOW, &old);
+	e_hist_destroy();
 }
 
 static void gb_create_gap(char *buffer) {

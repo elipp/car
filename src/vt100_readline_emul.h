@@ -15,10 +15,9 @@
 
 // these two are really the only features we need
 void e_readline_init();
-void e_readline_deinit()
+void e_readline_deinit();
 
 char *e_readline();
 void e_hist_add(const char *term);
-void e_hist_destroy();
 
 #endif

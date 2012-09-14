@@ -76,7 +76,6 @@ int main(int argc, char* argv[]) {
 	}
 
 	#ifdef NO_GNU_READLINE
-	e_hist_destroy();
 	e_readline_deinit();
 	#endif
 
