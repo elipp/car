@@ -26,12 +26,12 @@ typedef struct {
 	_double_t value;
 } key_constant_pair;
 
-// udc. user-defined constant
-typedef struct _ud_constant_node {
-	struct _ud_constant_node *next;
-	key_constant_pair pair;
-} udc_node;
+typedef struct {
+	const char* key;
+	_double_t (*funcptr)(const char*);
+} key_strfuncptr_pair;
 
+// udc. user-defined constant
 typedef struct _word_node {
 	struct _word_node *next;
 	char* text;
@@ -46,7 +46,7 @@ typedef struct {
 
 typedef struct {
 	const char *key;
-	void (*func)(void*);	// the argument is always either a NULL or a wlist*
+	void *(*func)(void*);	// the argument is always either a NULL or a wlist*
 } key_funcptr_pair;
 
 

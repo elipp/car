@@ -7,11 +7,16 @@ extern const size_t constants_table_size;
 extern const key_funcptr_pair commands[];
 extern const size_t commands_list_size;
 
+#ifdef USE_CHEM_PLUGINS
+extern const key_strfuncptr_pair chem_functions[];
+extern const size_t chem_functions_table_size;
+#endif
+
 // use either strtold/strtod instead of atof.
 inline _double_t to_double_t(const char* arg) { 
 	char *end;
 #ifdef LONG_DOUBLE_PRECISION
-	_double_t res = strtold(arg, &end);
+	_double_t res = strtold(arg, &end);	// requires C99
 #else
 	_double_t res = strtod(arg, &end);
 #endif
@@ -132,7 +137,8 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 	const int word_beg_pos = k;
 
 	while (k < arg_len) {
-		if (!IS_LOWERCASE_LETTER(arg[k])) { 
+		//if (!IS_LOWERCASE_LETTER(arg[k])) { // not enforcing only lowercase function identifiers
+		if (!IS_LETTER(arg[k])) {
 			while(arg[k] == ' ') ++k; 
 			if (arg[k] == '!') factorial_found = 1; 
 			break; 
@@ -153,14 +159,25 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 		if (strcmp(func_string, functions[i].key) == 0) { break; }
 		++i;
 	}
+#ifdef USE_CHEM_PLUGINS
+	if (strcmp(func_string, chem_functions[0].key) == 0) { 
+		char* right_arg = substring(arg, word_end_pos, arg_len - word_end_pos);
+		// no trees need to be generated
+		_double_t r = func_molar_mass(right_arg);
+		free(right_arg);
+		free(func_string);
+		*found = 1;
+		return r;
+	}
+#endif
 
 	free(func_string);
 
 	if ((i == functions_table_size) && (factorial_found == 0)) { *found = 0; return to_double_t(arg); }
-
 	// else find function arg(s)
 	
 	else {
+
 		double l = 1.0;
 		const size_t left_length = word_beg_pos;
 
@@ -168,10 +185,10 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 			char *left_arg = substring(arg, 0, left_length);
 			tree_t *l_stree = tree_generate(left_arg, left_length, PRIO_ADD_SUB);
 			l = tree_get_result(l_stree);
-//			printf("func_pass: left_arg = %s, l = %f\n", left_arg, l);
 			free(left_arg);
 			tree_delete(l_stree);
 
+			// the factorial function doesn't have a right operand
 			if (factorial_found) {
 				*found = 1;
 				return func_factorial(l);
@@ -183,10 +200,8 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 		tree_t *r_stree = tree_generate(right_arg, strlen(right_arg), PRIO_ADD_SUB);
 		double r = 0.0;
 
-		// check for factorial :P
 		r = l*functions[i].funcptr(tree_get_result(r_stree));
 
-//		printf("func_pass: right_arg = %s, r = %f\n", right_arg, r);
 		free(right_arg);
 		tree_delete(r_stree);
 		*found = 1;

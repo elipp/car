@@ -5,6 +5,11 @@
 #include <string.h>
 #include "definitions.h"
 
+typedef struct _ud_constant_node {
+	struct _ud_constant_node *next;
+	key_constant_pair pair;
+} udc_node;
+
 void udctree_add(udc_node *node);
 key_constant_pair *udctree_get(int index);
 void udctree_delete();

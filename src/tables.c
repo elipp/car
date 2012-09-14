@@ -2,15 +2,12 @@
 #include "functions.h"
 
 #ifdef LONG_DOUBLE_PRECISION
-const key_mathfuncptr_pair functions[] =   { { "cos", cosl }, { "sin", sinl }, { "tan", tanl },
+const key_mathfuncptr_pair functions[] =     { { "cos", cosl }, { "sin", sinl }, { "tan", tanl },
 					     { "acos", acosl }, { "asin", asinl }, { "atan", atanl },
 					     { "exp", expl }, { "ln", logl }, { "log", log10l },
 					     { "sqrt", sqrtl }, { "abs", fabsl }, { "cosh", coshl },
 					     { "sinh", sinhl }, { "tanh", tanhl },{ "acosh", acoshl }, 
 					     { "asinh", asinhl }, { "atanh", atanhl }, { "gamma", tgammal }
-#ifdef USE_CHEM_PLUGINS
-					   , { "molar_mass", func_molar_mass }
-#endif
 };
 
 const key_constant_pair constants[] = { { "pi",  3.14159265358979323846264338327950288L },
@@ -36,10 +33,8 @@ const key_mathfuncptr_pair functions[] =    { { "cos", cos }, { "sin", sin }, { 
 					     { "sqrt", sqrt }, { "abs", fabs },{ "cosh", cosh }, 
 					     { "sinh", sinh }, { "tanh", tanh }, { "acosh", acosh }, 
 					     { "asinh", asinh }, { "atanh", atanh }, { "gamma", tgamma }
-#ifdef USE_CHEM_PLUGINS
-					   , { "molar_mass", func_molar_mass }
-#endif
 };
+
 
 const key_constant_pair constants[] = { { "pi",  3.14159265358979323846 },
 					{ "Pi",  3.14159265358979323846 },
@@ -63,4 +58,8 @@ const key_constant_pair constants[] = { { "pi",  3.14159265358979323846 },
 const size_t functions_table_size = sizeof(functions)/sizeof(functions[0]);
 const size_t constants_table_size = sizeof(constants)/sizeof(constants[0]);
 
+#ifdef USE_CHEM_PLUGINS
+const key_strfuncptr_pair chem_functions[] = { "molarmass", func_molar_mass };
+const size_t chem_functions_table_size = sizeof(chem_functions)/sizeof(chem_functions[0]);
+#endif
 
