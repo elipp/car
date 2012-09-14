@@ -375,7 +375,7 @@ char *e_readline() {
 					if (gb_exists) {
 						gb_merge(buffer);
 					} 
-					if (cur_pos != line_len) {	// there can only be mid-line deletes :P
+					if (cur_pos < line_len) {	// there can only be mid-line deletes :P
 						const size_t rem_len = line_len - cur_pos;
 						gb_pre = buffer+cur_pos;
 						gb_post = buffer+cur_pos+1;
