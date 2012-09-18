@@ -22,8 +22,9 @@ typedef struct {
 } key_mathfuncptr_pair;
 
 typedef struct {
-	char* key;
+	const char* key;
 	_double_t value;
+	const char* unit_str;
 } key_constant_pair;
 
 typedef struct {

@@ -88,10 +88,10 @@ static void help_functions() {
 static void help_constants() {
 
 	// extern size_t constants_table_size
-	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\n");
+	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\t\tunit\n");
 	size_t i = 0;
 	while (i < constants_table_size) {
-		printf(" %s \t %.18Lg\n", constants[i].key, constants[i].value);
+		printf(" %s \t %8.8Lg\t%s\n", constants[i].key, constants[i].value, constants[i].unit_str);
 		++i;
 	}
 	printf("\nUser-defined constants (variables) can be added with the command \"my <var-name> = <value>\".\n\n");
@@ -184,6 +184,7 @@ void my(word_list *wlist) {
 					}
 					// kind of backward to do this after udctree_add :D
 					newnode->pair.value = parse_mathematical_input(valstring_stripped);
+					newnode->pair.unit_str = NULL;
 					
 					free(recomposed);
 					return;	// to avoid the following goto label

@@ -258,6 +258,8 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	const int word_beg_pos = k;
 
 	char *word = substring(arg, word_beg_pos, arg_len-word_beg_pos);
+	// strip possible whytespace :P
+	word = strip_surrounding_whitespace(word, strlen(word));
 	int i = 0;
 
 	// first, go through builtins
