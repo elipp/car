@@ -5,12 +5,14 @@ Calculator application. Written in C.
 Supports parsing of general mathematical expressions with user-defined 
 constants (variables). The chemistry suite is on the way.
 
-dependencies: the GNU readline library (recommended); however, 
-              the readline replacement library (vt100_readline_emul)
-	      may be used instead, but bugs are guaranteed to exist.
-	      Also, the full feature-set of the GNU readline library
-	      is not supported.
+dependencies: 
 
-	      (see Makefile!) 
+ - the GNU readline library (recommended). However, the provided line-editing
+   library (dubbed "vt100_readline_emul") may be used as a replacement *.
 
-	      C99 for strtold (only with -DLONG_DOUBLE_PRECISION)
+ - A C99-standard compliant C-library for strtold (only with -DLONG_DOUBLE_PRECISION)
+	      
+	(see Makefile!) 
+
+	* vt100_readline_emul doesn't implement the whole feature-set 
+	of the GNU readline library. Also, it's considered untested and unstable.
