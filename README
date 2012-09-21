@@ -6,8 +6,11 @@ Supports parsing of general mathematical expressions with user-defined
 constants (variables). The chemistry suite is on the way.
 
 dependencies: the GNU readline library (recommended); however, 
-              the drop-in readline replacement library (vt100_readline_emul)
+              the readline replacement library (vt100_readline_emul)
 	      may be used instead, but bugs are guaranteed to exist.
+	      Also, the full feature-set of the GNU readline library
+	      is not supported.
+
 	      (see Makefile!) 
 
 	      C99 for strtold (only with -DLONG_DOUBLE_PRECISION)
