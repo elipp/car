@@ -28,7 +28,7 @@ _double_t func_molar_mass(const char* arg) {
 
 	// the func_pass_get_result passes the inner argument WITH the outer braces included.
 	// also, will need better error handling
-
+	
 	const size_t arg_len = strlen(arg);
 	char *stripped = strip_outer_braces(strndup(arg, arg_len), arg_len);
 	const size_t brace_stripped_len = strlen(stripped);
@@ -85,7 +85,6 @@ _double_t func_molar_mass(const char* arg) {
 				++i;
 			} while (IS_LOWERCASE_LETTER(stripped[i]) && i < stripped_len);
 		
-			if (i >= stripped_len) break;
 			size_t elem_end_pos = i;
 
 			// find out if there's a digit char trailing the element

@@ -92,7 +92,7 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 		if(arg[beg] != ' ') { break; }
 		++beg;
 	}
-	if (beg == arg_len) { return NULL; }
+	if (beg == arg_len) { return arg; }
 	int end = arg_len-1;
 	while (end > beg) { 
 		if (arg[end] != ' ') { break; }

@@ -56,6 +56,7 @@
 
 #define CTRL_A		0x1
 #define CTRL_K		0xB
+#define CTRL_E		0x5
 #define LINE_FEED 	'\n'
 #define TAB_STOP	'\t'
 #define BACKSPACE	0x7F
@@ -259,12 +260,19 @@ char *e_readline() {
 			// the real readline library has some autocompletion features
 		}
 		else if (c == CTRL_A) {
+			if (gb_exists) { gb_merge(buffer); }
 			printf("%s", esc_cur_reset_left);
 			cur_pos = 0;
 		}
 		else if (c == CTRL_K) {
+			if (gb_exists) { gb_merge(buffer); }
 			printf("%s", esc_clear_cur_right);
 			buffer[cur_pos] = '\0';
+		}
+		else if (c == CTRL_E) {
+			if (gb_exists) { gb_merge(buffer); }
+			printf("%s\033[%luC", esc_cur_reset_left, line_len);
+			cur_pos = line_len;
 		}
 		else if (c == BACKSPACE) {	// backspace
 			
