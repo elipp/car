@@ -1,9 +1,10 @@
 calc:
 
-Calculator application. Written in C.
+An interactive command-line calculator. Written in C.
 
 Supports parsing of general mathematical expressions with user-defined 
-constants (variables). The chemistry suite is on the way.
+constants (variables). A chemistry plugin & OpenGL-based plotting will be
+implemented in the near future.
 
 dependencies: 
 
