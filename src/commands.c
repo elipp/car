@@ -31,7 +31,7 @@ static void help(word_list *wlist) {
 "\ncalc is a calculator application, meaning it parses\n\
 the input mathematical expression and computes the answer.\n\
 \n\
-GNU readline line-editing and input history is supported.\n\
+GNU readline(-style) line-editing and input history is supported.\n\
 \n\
 Try \"help functions\" for a list of supported functions,\n\
     \"help constants\" for a list of built-in constants,\n\

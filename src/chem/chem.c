@@ -125,3 +125,12 @@ _double_t func_molar_mass(const char* arg) {
 	return sum;
 }
 
+char* func_balance_chemeq(const char*) {
+	// stub
+}
+_double_t func_DBE(const char*) {	// the acronym "DBE" refers to the term Double Bond Equivalent, which
+					// is a metric reflecting the extent of H-unsaturatedness in the molecule
+	// stub
+}
+
+

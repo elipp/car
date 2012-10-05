@@ -26,4 +26,6 @@ _double_t func_factorial(_double_t a) {
 
 _double_t func_binary_and(_double_t a, _double_t b) { return (int)a&(int)b; }
 _double_t func_binary_or(_double_t a, _double_t b) { return (int)a|(int)b; }
+_double_t func_deg(_double_t rad) { return (360.0L*rad)/(2*M_PI); }
+_double_t func_rad(_double_t deg) { return (2*M_PI*deg)/360.0L; }
 

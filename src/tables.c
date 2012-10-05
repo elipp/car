@@ -7,7 +7,8 @@ const key_mathfuncptr_pair functions[] =     { { "cos", cosl }, { "sin", sinl },
 					     { "exp", expl }, { "ln", logl }, { "log", log10l },
 					     { "sqrt", sqrtl }, { "abs", fabsl }, { "cosh", coshl },
 					     { "sinh", sinhl }, { "tanh", tanhl },{ "acosh", acoshl }, 
-					     { "asinh", asinhl }, { "atanh", atanhl }, { "gamma", tgammal }
+					     { "asinh", asinhl }, { "atanh", atanhl }, { "gamma", tgammal },
+					     { "deg", func_deg }, { "rad", func_rad }
 };
 
 const key_constant_pair constants[] = { { "pi",  3.14159265358979323846264338327950288L, "" },
@@ -32,7 +33,8 @@ const key_mathfuncptr_pair functions[] =    { { "cos", cos }, { "sin", sin }, { 
 					     { "exp", exp }, { "ln", log }, { "log", log10 },
 					     { "sqrt", sqrt }, { "abs", fabs },{ "cosh", cosh }, 
 					     { "sinh", sinh }, { "tanh", tanh }, { "acosh", acosh }, 
-					     { "asinh", asinh }, { "atanh", atanh }, { "gamma", tgamma }
+					     { "asinh", asinh }, { "atanh", atanh }, { "gamma", tgamma },
+					     { "deg", func_deg }, { "rad", func_rad }
 };
 
 
