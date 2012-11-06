@@ -3,6 +3,8 @@
 
 #if (__STDC_VERSION__ >= 199901L)
 	#define C99_AVAILABLE
+#else
+	#undef LONG_DOUBLE_PRECISION	// just to be sure
 #endif
 
 #ifdef NO_GNU_READLINE
