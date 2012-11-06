@@ -1,4 +1,5 @@
 #include "vt100_readline_emul.h"
+#include "utils.h"
 
 #define TMPBUF_SZ 1024
 
@@ -249,7 +250,40 @@ char *e_readline() {
 	while (1) {
 		char c;
 		c = getchar();
-		if (c == LINE_FEED) {	// enter, or line feed
+		if (IS_LETTER(c)) { 	/* regular character input, should probably be up first (by frequency) */
+
+			if (cur_pos != line_len && !gb_exists) {
+				gb_create_gap(buffer);
+				buffer[cur_pos] = c;
+				++gb_pre;
+				INCREMENT_MARKERS();
+				putchar(c);
+				printf("%s", esc_cur_save);
+				printf("%s%s", gb_post, esc_cur_restore); 
+			}
+			else { 
+				if (gb_exists) {
+					if (gb_pre >= gb_post-1) {
+						gb_create_gap(buffer);
+					}
+					++gb_pre;
+				}
+
+				putchar(c); 
+
+				if (gb_exists) {
+					// it's probably too risky to put a curpos_save and a restore on the same printf call
+					printf("%s", esc_cur_save);
+					printf("%s%s", gb_post, esc_cur_restore);
+				}
+
+				buffer[cur_pos] = c;
+				INCREMENT_MARKERS();
+				buffer[cur_pos] = '\0';
+			}
+		}
+
+		else if (c == LINE_FEED) {	// enter, or line feed
 			// if there's a gap in the buffer, merge
 			if (gb_exists) { gb_merge(buffer); }
 			putchar(c);
@@ -397,42 +431,17 @@ char *e_readline() {
 			}
 		}
 
-		else { 	/* regular character input */
-
-			if (cur_pos != line_len && !gb_exists) {
-				gb_create_gap(buffer);
-				buffer[cur_pos] = c;
-				++gb_pre;
-				INCREMENT_MARKERS();
-				putchar(c);
-				printf("%s", esc_cur_save);
-				printf("%s%s", gb_post, esc_cur_restore); 
-			}
-			else { 
-				if (gb_exists) {
-					if (gb_pre >= gb_post-1) {
-						gb_create_gap(buffer);
-					}
-					++gb_pre;
-				}
-
-				putchar(c); 
-
-				if (gb_exists) {
-					// it's probably too risky to put a curpos_save and a restore on the same printf call
-					printf("%s", esc_cur_save);
-					printf("%s%s", gb_post, esc_cur_restore);
-				}
-
-				buffer[cur_pos] = c;
-				INCREMENT_MARKERS();
-				buffer[cur_pos] = '\0';
-			}
+				/* And finally, the rest  
+		else { 
+			//NOP!
 		}
+		*/
+
 //		BUFFER_PRINT_RAW_CHARS(75);
 	}
 	
-	return strndup(buffer, line_len);
+	if (line_len == 0) return NULL; 
+	else return strndup(buffer, line_len); 
 
 }
 

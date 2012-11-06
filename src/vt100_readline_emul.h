@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
 // these two are really the only features we need
 void e_readline_init();
 void e_readline_deinit();

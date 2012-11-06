@@ -86,6 +86,8 @@ cant_strip:
 }
 
 char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
+
+	if (arg_len == 0) { return NULL; }
 	int beg = 0;
 
 	while (beg < arg_len) {

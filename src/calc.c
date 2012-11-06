@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 		#else
 		input = readline("");
 		#endif
-		if (!input) break;	// to counter ^A^D (ctrl+A ctrl+D) segfault
+		if (!input) continue;	// to counter ^A^D (ctrl+A ctrl+D) segfault
 		const size_t input_length = strlen(input);
 		char *input_stripped = strip_surrounding_whitespace(input, input_length);
 
