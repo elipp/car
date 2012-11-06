@@ -1,11 +1,17 @@
 #include "functions.h"
 
 #ifdef LONG_DOUBLE_PRECISION
-_double_t (*floor_ptr)(_double_t) = floorl;
-_double_t (*tgamma_ptr)(_double_t) = tgammal;
+	_double_t (*floor_ptr)(_double_t) = floorl;
+	#ifdef C99_AVAILABLE
+	_double_t (*tgamma_ptr)(_double_t) = tgammal;
+	#endif
 #else
-_double_t (*floor_ptr)(_double_t) = floor; 
-_double_t (*tgamma_ptr)(_double_t) = tgamma;
+	_double_t (*floor_ptr)(_double_t) = floor; 
+
+	#ifdef C99_AVAILABLE
+	_double_t (*tgamma_ptr)(_double_t) = tgammal;
+	#endif
+	double_t (*tgamma_ptr)(_double_t) = tgamma;
 #endif
 
 _double_t func_factorial(_double_t a) {
