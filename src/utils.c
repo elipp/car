@@ -15,7 +15,7 @@ extern const size_t chem_functions_table_size;
 // use either strtold/strtod instead of atof.
 inline _double_t to_double_t(const char* arg) { 
 	char *end;
-#ifdef LONG_DOUBLE_PRECISION
+#ifdef C99_AVAILABLE 
 	_double_t res = strtold(arg, &end);	// requires C99
 #else
 	_double_t res = strtod(arg, &end);

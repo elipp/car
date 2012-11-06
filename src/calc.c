@@ -1,5 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+#if (__STDC_VERSION__ >= 199901L)
+	#define C99_AVAILABLE
+#endif
+
 #ifdef NO_GNU_READLINE
 #include "vt100_readline_emul.h"
 #else

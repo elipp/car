@@ -7,7 +7,10 @@ const key_mathfuncptr_pair functions[] =     { { "cos", cosl }, { "sin", sinl },
 					     { "exp", expl }, { "ln", logl }, { "log", log10l },
 					     { "sqrt", sqrtl }, { "abs", fabsl }, { "cosh", coshl },
 					     { "sinh", sinhl }, { "tanh", tanhl },{ "acosh", acoshl }, 
-					     { "asinh", asinhl }, { "atanh", atanhl }, { "gamma", tgammal },
+					     { "asinh", asinhl }, { "atanh", atanhl }, 
+	#ifdef C99_AVAILABLE 
+					     { "gamma", tgammal },
+	#endif
 					     { "deg", func_deg }, { "rad", func_rad }
 };
 
@@ -33,7 +36,10 @@ const key_mathfuncptr_pair functions[] =    { { "cos", cos }, { "sin", sin }, { 
 					     { "exp", exp }, { "ln", log }, { "log", log10 },
 					     { "sqrt", sqrt }, { "abs", fabs },{ "cosh", cosh }, 
 					     { "sinh", sinh }, { "tanh", tanh }, { "acosh", acosh }, 
-					     { "asinh", asinh }, { "atanh", atanh }, { "gamma", tgamma },
+					     { "asinh", asinh }, { "atanh", atanh }, 
+	#ifdef C99_AVAILABLE 
+					     { "gamma", tgammal },
+	#endif
 					     { "deg", func_deg }, { "rad", func_rad }
 };
 
