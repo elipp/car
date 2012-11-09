@@ -29,7 +29,7 @@ inline int is_digit(char c) {
 
 char* substring(const char* string, size_t pos, size_t length) {
 
-	// consider: "if (length == 0) { return NULL; }"
+	if (length == 0 || string == NULL) { return NULL; }
 
 	char* ret = malloc(length+1);
 	memcpy(ret, &string[pos], length);
@@ -43,6 +43,7 @@ char *strip_outer_braces(char* term, size_t length) {
 	char* ret;
 	// check if expression is COMPLETELY surrounded by OUTER-LEVEL braces
 	// if not, return original
+	if (length == 0) { return NULL; }
 	
 
 	int initial_brace_pos = 0;
@@ -181,6 +182,7 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 	const int word_end_pos = k;
 
 	char *func_string = substring(arg, word_beg_pos, word_end_pos-word_beg_pos);
+	if (!func_string) { return to_double_t(arg); }
 
 	int i = 0;
 	while (i < functions_table_size) {
@@ -246,8 +248,9 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	while (k < arg_len) {
 		if (arg[k] == '(') ++num_braces;
 		else if (arg[k] == ')') --num_braces;
-		else
-		if (!IS_DIGIT(arg[k]) && (num_braces == 0)) { break; }
+		else {
+			if (!IS_DIGIT(arg[k]) && (num_braces == 0)) { break; }
+		}
 		++k;
 	}
 	// probably not even theoretically possible, but better to be sure
@@ -259,7 +262,10 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 	const int word_beg_pos = k;
 
-	char *word = substring(arg, word_beg_pos, arg_len-word_beg_pos);
+	const int sub_len = arg_len-word_beg_pos;
+	char *word = substring(arg, word_beg_pos, sub_len);
+
+	printf("DEBUG: arg: \"%s\", word: \"%s\", sub_len = %d, arg_len = %d\n", arg, word, sub_len, arg_len);
 	// strip possible whytespace :P
 	word = strip_surrounding_whitespace(word, strlen(word));
 	int i = 0;
@@ -269,6 +275,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	const key_constant_pair *match = NULL;
 
 	while(i < constants_table_size) {
+		printf("word: %s, constants[i].key: %s\n", word, constants[i].key);
 		if (strcmp(word, constants[i].key) == 0) { match = &constants[i]; break; }
 		++i;
 	} if (i == constants_table_size) { 

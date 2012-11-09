@@ -21,6 +21,12 @@ static const test_t tests[] = {
 };
 
 
+#ifdef LONG_DOUBLE_PRECISION
+#define RES_STRING "got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result
+#else
+#define RES_STRING "got\t\t%.8g\nshould be \t%.8g\n\n", real_res, tests[i].result
+#endif
+
 static const _double_t threshold = 0.00001;
 
 int main(int argc, char* argv[]) {
@@ -33,11 +39,11 @@ int main(int argc, char* argv[]) {
 
 		printf("expr: \"%s\"\n", tests[i].expr);
 		_double_t real_res = parse_mathematical_input(tests[i].expr);
-		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result);
+		printf(RES_STRING);
 
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
-			printf("(result delta exceeded threshold value %Lf!)\n", threshold);
+			printf("(result delta exceeded threshold value %f!)\n", threshold);
 		} else { ++passed; }
 		++i;
 	}

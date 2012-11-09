@@ -91,7 +91,7 @@ static void help_constants() {
 	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\t\tunit\n");
 	size_t i = 0;
 	while (i < constants_table_size) {
-		printf(" %s \t %8.8Lg\t%s\n", constants[i].key, constants[i].value, constants[i].unit_str);
+		printf(" %s \t %8.8g\t%s\n", constants[i].key, constants[i].value, constants[i].unit_str);
 		++i;
 	}
 	printf("\nUser-defined constants (variables) can be added with the command \"my <var-name> = <value>\".\n\n");
