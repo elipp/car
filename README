@@ -6,14 +6,15 @@ Supports parsing of general mathematical expressions with user-defined
 constants (variables). A chemistry plugin & OpenGL-based plotting will be
 implemented in the near future.
 
-dependencies: 
+Requirements: 
 
  - the GNU readline library (recommended). However, the provided line-editing
    library (dubbed "vt100_readline_emul") may be used as a replacement *.
 
- - A C99-standard compliant C-library for strtold (only with -DLONG_DOUBLE_PRECISION)
+ - A C99-standard compliant C-library for strtold (only with -DLONG_DOUBLE_PRECISION) 
 	      
 	(see Makefile!) 
 
-	* vt100_readline_emul doesn't implement the whole feature-set 
-	of the GNU readline library. Also, it's considered untested and unstable.
+	* vt100_readline_emul is untested/unstable, and doesn't try to implement 
+	the whole feature-set of the GNU readline library. Instead, it merely offers 
+	similar behaviour and functionality for those who need it.
