@@ -12,7 +12,11 @@ Requirements:
    library (dubbed "vt100_readline_emul") may be used as a replacement *.
 
  - A C99-standard compliant C-library for strtold (only with -DLONG_DOUBLE_PRECISION) 
+<<<<<<< HEAD
 	      
+=======
+
+>>>>>>> fixed
 	(see Makefile!) 
 
 	* vt100_readline_emul is untested/unstable, and doesn't try to implement 

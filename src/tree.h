@@ -28,5 +28,6 @@ void tree_add(tree_t *tree, char* term, size_t length, int param, int requires_p
 void tree_delete(tree_t *tree);
 tree_t *tree_generate(const char* input, size_t input_length, int priority_level);
 _double_t tree_get_result(tree_t *tree);
+void tree_dump(tree_t *tree);
 
 #endif

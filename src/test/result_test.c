@@ -17,7 +17,8 @@ static const test_t tests[] = {
 { "e^(2pi+2e)", 122976.5497941034940 },
 { "sin(sin(sin(-1.0)))", -0.6784304773607 },
 { "2*((25+((532+1)/2^2)+2.1*2*3/(1.0-2.0)*sin(1.53)))/3.0 + 1", 98.106989259719 },
-{ "-(1.35*3sin(2))/(2+1)", -1.227551526214670 }
+{ "-(1.35*3sin(2))/(2+1)", -1.227551526214670 },
+{ "-sin(5 + sin( cos(2.0)/2.0))", 0.996718399031256 }
 };
 
 
@@ -34,18 +35,26 @@ int main(int argc, char* argv[]) {
 	int i = 0;
 	int passed = 0;
 
-	printf("Running a (very) small test suite, testing the parser for correctness, not accuracy.\n\n", threshold);
+	printf("calc: Running a (very) small test suite, testing the parser for correctness, not accuracy.\n\n", threshold);
 	while (i < tests_size) {
 
 		printf("expr: \"%s\"\n", tests[i].expr);
+<<<<<<< HEAD
 		_double_t real_res = parse_mathematical_input(tests[i].expr);
 		printf(RES_STRING);
+=======
+		char *current_expr = strndup(tests[i].expr, strlen(tests[i].expr));
+		//current_expr = strip_all_whitespace(current_expr, strlen(current_expr));
+		_double_t real_res = parse_mathematical_input(current_expr);
+		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result);
+>>>>>>> fixed
 
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
 			printf("(result delta exceeded threshold value %f!)\n", threshold);
 		} else { ++passed; }
 		++i;
+		free(current_expr);
 	}
 
 	printf("RESULTS:\npassed: %d\ntotal:  %lu.\n", passed, tests_size); 

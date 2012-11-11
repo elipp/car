@@ -28,6 +28,7 @@ _double_t (*pow_ptr) (_double_t, _double_t) = pow;
 // see tree_generate
 #define MATCHES_WITH_OPERATOR(x) (x == operators[0] || x == operators[1])
 
+// tree constructor
 static tree_t *tree_create(size_t num_terms, int priority_level) {
 	tree_t *tree = malloc(sizeof(tree_t));
 	tree->current_index = 0;
@@ -126,7 +127,7 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 
 			while(i < input_length) {
 
-				// the contents between braces can safely be ignored
+				// the contents between braces are left as is
 				
 				if (input[i] == '(' && num_brackets == 0) { 
 					while (i < input_length) {
@@ -171,20 +172,13 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 		}
 
 		else {
-			char* input_copy = malloc(input_length);
-			strcpy(input_copy, input);
+			char* input_copy = strndup(input, input_length);
 			char* input_stripped = strip_outer_braces(input_copy, strlen(input_copy));
 			int requires_parsing = (input_stripped != input_copy) ? PARSE_REQUIRED : PARSE_NOT_REQUIRED;
 			tree_add(tree, input_stripped, input_length, PARAM_NOP, requires_parsing);
 		}
 
-		//printf("tree: priority level: %d => %s, size = %d\nELEMENTS:\n", tree->priority_level, prio_strings[tree->priority_level], tree_size);
-//		int k = 0;
-//		for (; k < tree_size; k++) {
-//			printf("%s -> requires_parsing = %d, param = %d\n", tree->terms[k].string, tree->terms[k].requires_parsing, tree->terms[k].param);
-//		}
-//		printf("\n-----------------------------\n");
-		
+	//tree_dump(tree);
 	return tree;
 	
 	
@@ -279,6 +273,15 @@ _double_t tree_get_result(tree_t *tree) {
 	return sum_res;
 }
 
-
+// prints a rough dump of the tree contents for debugging purposes
+void tree_dump(tree_t *tree) {
+	if (!tree) return;
+	int i = 0;
+	printf("(DEBUG): tree prio=%d:\n", tree->priority_level);
+	for (;i < tree->num_terms; ++i) {
+		printf("string: \"%s\" -> requires_parsing = %d, param = %d\n", tree->terms[i].string, tree->terms[i].requires_parsing, tree->terms[i].param);
+	}
+	printf("---------------\n");
+}
 
 
