@@ -131,7 +131,7 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 
 			while(i < input_length) {
 
-				// the contents between braces are left as is
+				// the contents in between braces are left as is
 				
 				if (input[i] == '(' && num_brackets == 0) { 
 					while (i < input_length) {
