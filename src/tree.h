@@ -24,7 +24,7 @@ typedef struct {
 } tree_t;
 
 
-void tree_add(tree_t *tree, char* term, size_t length, int param, int requires_parsing);
+void tree_add(tree_t *tree, char* term, int param, int requires_parsing);
 void tree_delete(tree_t *tree);
 tree_t *tree_generate(const char* input, size_t input_length, int priority_level);
 _double_t tree_get_result(tree_t *tree);

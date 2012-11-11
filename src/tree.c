@@ -28,6 +28,8 @@ _double_t (*pow_ptr) (_double_t, _double_t) = pow;
 // see tree_generate
 #define MATCHES_WITH_OPERATOR(x) (x == operators[0] || x == operators[1])
 
+static const char* zero = "0";	// this has a bad smell to it, quite frankly :D
+
 // tree constructor
 static tree_t *tree_create(size_t num_terms, int priority_level) {
 	tree_t *tree = malloc(sizeof(tree_t));
@@ -38,10 +40,12 @@ static tree_t *tree_create(size_t num_terms, int priority_level) {
 	return tree;
 }
 
-void tree_add(tree_t *tree, char* term, size_t length, int param, int requires_parsing) {
+void tree_add(tree_t *tree, char* term, int param, int requires_parsing) {
 
-	tree->terms[tree->current_index].string = term;
-	tree->terms[tree->current_index].length = length;
+	int term_length = 0;
+	if (term) { term_length = strlen(term); }
+	tree->terms[tree->current_index].string = term ? term : strdup(zero);
+	tree->terms[tree->current_index].length = term_length;
 	tree->terms[tree->current_index].param = param;
 	tree->terms[tree->current_index].requires_parsing = requires_parsing;
 
@@ -149,18 +153,18 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 				else if (MATCHES_WITH_OPERATOR(input[i]) && num_brackets == 0) {
 
 					end_pos = i;
-					while (input[end_pos] == ' ' && end_pos >= 0) --end_pos;
+					//while (input[end_pos] == ' ' && end_pos >= 0) --end_pos; // ***
 					const size_t term_len = end_pos-beg_pos;
 					char* term = substring(input, beg_pos, term_len);
 					char* stripped = strip_outer_braces(term, term_len);
 					int parsing_required = (term != stripped) ? PARSE_REQUIRED : PARSE_NOT_REQUIRED;
-					tree_add(tree, stripped, strlen(stripped), prev_parm, parsing_required);
+					tree_add(tree, stripped, prev_parm, parsing_required);
 
 					prev_parm = (input[i] == operators[0] ? params[0] : params[1]);
 
 					if (i+1 >= input_length) break;
 					beg_pos = i+1;
-					while (input[beg_pos] == ' ') ++beg_pos;
+					//while (input[beg_pos] == ' ') ++beg_pos; // ***
 				}
 				++i;
 			}
@@ -168,14 +172,14 @@ tree_t *tree_generate(const char* input, size_t input_length, int priority_level
 			char* last_term = substring(input, beg_pos, input_length-beg_pos);
 			char* stripped_last_term = strip_outer_braces(last_term, strlen(last_term));
 			int parsing_required = (last_term != stripped_last_term) ? PARSE_REQUIRED : PARSE_NOT_REQUIRED;
-			tree_add(tree, stripped_last_term, strlen(stripped_last_term), prev_parm, parsing_required);
+			tree_add(tree, stripped_last_term, prev_parm, parsing_required);
 		}
 
 		else {
 			char* input_copy = strndup(input, input_length);
 			char* input_stripped = strip_outer_braces(input_copy, strlen(input_copy));
 			int requires_parsing = (input_stripped != input_copy) ? PARSE_REQUIRED : PARSE_NOT_REQUIRED;
-			tree_add(tree, input_stripped, input_length, PARAM_NOP, requires_parsing);
+			tree_add(tree, input_stripped, PARAM_NOP, requires_parsing);
 		}
 
 	//tree_dump(tree);

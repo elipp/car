@@ -31,25 +31,24 @@ void udctree_add(udc_node *node) {
 
 }
 
-key_constant_pair *udctree_get(int index) {
-	if (index > udctree_num_nodes) {
-		return NULL;
-	}
 
-	int i = 0;
-	udc_node *iter = udctree_root;
-	while (i < index) {
-		iter=iter->next;	
-		++i;
+key_constant_pair *udctree_match(const char* term) {
+	if (!term) { return NULL; }
+	size_t i = 0;
+	udc_node *iter = udctree_get_root();
+	while (iter) {
+		//printf("udctree_match: term: \"%s\", iter->pair.key: \"%s\"\n", term, iter->pair.key);
+		if (strcmp(term, iter->pair.key) == 0) { return &iter->pair; }
+		iter = iter->next;
 	}
-	return &iter->pair;
-
+	// no match
+	return NULL;
 }
 
 void udctree_delete() {
 
 	if (udctree_num_nodes > 0) {
-		udc_node *iter = udctree_root;
+		udc_node *iter = udctree_get_root();
 		udc_node *nexttmp = iter->next;
 		while (nexttmp != NULL) {
 			free(iter->pair.key);
@@ -66,8 +65,7 @@ size_t udctree_get_num_nodes() { return udctree_num_nodes; }
 
 udc_node *udctree_search(const char* term) {
 	if (udctree_num_nodes == 0) { return NULL; }
-	udc_node *iter = udctree_root;
-
+	udc_node *iter = udctree_get_root();
 	while (iter != NULL) {
 		if (strcmp(term, iter->pair.key) == 0) { return iter; }
 		iter = iter->next;
@@ -75,3 +73,14 @@ udc_node *udctree_search(const char* term) {
 	return NULL;
 	
 }
+
+udc_node *udc_node_create(const char* term, _double_t value) {
+	udc_node *node = malloc(sizeof(udc_node));
+	node->pair.key = strdup(term);
+	node->pair.value = value;
+	node->next = NULL;
+	return node;
+}
+
+udc_node *udctree_get_root() { return udctree_root; }
+

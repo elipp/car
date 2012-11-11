@@ -1,11 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if (__STDC_VERSION__ >= 199901L)
-	#define C99_AVAILABLE
-#else
-	#undef LONG_DOUBLE_PRECISION	// just to be sure
-#endif
+#define C99_AVAILABLE
 
 #ifdef NO_GNU_READLINE
 #include "vt100_readline_emul.h"
@@ -41,13 +37,16 @@ int main(int argc, char* argv[]) {
 #ifdef NO_GNU_READLINE
 	e_readline_init();
 #endif
-
 	char *input;
 	#ifdef NO_GNU_READLINE
 	printf("%s & vt100_readline_emul.\n", welcome);
 	#else
 	printf("%s & the GNU readline library.\n", welcome);
 	#endif
+	
+	
+	udc_node *ans = udc_node_create("ans", 0);
+	udctree_add(ans);
 
 	while (quit_signal == 0) {
 		#ifdef NO_GNU_READLINE
@@ -57,27 +56,30 @@ int main(int argc, char* argv[]) {
 		#endif
 		if (!input) continue;	// to counter ^A^D (ctrl+A ctrl+D) segfault
 		const size_t input_length = strlen(input);
-//		char *input_stripped = strip_surrounding_whitespace(input, input_length);
-		// could be stripped of ALL whitespace as well
-		char *input_stripped = strip_all_whitespace(input, input_length);
+		char *input_stripped = strip_surrounding_whitespace(strdup(input), input_length);
 
 		if (input_stripped) { 
 			word_list *wlist = wlist_generate(input_stripped);
 			int found = wlist_parse_command(wlist);
-			if (!found) {
-				// no matching command was found, parse as mathematical input
+			if (found == 0) {
+				// no matching command was found, parse as mathematical input -> all whitespace can now be filtered, to simplify parsing
+				input_stripped = strip_all_whitespace(input, input_length);
+				if (!input_stripped) { goto cont; }	// strip_all_whitespace returns NULL if input is completely whitespace
 				_double_t result = parse_mathematical_input(input_stripped);
 
 				if (floor_ptr(result) == result) {
 					printf(intfmt, result);
 				} else { printf(fracfmt, result); }
+				
 				#ifdef NO_GNU_READLINE
 				e_hist_add(input_stripped);
 				#else 
 				add_history(input_stripped);
 				#endif 
+				ans->pair.value = result;
 
 			}
+		cont:
 			wlist_delete(wlist);
 						
 		}

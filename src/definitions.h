@@ -24,7 +24,6 @@ typedef struct {
 typedef struct {
 	const char* key;
 	_double_t value;
-	const char* unit_str;
 } key_constant_pair;
 
 typedef struct {

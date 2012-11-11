@@ -43,14 +43,17 @@ char *strip_outer_braces(char* term, size_t length) {
 	char* ret;
 	// check if expression is COMPLETELY surrounded by OUTER-LEVEL braces
 	// if not, return original
-	if (length == 0) { return NULL; }
+	if (length == 0) {
+	//	printf("strip_outer_braces: length = 0; returning original.\n"); 
+		return term; 
+	}
 	
 
 	int initial_brace_pos = 0;
-	while (term[initial_brace_pos] == ' ') ++initial_brace_pos;
+	//while (term[initial_brace_pos] == ' ') ++initial_brace_pos;	// *** these shouldn't be necessary, since whitespace is filtered from math input
 	if (term[initial_brace_pos] == '(') {	// if first non-space character is '('
 		int i = length-1;
-		while (term[i] == ' ') --i;	
+	//	while (term[i] == ' ') --i;	// ***
 		if (term[i] == ')') {		// if last non-space character is ')'
 			int k = initial_brace_pos+1;
 			int num_brackets = 1;
@@ -95,7 +98,8 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 		if(arg[beg] != ' ') { break; }
 		++beg;
 	}
-	if (beg == arg_len) { return arg; }
+	if (beg == arg_len) { return NULL; }
+
 	int end = arg_len-1;
 	while (end > beg) { 
 		if (arg[end] != ' ') { break; }
@@ -122,7 +126,7 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 	}
 	if (num_whitespace == 0) {
 		return arg;
-	}
+	} else if (num_whitespace == arg_len) { return NULL; }
 	// allocate memory
 	const size_t stripped_len = arg_len - num_whitespace;// + 1; // we'll see about the +1
 	char *stripped = malloc(stripped_len);
@@ -134,7 +138,7 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 		++i;
 	}
 	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as intended 
-	printf("DEBUG: strip_all_whitespace: input: \"%s\" -> \"%s\"\n", arg, stripped); 
+//	printf("DEBUG: strip_all_whitespace: input: \"%s\" -> \"%s\"\n", arg, stripped); 
 	free(arg);
 	return stripped;
 }
@@ -169,7 +173,7 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 	while (k < arg_len) {
 		//if (!IS_LOWERCASE_LETTER(arg[k])) { // not enforcing only lowercase function identifiers
 		if (!IS_LETTER(arg[k])) {
-			while(arg[k] == ' ') ++k; 
+			// while(arg[k] == ' ') ++k; 	// ***
 			if (arg[k] == '!') factorial_found = 1; 
 			break; 
 		}
@@ -229,9 +233,8 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 		const size_t right_beg_pos = word_end_pos;
 		char *right_arg = substring(arg, right_beg_pos, arg_len - right_beg_pos);
 		tree_t *r_stree = tree_generate(right_arg, strlen(right_arg), PRIO_ADD_SUB);
-		double r = 0.0;
-
-		r = l*functions[i].funcptr(tree_get_result(r_stree));
+		
+		double r = l*functions[i].funcptr(tree_get_result(r_stree));
 
 		free(right_arg);
 		tree_delete(r_stree);
@@ -263,19 +266,10 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 	const int word_beg_pos = k;
 
-<<<<<<< HEAD
-	const int sub_len = arg_len-word_beg_pos;
-	char *word = substring(arg, word_beg_pos, sub_len);
-
-	printf("DEBUG: arg: \"%s\", word: \"%s\", sub_len = %d, arg_len = %d\n", arg, word, sub_len, arg_len);
-	// strip possible whytespace :P
-	word = strip_surrounding_whitespace(word, strlen(word));
-=======
 	char *word = substring(arg, word_beg_pos, arg_len-word_beg_pos);
 	// strip 
-	word = strip_surrounding_whitespace(word, strlen(word));
+	// word = strip_surrounding_whitespace(word, strlen(word)); // ***
 
->>>>>>> fixed
 	int i = 0;
 
 	// first, go through builtins
@@ -283,20 +277,21 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	const key_constant_pair *match = NULL;
 
 	while(i < constants_table_size) {
-		printf("word: %s, constants[i].key: %s\n", word, constants[i].key);
+		//printf("word: %s, constants[i].key: %s\n", word, constants[i].key);
 		if (strcmp(word, constants[i].key) == 0) { match = &constants[i]; break; }
 		++i;
-	} if (i == constants_table_size) { 
-		i = 0;
-		const size_t udctree_sz = udctree_get_num_nodes();
-		while (i < udctree_sz) {
-			key_constant_pair *p = udctree_get(i);
-			if (strcmp(word, p->key) == 0) { match = p; break; }
-			++i;
-		}
+	} 
+	
+	if (!match) {
+		// no match was found; search udctree
+		match = udctree_match(word);
 	}
 
-	if (match == NULL) { free(word); return to_double_t(arg); }
+	if (match == NULL) { 
+		// still no match: return to_double_t(arg);
+		free(word); 
+		return to_double_t(arg); 
+	}
 
 	else {
 		_double_t r = 1.0;

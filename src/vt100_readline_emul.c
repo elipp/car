@@ -231,11 +231,7 @@ char *e_readline() {
 	static const char* esc_clear_cur_right = "\033[0K";
 	static const char* esc_composite_bkspc = "\033[1D \033[1D";
 	static const char* esc_cur_reset_left = "\r";
-
-<<<<<<< HEAD
-	/* use carriage return ('\r') */
-=======
->>>>>>> fixed
+	
 	static const char* esc_composite_clear_line_reset_left = "\r\033[0K";
 
 	//printf("%s%s%s%s%s", esc_composite_bkspc, esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
@@ -401,15 +397,11 @@ char *e_readline() {
 					}
 					break;
 				default:
-<<<<<<< HEAD
-
-=======
->>>>>>> fixed
 					break;
 			}
 		}
 
-		else { 	/* regular character input */
+		else if (IS_REGULAR_INPUT(c)) { 	/* regular character input */
 
 			if (cur_pos != line_len && !gb_exists) {
 				gb_create_gap(buffer);
@@ -444,11 +436,7 @@ char *e_readline() {
 //		BUFFER_PRINT_RAW_CHARS(75);
 	}
 	
-<<<<<<< HEAD
 	if (line_len == 0) { return NULL; }
-=======
-	if (line_len== 0) { return NULL; }
->>>>>>> fixed
 	else return strndup(buffer, line_len);
 
 }

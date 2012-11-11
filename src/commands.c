@@ -9,12 +9,12 @@ int quit_signal = 0;
 
 static void my_list() {
 	int i = 0;
-	const size_t numnodes = udctree_get_num_nodes();
-	if (numnodes) {
+	udc_node *iter = udctree_get_root();
+	if (iter) {
 		printf("\nUser-defined constants:\n\nkey\tvalue\n");
-		while (i < numnodes) {
-			key_constant_pair *cur_pair = udctree_get(i);
-			printf(" %s\t %.16Lg\n", cur_pair->key, cur_pair->value); 
+		while (iter) {
+			printf(" %s\t %.16Lg\n", iter->pair.key, iter->pair.value); 
+			iter = iter->next;
 			++i;
 		}
 		printf("\nTotal: %d\n", i);
@@ -88,10 +88,10 @@ static void help_functions() {
 static void help_constants() {
 
 	// extern size_t constants_table_size
-	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\t\tunit\n");
+	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\n");
 	size_t i = 0;
 	while (i < constants_table_size) {
-		printf(" %s \t %8.8g\t%s\n", constants[i].key, constants[i].value, constants[i].unit_str);
+		printf(" %s \t %8.8g\n", constants[i].key, constants[i].value);
 		++i;
 	}
 	printf("\nUser-defined constants (variables) can be added with the command \"my <var-name> = <value>\".\n\n");
@@ -184,7 +184,6 @@ void my(word_list *wlist) {
 					}
 					// kind of backward to do this after udctree_add :D
 					newnode->pair.value = parse_mathematical_input(valstring_stripped);
-					newnode->pair.unit_str = NULL;
 					
 					free(recomposed);
 					return;	// to avoid the following goto label
