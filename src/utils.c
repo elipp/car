@@ -92,7 +92,7 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 		if(arg[beg] != ' ') { break; }
 		++beg;
 	}
-	if (beg == arg_len) { return NULL; }
+	if (beg == arg_len) { return arg; }
 	int end = arg_len-1;
 	while (end > beg) { 
 		if (arg[end] != ' ') { break; }
@@ -110,9 +110,9 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 }
 
 char *strip_all_whitespace(char* arg, size_t arg_len) {
-	size_t i = 0;
+	int i = 0;
 	// count whitespace
-	size_t num_whitespace = 0;
+	int num_whitespace = 0;
 	while (i < arg_len) {
 		if (arg[i] == ' ') ++num_whitespace;
 		++i;
@@ -131,6 +131,7 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 		++i;
 	}
 	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as intended 
+	printf("DEBUG: strip_all_whitespace: input: \"%s\" -> \"%s\"\n", arg, stripped); 
 	free(arg);
 	return stripped;
 }
@@ -258,6 +259,9 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	const int word_beg_pos = k;
 
 	char *word = substring(arg, word_beg_pos, arg_len-word_beg_pos);
+	// strip 
+	word = strip_surrounding_whitespace(word, strlen(word));
+
 	int i = 0;
 
 	// first, go through builtins
@@ -296,6 +300,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 _double_t parse_mathematical_input(char* arg) {
 	tree_t *stree = tree_generate(arg, strlen(arg), PRIO_ADD_SUB);
+	//tree_dump(stree);
 	if (stree) {
 		_double_t res = tree_get_result(stree);
 		tree_delete(stree);

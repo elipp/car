@@ -55,6 +55,7 @@
 
 
 #define CTRL_A		0x1
+#define CTRL_E		0x5
 #define CTRL_K		0xB
 #define LINE_FEED 	'\n'
 #define TAB_STOP	'\t'
@@ -230,9 +231,6 @@ char *e_readline() {
 	static const char* esc_composite_bkspc = "\033[1D \033[1D";
 	static const char* esc_cur_reset_left = "\r";
 
-	/* i've yet to come across a really good, reliable way to reset cursor position 
-	 * to the beginning of the line with vt100/ANSI escape codes. This one just translates 
-	 * cursor position by 120 units to the left, and clears from cursor right :P */
 	static const char* esc_composite_clear_line_reset_left = "\r\033[0K";
 
 	//printf("%s%s%s%s%s", esc_composite_bkspc, esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
@@ -263,6 +261,11 @@ char *e_readline() {
 		else if (c == CTRL_A) {
 			printf("%s", esc_cur_reset_left);
 			cur_pos = 0;
+		}
+		else if (c== CTRL_E) {
+			printf("%s", esc_cur_reset_left);
+			printf("\033[%dC", line_len);
+			cur_pos = line_len;
 		}
 		else if (c == CTRL_K) {
 			printf("%s", esc_clear_cur_right);
@@ -295,13 +298,13 @@ char *e_readline() {
 		}
 
 		else if (c == '\033') {	// a.k.a. ascii 27; in this applicated mainly for handling arrowkey presses
-			ctrl_char_buf[0] = getchar();	// this could be discarded, but nah
+			ctrl_char_buf[0] = getchar();	
 			ctrl_char_buf[1] = getchar();
 
 			static const char* hist_line = NULL;
 			static size_t hist_line_len = 0;
 			// could just give the ctrl_char_buf to printf
-
+			if (ctrl_char_buf[0] != 91) { break; }
 			switch (ctrl_char_buf[1]) {
 				case ARROW_LEFT:
 					if (gb_exists) {
@@ -386,7 +389,6 @@ char *e_readline() {
 					}
 					break;
 				default:
-					fprintf(stderr, "WHOA! unknown ANSI X3.64 escape sequence 27 91 %d!\n", (int)ctrl_char_buf[1]);
 					break;
 			}
 		}
@@ -426,7 +428,8 @@ char *e_readline() {
 //		BUFFER_PRINT_RAW_CHARS(75);
 	}
 	
-	return strndup(buffer, line_len);
+	if (line_len== 0) { return NULL; }
+	else return strndup(buffer, line_len);
 
 }
 

@@ -48,9 +48,11 @@ int main(int argc, char* argv[]) {
 		#else
 		input = readline("");
 		#endif
-		if (!input) break;	// to counter ^A^D (ctrl+A ctrl+D) segfault
+		if (!input) continue;	// to counter ^A^D (ctrl+A ctrl+D) segfault
 		const size_t input_length = strlen(input);
-		char *input_stripped = strip_surrounding_whitespace(input, input_length);
+//		char *input_stripped = strip_surrounding_whitespace(input, input_length);
+		// could be stripped of ALL whitespace as well
+		char *input_stripped = strip_all_whitespace(input, input_length);
 
 		if (input_stripped) { 
 			word_list *wlist = wlist_generate(input_stripped);
