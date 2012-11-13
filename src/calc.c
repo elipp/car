@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define C99_AVAILABLE
-
 #ifdef NO_GNU_READLINE
 #include "vt100_readline_emul.h"
 #else

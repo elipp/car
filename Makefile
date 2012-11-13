@@ -5,7 +5,7 @@ CFLAGS=-c -Wall
 # will be used instead. You should, however, prefer the thoroughly tested GNU Readline library over this.
 
 #CONFIG=-DLONG_DOUBLE_PRECISION 
-#CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
+#CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE -DUSE_CHEM_PLUGINS -DC99_AVAILABLE
 CONFIG=-DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
 
 SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c vt100_readline_emul.c chem/chem.c chem/atomic_weights.c
