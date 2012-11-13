@@ -143,6 +143,30 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 	return stripped;
 }
 
+char *strip_all_whitespace_keep_original(char* arg, size_t arg_len) {
+	int i = 0;
+	// count whitespace
+	int num_whitespace = 0;
+	while (i < arg_len) {
+		if (arg[i] == ' ') ++num_whitespace;
+		++i;
+	}
+	if (num_whitespace == arg_len) { return NULL; }
+	// allocate memory
+	const size_t stripped_len = arg_len - num_whitespace;// + 1; // we'll see about the +1
+	char *stripped = malloc(stripped_len);
+
+	i = 0;
+	size_t j = 0;
+	while (i < arg_len) {
+		if (arg[i] != ' ') { stripped[j] = arg[i]; ++j; }
+		++i;
+	}
+	stripped[stripped_len] = '\0';	// i just wonder, why is this working? should overflow, instead works as intended 
+//	printf("DEBUG: strip_all_whitespace: input: \"%s\" -> \"%s\"\n", arg, stripped); 
+	return stripped;
+}
+
 _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 
 	// find out if argument matches with any of the function names
@@ -151,8 +175,7 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 	
 	int k = 0;
 
-	// clear possible characters from the beginning of the arg
-
+	// this block clears any pre-identifier digits, such as the "(531+53)" in the expression "(531+53)sin(pi)"
 	int num_braces = 0;
 	while (k < arg_len) {
 		if (arg[k] == '(') ++num_braces;
@@ -167,14 +190,19 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 		*found = 0;
 		return to_double_t(arg);
 	}
-	int factorial_found = 0;
-	const int word_beg_pos = k;
 
+
+	int factorial_found = 0;
+	const int word_beg_pos = k;	// word_beg_pos refers to the beginning index of the actual function identifier word
+
+	// this block finds the actual function identifier (sequence of letters until IS_LETTER(arg[k]) is false)
 	while (k < arg_len) {
 		//if (!IS_LOWERCASE_LETTER(arg[k])) { // not enforcing only lowercase function identifiers
 		if (!IS_LETTER(arg[k])) {
 			// while(arg[k] == ' ') ++k; 	// ***
-			if (arg[k] == '!') factorial_found = 1; 
+			if (arg[k] == '!') {
+				factorial_found = 1;
+			}
 			break; 
 		}
 		++k;
@@ -182,8 +210,21 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 
 	if (k == arg_len) {
 		// lolz, no right-hand argument?
-		// this could present a wonderful opportunity to do a constant pass
+		// this could present a wonderful opportunity to do a constant pass, or return factorial if one was found
 	}
+	
+	
+	if (factorial_found) {	// sux, but had to be done
+		const int left_length = word_beg_pos;
+		char *left_arg = substring(arg, 0, left_length);
+		tree_t *l_stree = tree_generate(left_arg, left_length, PRIO_ADD_SUB);
+		_double_t l = tree_get_result(l_stree);
+		free(left_arg);
+		tree_delete(l_stree);
+		*found = 1;
+		return func_factorial(l);
+	}
+
 	const int word_end_pos = k;
 
 	char *func_string = substring(arg, word_beg_pos, word_end_pos-word_beg_pos);
@@ -208,27 +249,22 @@ _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found) {
 
 	free(func_string);
 
-	if ((i == functions_table_size) && (factorial_found == 0)) { *found = 0; return to_double_t(arg); }
+	if (i == functions_table_size) { *found = 0; return to_double_t(arg); }	// used to have ... && factorial_found == 0
 	// else find function arg(s)
 	
 	else {
 
 		double l = 1.0;
-		const size_t left_length = word_beg_pos;
-
+		const size_t left_length = word_beg_pos;	// i.e. the length of the part before the actual function identifier
+	
 		if (left_length > 0) {
 			char *left_arg = substring(arg, 0, left_length);
 			tree_t *l_stree = tree_generate(left_arg, left_length, PRIO_ADD_SUB);
 			l = tree_get_result(l_stree);
 			free(left_arg);
 			tree_delete(l_stree);
-
-			// the factorial function doesn't have a right operand
-			if (factorial_found) {
-				*found = 1;
-				return func_factorial(l);
-			}
 		}
+
 
 		const size_t right_beg_pos = word_end_pos;
 		char *right_arg = substring(arg, right_beg_pos, arg_len - right_beg_pos);

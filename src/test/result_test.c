@@ -39,16 +39,18 @@ int main(int argc, char* argv[]) {
 	while (i < tests_size) {
 
 		printf("expr: \"%s\"\n", tests[i].expr);
-		char *current_expr = strndup(tests[i].expr, strlen(tests[i].expr));
-		// current_expr = strip_all_whitespace(current_expr, strlen(current_expr));	// causes weird free() error
+		char *current_expr_tmp = strdup(tests[i].expr);
+		printf("current_expr_tmp: \"%s\"\n", current_expr_tmp);
+		char *current_expr = strip_all_whitespace_keep_original(current_expr_tmp, strlen(current_expr_tmp));	// causes weird free() error
 		_double_t real_res = parse_mathematical_input(current_expr);
-		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result);
+		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n", real_res, tests[i].result);
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
-			printf("(result delta exceeded threshold value %f!)\n", threshold);
+			printf("\033[1;31mFAIL! (result delta exceeded threshold value %f!)\033[m\n", threshold);
 		} else { ++passed; }
 		++i;
-		free(current_expr);
+//		free(current_expr);
+		printf("\n");
 	}
 
 	printf("RESULTS:\npassed: %d\ntotal:  %lu.\n", passed, tests_size); 
