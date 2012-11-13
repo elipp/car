@@ -13,7 +13,7 @@ static void my_list() {
 	if (iter) {
 		printf("\nUser-defined constants:\n\nkey\tvalue\n");
 		while (iter) {
-			printf(" %s\t %.16Lg\n", iter->pair.key, iter->pair.value); 
+			printf(" %s\t %.8g\n", iter->pair.key, (double)iter->pair.value); 
 			iter = iter->next;
 			++i;
 		}
@@ -91,7 +91,7 @@ static void help_constants() {
 	printf("\nBuilt-in constants (scientific constants are in SI units):\n\nkey\tvalue\n");
 	size_t i = 0;
 	while (i < constants_table_size) {
-		printf(" %s \t %8.8Lg\n", constants[i].key, constants[i].value);
+		printf(" %s \t %8.8g\n", constants[i].key, (double)constants[i].value);
 		++i;
 	}
 	printf("\nUser-defined constants (variables) can be added with the command \"my <var-name> = <value>\".\n\n");
@@ -123,7 +123,7 @@ static int clashes_with_predefined(const char* arg) {
 
 	while (i < constants_table_size) {
 		if (strcmp(constants[i].key, arg) == 0) {
-			printf("my: error: operand varname clashes with predefined \"%s\" (= %Lf)\n", constants[i].key, constants[i].value);
+			printf("my: error: operand varname clashes with predefined \"%s\" (= %f)\n", constants[i].key, (double)constants[i].value);
 			return 1;
 		}
 		++i;

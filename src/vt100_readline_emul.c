@@ -271,7 +271,7 @@ char *e_readline() {
 		}
 		else if (c== CTRL_E) {
 			printf("%s", esc_cur_reset_left);
-			printf("\033[%dC", line_len);
+			printf("\033[%luC", line_len);
 			cur_pos = line_len;
 		}
 		else if (c == CTRL_K) {

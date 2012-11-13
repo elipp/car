@@ -68,8 +68,7 @@ _double_t func_molar_mass(const char* arg) {
 			if (i != factor_beg_pos) {
 				// trailing digits were found, strtol(d)
 				char *factor_string = substring(stripped, factor_beg_pos, factor_end_pos - factor_beg_pos);
-				char *dummy;	// required by strtold 
-				factor = strtold(factor_string, &dummy);
+				factor = to_double_t(factor_string);
 				free(factor_string);
 			} 
 
