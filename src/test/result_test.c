@@ -23,9 +23,9 @@ static const test_t tests[] = {
 
 
 #ifdef LONG_DOUBLE_PRECISION
-#define RES_STRING "got\t\t%.14Lg\nshould be\t%.14Lg\n\n", real_res, tests[i].result
+#define RES_FMT "got\t\t%.14Lg\nshould be\t%.14Lg\n\n"
 #else
-#define RES_STRING "got\t\t%.8g\nshould be \t%.8g\n\n", real_res, tests[i].result
+#define RES_FMT "got\t\t%.8g\nshould be \t%.8g\n\n"
 #endif
 
 static const _double_t threshold = 0.00001;
@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
 		printf("expr: \"%s\"\n", tests[i].expr);
 		char *current_expr = strip_all_whitespace_keep_original(tests[i].expr, strlen(tests[i].expr));	// causes weird free() error
 		_double_t real_res = parse_mathematical_input(current_expr);
-		printf("got\t\t%.14Lg\nshould be\t%.14Lg\n", real_res, tests[i].result);
+		printf(RES_FMT, real_res, tests[i].result);
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
 			printf("\033[1;31mFAIL! (result delta exceeded threshold value %f!)\033[m\n", threshold);
