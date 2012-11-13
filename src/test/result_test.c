@@ -25,7 +25,7 @@ static const test_t tests[] = {
 #ifdef LONG_DOUBLE_PRECISION
 #define RES_FMT "got\t\t%.14Lg\nshould be\t%.14Lg\n\n"
 #else
-#define RES_FMT "got\t\t%.8g\nshould be \t%.8g\n\n"
+#define RES_FMT "got\t\t%.14g\nshould be \t%.14g\n\n"
 #endif
 
 static const _double_t threshold = 0.00001;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 		printf(RES_FMT, real_res, tests[i].result);
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
-			printf("\033[1;31mFAIL! (result delta exceeded threshold value %f!)\033[m\n", threshold);
+			printf("\033[1;31mFAIL! (result delta exceeded rough threshold value %f!)\033[m\n", threshold);
 		} else { ++passed; }
 		++i;
 //		free(current_expr);	// will leak, but hey; its a test program :D

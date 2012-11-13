@@ -4,8 +4,9 @@ CFLAGS=-c -Wall
 # If the symbol NO_GNU_READLINE is defined, the replacement library (vt100_readline_emul)
 # will be used instead. You should, however, prefer the thoroughly tested GNU Readline library over this.
 
-#CONFIG=-DLONG_DOUBLE_PRECISION -lreadline
-CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
+#CONFIG=-DLONG_DOUBLE_PRECISION 
+#CONFIG=-DLONG_DOUBLE_PRECISION -DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
+CONFIG=-DNO_GNU_READLINE -DUSE_CHEM_PLUGINS
 
 SOURCES=calc.c commands.c tree.c functions.c ud_constants_tree.c tables.c utils.c vt100_readline_emul.c chem/chem.c chem/atomic_weights.c
 OBJS=tree.o commands.o functions.o tables.o ud_constants_tree.o utils.o vt100_readline_emul.o chem.o atomic_weights.o
