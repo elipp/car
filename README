@@ -11,12 +11,8 @@ Requirements:
  - the GNU readline library (recommended). However, the provided line-editing
    library (dubbed "vt100_readline_emul") may be used as a replacement *.
 
- - A C99-standard compliant C-library for strtold (only with -DLONG_DOUBLE_PRECISION) 
-<<<<<<< HEAD
-	      
-=======
-
->>>>>>> fixed
+ - A C99-standard compliant C-library/compiler for strtold (only with -DLONG_DOUBLE_PRECISION) 
+	
 	(see Makefile!) 
 
 	* vt100_readline_emul is untested/unstable, and doesn't try to implement 
