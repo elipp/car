@@ -12,6 +12,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <sys/time.h>	// for select()
+#include <sys/types.h>
+#include <unistd.h>
+
+
 #define IS_REGULAR_INPUT(x) ((x) > 0x19 && (x) < 0x7F)
 
 // these are really the only two features we need

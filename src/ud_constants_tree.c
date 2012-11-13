@@ -34,10 +34,8 @@ void udctree_add(udc_node *node) {
 
 key_constant_pair *udctree_match(const char* term) {
 	if (!term) { return NULL; }
-	size_t i = 0;
 	udc_node *iter = udctree_get_root();
 	while (iter) {
-		//printf("udctree_match: term: \"%s\", iter->pair.key: \"%s\"\n", term, iter->pair.key);
 		if (strcmp(term, iter->pair.key) == 0) { return &iter->pair; }
 		iter = iter->next;
 	}

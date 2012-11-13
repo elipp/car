@@ -42,7 +42,6 @@
 		}\
 	} while(0)
 
-
 #define HIST_CURRENT_INCREMENT()\
 	do {\
 		hist_current = hist_current->next ? hist_current->next : &buffer_current;\
@@ -150,17 +149,24 @@ static void hist_print_entries() {
 
 } */
 
+
+static void rid_excess_chars_stdin(char ctrl) {
+	if (ctrl >= 49 && ctrl <= 54) { 
+		char k = getchar(); 
+		if (k != 126) { getchar(); } 
+	}
+}
+
 // anything prefixed with gb_ is related to the line-editing [g]ap [b]uffer
 
-static enum { GB_NOEXIST = 0, GB_MIDLINE_INSERT, GB_MIDLINE_BACKSPACE} gb_exists;
+static enum { GB_NOEXIST = 0, GB_MIDLINE_INSERT, GB_MIDLINE_BACKSPACE } gb_exists;
 
 static char *gb_pre = NULL;	// if gb_exists, points to cur_pos + 1
 static char *gb_post = NULL;	// points to the first character after the gap.
 
 static const size_t gap_width = 0xF;
 	
-static size_t cur_pos = 0;
-static size_t line_len = 0; // this represents the net length of the line (i.e., not including the potential gap in the buffer)
+static size_t cur_pos = 0; static size_t line_len = 0; // this represents the net length of the line (i.e., not including the potential gap in the buffer)
 
 static size_t post_len = 0;	// represents the length of the post-gap portion of the line.
 
@@ -174,7 +180,6 @@ void e_readline_init() {
 	new = old;
 	new.c_lflag &=(~ICANON & ~ECHO);
 	tcsetattr(0, TCSANOW, &new);
-
 }
 
 void e_readline_deinit() {
@@ -244,7 +249,7 @@ char *e_readline() {
 
 	cur_pos = 0;
 	line_len = 0;
-	char ctrl_char_buf[2];
+	char ctrl_char_buf[8] = { 0 };	// the F-keys, for example, generate a total of 5 characters
 
 	while (1) {
 		char c;
@@ -305,100 +310,101 @@ char *e_readline() {
 			--gb_pre;
 		}
 
-		else if (c == '\033') {	// a.k.a. ascii 27; in this applicated mainly for handling arrowkey presses
+		else if (c == '\033') {	// a.k.a. ascii 27
 			ctrl_char_buf[0] = getchar();	
 			ctrl_char_buf[1] = getchar();
+			// sometimes, even more characters are printed, and these we need to get rid of :P
+			
 
 			static const char* hist_line = NULL;
 			static size_t hist_line_len = 0;
 			// could just give the ctrl_char_buf to printf
-			if (ctrl_char_buf[0] != 91) { break; }
-			switch (ctrl_char_buf[1]) {
-				case ARROW_LEFT:
-					if (gb_exists) {
-						gb_merge(buffer);
-					}
-					printf("%s", esc_cur_1_left);
-					DECREMENT_CUR_POS_NZ();
-					break;
-				case ARROW_RIGHT:
-				
-					if (gb_exists) {
-						gb_merge(buffer);
-					}
-					if (cur_pos < line_len) {
-						printf("%s", esc_cur_1_right);
-						++cur_pos; 
-					}
-					break;
-				case ARROW_UP:
-					// clear whole line and buffer
-					printf("%s", esc_composite_clear_line_reset_left);
-					// to enable real readline-like behavior, the current buffer
-					// is stored at the first position.
-					if (hist_current == &buffer_current) {
-						if (gb_exists) { gb_merge(buffer); }
-						if (buffer_current.line_contents) { free(buffer_current.line_contents); }
-						buffer_current.line_contents = strndup(buffer, line_len);
-						buffer_current.line_length = line_len;
-					}
+			if (ctrl_char_buf[0] == 91) {
+			
+				rid_excess_chars_stdin(ctrl_char_buf[1]);
 
-					HIST_CURRENT_DECREMENT();
+				switch (ctrl_char_buf[1]) {
+					case ARROW_LEFT:
+						if (gb_exists) {
+							gb_merge(buffer);
+						}
+						printf("%s", esc_cur_1_left);
+						DECREMENT_CUR_POS_NZ();
+						break;
+					case ARROW_RIGHT:
+					
+						if (gb_exists) {
+							gb_merge(buffer);
+						}
+						if (cur_pos < line_len) {
+							printf("%s", esc_cur_1_right);
+							++cur_pos; 
+						}
+						break;
+					case ARROW_UP:
+						// clear whole line and buffer
+						printf("%s", esc_composite_clear_line_reset_left);
+						// to enable real readline-like behavior, the current buffer
+						// is stored at the first position.
+						if (hist_current == &buffer_current) {
+							if (gb_exists) { gb_merge(buffer); }
+							if (buffer_current.line_contents) { free(buffer_current.line_contents); }
+							buffer_current.line_contents = strndup(buffer, line_len);
+							buffer_current.line_length = line_len;
+						}
 
-					hist_line = hist_get_current(&hist_line_len);
-					if (hist_line) {
-						line_len = hist_line_len;
-						cur_pos = line_len;
-						memcpy(buffer, (const void*)hist_line, hist_line_len);
-						buffer[hist_line_len] = '\0';	// just to be sure :P
-					} 
-						
-					printf("%s", buffer);
+						HIST_CURRENT_DECREMENT();
 
-					break;
-
-				case ARROW_DOWN:
-					HIST_CURRENT_INCREMENT();
-					printf("%s", esc_composite_clear_line_reset_left);
-
-					if (hist_current == &buffer_current) {	
-						hist_line = buffer_current.line_contents;
-						line_len = buffer_current.line_length;
-						cur_pos = line_len;
-						memcpy(buffer, (const void*)buffer_current.line_contents, buffer_current.line_length);
-						buffer[buffer_current.line_length] = '\0';	
-					}
-					else {
 						hist_line = hist_get_current(&hist_line_len);
-						line_len = hist_line_len;
-						cur_pos = line_len;
-						memcpy(buffer, (const void*)hist_line, hist_line_len);
-						buffer[hist_line_len] = '\0';	
-					}
+						if (hist_line) {
+							line_len = hist_line_len;
+							cur_pos = line_len;
+							memcpy(buffer, (const void*)hist_line, hist_line_len);
+							buffer[hist_line_len] = '\0';	// just to be sure :P
+						} 
+							
+						printf("%s", buffer);
 
-					printf("%s", buffer);
+						break;
 
-					break;
-				case DELETE:
-					// the delete doesn't use gap buffering.
-					// (would require an infrastructural overhaul)
-					getchar();	// discard the '~' (0x7F) character
-					if (gb_exists) {
-						gb_merge(buffer);
-					} 
-					if (cur_pos < line_len) {	// there can only be mid-line deletes :P
-						const size_t rem_len = line_len - cur_pos;
-						gb_pre = buffer+cur_pos;
-						gb_post = buffer+cur_pos+1;
-						buffer[cur_pos] = '\0';
-						printf("%s%s%s%s", esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
-						memcpy(gb_pre, gb_post, rem_len);
-						DECREMENT_LINE_LEN_NZ();
-					}
-					break;
-				default:
-					break;
-			}
+					case ARROW_DOWN:
+						HIST_CURRENT_INCREMENT();
+						printf("%s", esc_composite_clear_line_reset_left);
+
+						if (hist_current == &buffer_current) {	
+							hist_line = buffer_current.line_contents;
+							line_len = buffer_current.line_length;
+							cur_pos = line_len;
+							memcpy(buffer, (const void*)buffer_current.line_contents, buffer_current.line_length);
+							buffer[buffer_current.line_length] = '\0';	
+						}
+						else {
+							hist_line = hist_get_current(&hist_line_len);
+							line_len = hist_line_len;
+							cur_pos = line_len;
+							memcpy(buffer, (const void*)hist_line, hist_line_len);
+							buffer[hist_line_len] = '\0';	
+						}
+
+						printf("%s", buffer);
+
+						break;
+					case DELETE:
+						// the delete doesn't use gap buffering (would require an infrastructural overhaul)
+						if (cur_pos < line_len) {	// there can only be mid-line deletes :P
+							const size_t rem_len = line_len - cur_pos;
+							gb_pre = buffer+cur_pos;
+							gb_post = buffer+cur_pos+1;
+							buffer[cur_pos] = '\0';
+							printf("%s%s%s%s", esc_cur_save, esc_clear_cur_right, gb_post, esc_cur_restore);
+							memcpy(gb_pre, gb_post, rem_len);
+							DECREMENT_LINE_LEN_NZ();
+						}
+						break;
+					default:
+						break;
+				}
+				}
 		}
 
 		else if (IS_REGULAR_INPUT(c)) { 	/* regular character input */
