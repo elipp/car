@@ -116,6 +116,34 @@ char *strip_surrounding_whitespace(char* arg, size_t arg_len) {
 	return ret;
 }
 
+char *strip_surrounding_whitespace_k(char* arg, size_t arg_len) {	// the k stands for keep original
+
+	if (arg_len == 0) { return NULL; }
+	int beg = 0;
+
+	while (beg < arg_len) {
+		if(arg[beg] != ' ') { break; }
+		++beg;
+	}
+	if (beg == arg_len) { return NULL; }
+
+	int end = arg_len-1;
+	while (end > beg) { 
+		if (arg[end] != ' ') { break; }
+		--end;
+	}
+
+	// if no change was detected
+	if ((beg == 0) && (end == arg_len)) { return arg; }
+
+	const size_t d = (end-beg)+1;
+	char *ret = substring(arg, beg, d);
+
+	return ret;
+}
+
+
+
 char *strip_all_whitespace(char* arg, size_t arg_len) {
 	int i = 0;
 	// count whitespace
@@ -143,7 +171,7 @@ char *strip_all_whitespace(char* arg, size_t arg_len) {
 	return stripped;
 }
 
-char *strip_all_whitespace_keep_original(char* arg, size_t arg_len) {
+char *strip_all_whitespace_k(char* arg, size_t arg_len) {
 	int i = 0;
 	// count whitespace
 	int num_whitespace = 0;
@@ -310,7 +338,7 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 
 	// first, go through builtins
 	
-	const key_constant_pair *match = NULL;
+	key_constant_pair *match = NULL;
 
 	while(i < constants_table_size) {
 		//printf("word: %s, constants[i].key: %s\n", word, constants[i].key);
@@ -320,7 +348,8 @@ _double_t constant_pass_get_result(const char* arg, size_t arg_len) {
 	
 	if (!match) {
 		// no match was found; search udctree
-		match = udctree_match(word);
+		udc_node *m = udctree_search(word);
+		if (m) { match = &m->pair; }
 	}
 
 	if (match == NULL) { 
@@ -361,6 +390,7 @@ word_list *wlist_generate(const char* arg) {
 
 	word_list *ret = malloc(sizeof(word_list));
 	ret->num_words = 0;
+	ret->total_length = 0;
 	char *arg_copy = strdup(arg);
 
 	static const char* delims = " ";
@@ -393,6 +423,7 @@ void wlist_add(word_list *list, char *arg) {
 		newnode->next = NULL;
 	}
 	++list->num_words;
+	list->total_length += newnode->length;
 }
 
 char *wlist_get(word_list *list, int index) {
@@ -422,14 +453,10 @@ void wlist_print(word_list *list) {
 }
 
 char *wlist_recompose(word_list *list, size_t *length) {
-	// find out total combined size
-	size_t sz = 0;
+	const size_t sz = list->total_length + list->num_words; // num_words corresponds to the number of additional whitespace chars needed; also, the trailing \0 is needed
 
 	word_node *iter;
-	for (iter = list->root; iter != NULL; iter = iter->next) {
-		sz += iter->length + 1;	// need to reserve space for the whitespace (' ') character
-	}
-	--sz;	// the last element doesn't need a trailing ' '
+	
 	*length = sz;
 	char *ret = malloc(sz);
 	ret[0] = '\0';
@@ -438,8 +465,8 @@ char *wlist_recompose(word_list *list, size_t *length) {
 		strcat(ret, iter->text);
 		strcat(ret, " ");
 	}
-	strcat(ret, iter->text);
-
+	strcat(ret, iter->text);	// the loop doesn't cover the last one
+	ret[sz] = '\0';
 	return ret;
 }
 

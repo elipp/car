@@ -31,7 +31,6 @@ typedef struct {
 	_double_t (*funcptr)(const char*);
 } key_strfuncptr_pair;
 
-// udc. user-defined constant
 typedef struct _word_node {
 	struct _word_node *next;
 	char* text;
@@ -42,6 +41,7 @@ typedef struct {
 	word_node *head;
 	word_node *root;
 	size_t num_words;
+	size_t total_length;
 } word_list;
 
 typedef struct {

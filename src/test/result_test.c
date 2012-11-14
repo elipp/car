@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 	while (i < tests_size) {
 
 		printf("expr: \"%s\"\n", tests[i].expr);
-		char *current_expr = strip_all_whitespace_keep_original(tests[i].expr, strlen(tests[i].expr));	// causes weird free() error
+		char *current_expr = strip_all_whitespace_k(tests[i].expr, strlen(tests[i].expr));	
 		_double_t real_res = parse_mathematical_input(current_expr);
 		printf(RES_FMT, real_res, tests[i].result);
 		_double_t delta = tests[i].result - real_res;

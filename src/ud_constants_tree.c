@@ -32,17 +32,6 @@ void udctree_add(udc_node *node) {
 }
 
 
-key_constant_pair *udctree_match(const char* term) {
-	if (!term) { return NULL; }
-	udc_node *iter = udctree_get_root();
-	while (iter) {
-		if (strcmp(term, iter->pair.key) == 0) { return &iter->pair; }
-		iter = iter->next;
-	}
-	// no match
-	return NULL;
-}
-
 void udctree_delete() {
 
 	if (udctree_num_nodes > 0) {

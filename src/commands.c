@@ -158,9 +158,9 @@ void my(word_list *wlist) {
 				const size_t varname_end_pos = i-1;
 				const size_t valstring_beg_pos = i+1;
 				char *varname = substring(recomposed, 3, varname_end_pos-2);
-				char *varname_stripped = strip_surrounding_whitespace(varname, strlen(varname));
+				char *varname_stripped = strip_surrounding_whitespace_k(varname, strlen(varname));
 				char *valstring = substring(recomposed, valstring_beg_pos, recomposed_length - valstring_beg_pos);
-				char *valstring_stripped = strip_surrounding_whitespace(valstring, strlen(valstring));
+				char *valstring_stripped = strip_surrounding_whitespace_k(valstring, strlen(valstring));
 
 				// differential diagnosis X-DD
 				if (!valstring_stripped || !varname_stripped) { 
@@ -176,25 +176,27 @@ void my(word_list *wlist) {
 					goto cleanup;
 				}
 				else {
-					udc_node *newnode; 
-					if ((newnode = udctree_search(varname_stripped)) == 0) {
+					// check if already exists in the udctree.
+					udc_node *search_result = udctree_search(varname_stripped);
+					if (!search_result) {
+						udc_node *newnode; 
 						newnode = malloc(sizeof(udc_node)); 
-						newnode->pair.key = varname_stripped;
+						newnode->pair.key = strdup(varname_stripped);
+						newnode->pair.value = parse_mathematical_input(valstring_stripped);
 						udctree_add(newnode);
 					}
-					// kind of backward to do this after udctree_add :D
-					newnode->pair.value = parse_mathematical_input(valstring_stripped);
-					
-					free(recomposed);
-					return;	// to avoid the following goto label
+					else {
+						search_result->pair.value = parse_mathematical_input(valstring_stripped);
+					}
 				}
 
 				cleanup:
+					free(varname);
 					free(varname_stripped);
+					free(valstring);
 					free(valstring_stripped);
-					free(recomposed);
-
 			}
+			free(recomposed);
 		}
 	}
 	else {
