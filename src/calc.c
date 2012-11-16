@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #ifdef NO_GNU_READLINE
-#include "vt100_readline_emul.h"
+#include "rl_emul.h"
 #else
 #include <readline/readline.h>
 #endif
@@ -33,11 +33,11 @@ int main(int argc, char* argv[]) {
 //	struct timeval tv_end;
 
 #ifdef NO_GNU_READLINE
-	e_readline_init();
+	rl_emul_init();
 #endif
 	char *input;
 	#ifdef NO_GNU_READLINE
-	printf("%s & vt100_readline_emul.\n", welcome);
+	printf("%s & bundled rl_emul.\n", welcome);
 	#else
 	printf("%s & the GNU readline library.\n", welcome);
 	#endif
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
 	while (quit_signal == 0) {
 		#ifdef NO_GNU_READLINE
-		input = e_readline("");
+		input = rl_emul_readline("");
 		#else
 		input = readline("");
 		#endif
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
 				} else { printf(fracfmt, result); }
 				
 				#ifdef NO_GNU_READLINE
-				e_hist_add(input_stripped);
+				rl_emul_hist_add(input_stripped);
 				#else 
 				add_history(input_stripped);
 				#endif 
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	#ifdef NO_GNU_READLINE
-	e_readline_deinit();
+	rl_emul_deinit();
 	#endif
 
 	return 0;
