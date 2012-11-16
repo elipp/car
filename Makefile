@@ -14,7 +14,7 @@ OBJDIR=objs
 SRCDIR=src
 objects = $(addprefix $(OBJDIR)/, $(OBJS))
 
-EXECUTABLES=calc result_test tewls/print_raw
+EXECUTABLES=calc result_test 
 
 all: objdir $(EXECUTABLES)
 
@@ -56,12 +56,6 @@ $(OBJDIR)/chem.o: $(SRCDIR)/chem/chem.c
 $(OBJDIR)/atomic_weights.o: $(SRCDIR)/chem/atomic_weights.c
 	$(CC) $(CONFIG) $(CFLAGS) $< -o $@
 
-tewls: $(OBJDIR)/tewls.o
-	$(CC) $< -o tewls/print_raw
-		
-$(OBJDIR)/tewls.o: 
-	$(CC) $(CFLAGS) tewls/print_raw.c -o $@
-	
 
 clean:
 	rm -rf $(EXECUTABLES) $(OBJDIR)/*.o
