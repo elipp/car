@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 		printf(RES_FMT, real_res, tests[i].result);
 		_double_t delta = tests[i].result - real_res;
 		if (fabsl(delta) > threshold) {
-			printf("\033[1;31mFAIL! (result delta exceeded rough threshold value %f!)\033[m\n", threshold);
+			printf("\033[1;31mFAIL! (result delta exceeded rough threshold value %f!)\033[m\n", (double)threshold);
 		} else { ++passed; }
 		++i;
 //		free(current_expr);	// will leak, but hey; its a test program :D
