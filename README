@@ -9,12 +9,13 @@ implemented in the near future.
 Requirements: 
 
  - the GNU readline library (recommended). However, the provided line-editing
-   library (dubbed "vt100_readline_emul") may be used as a replacement *.
+   library (creatively dubbed "rl_emul") may be used as a replacement *.
 
  - A C99-standard compliant C-library/compiler for strtold (only with -DLONG_DOUBLE_PRECISION) 
 	
 	(see Makefile!) 
 
-	* vt100_readline_emul is untested/unstable, and doesn't try to implement 
-	the whole feature-set of the GNU readline library. Instead, it merely offers 
-	similar behaviour and functionality for those who need it.
+	* rl_emul is basically an interpreter of ANSI (X3.64) escape sequences.
+	It is untested/unstable, and doesn't try to implement the whole feature-set 
+	of the GNU readline library. Instead, it merely offers similar behaviour and 
+	functionality for those who need it (and a nice programming drill for the author :P)

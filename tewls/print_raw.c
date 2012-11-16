@@ -2,6 +2,7 @@
 #include <termios.h>
 
 int main(int argc, char* argv[]) {
+
 	struct termios old, new;
 
 	tcgetattr(0, &old);
