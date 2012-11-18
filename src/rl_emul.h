@@ -18,7 +18,7 @@
 void rl_emul_init();
 void rl_emul_deinit();
 
-// these are really the only two features we need
+// these are really the only two *features* we need
 
 char *rl_emul_readline(const char* prompt);
 void rl_emul_hist_add(const char *term);
