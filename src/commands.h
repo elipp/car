@@ -15,6 +15,7 @@ CMD_MAIN help(word_list*);
 CMD_SUB help_functions();
 CMD_SUB help_constants();
 CMD_SUB help_my();
+CMD_SUB help_set();
 
 CMD_MAIN set(word_list*);
 CMD_SUB set_precision();

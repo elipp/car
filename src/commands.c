@@ -103,6 +103,7 @@ GNU readline(-style) line-editing and input history is supported.\n\
 Try \"help functions\" for a list of supported functions,\n\
     \"help constants\" for a list of built-in constants,\n\
     \"help my\" for information on the \"my\" command.\n\
+    \"help set\" for information on the \"set\" command.\n\
 \n");
 	} else {
 		if (wlist->num_words == 2) {
@@ -116,6 +117,9 @@ Try \"help functions\" for a list of supported functions,\n\
 			}
 			else if (strcmp(keyword, "my") == 0) {
 				help_my();
+			}
+			else if (strcmp(keyword, "set") == 0) {
+				help_set();
 			}
 			else { 
 				printf("\nhelp: unknown help index \"%s\".\n", keyword);
@@ -183,6 +187,13 @@ my x = sin((3/4)pi)\n\
 \n");
 }
 
+CMD_SUB help_set() {
+	printf("\n\
+The \"set\" command can be used to control calc's inner workings. Available subcommands are:\n\
+	set precision <integer argument>, controls how many decimals are shown in the final result\n\
+\n");
+}
+
 CMD_MAIN set(word_list *wlist) {
 	if (wlist->num_words < 2) {
 		printf("\nset: error: expected subcommand, none supplied\n");
@@ -204,7 +215,10 @@ CMD_MAIN set(word_list *wlist) {
 
 CMD_SUB set_precision(int precision) {
 	if (precision < 1) { printf("set precision: error: precision requested < 1\n"); return; }
-	if (precision > DEFAULT_PREC) { printf("set precision: warning: incorrect decimals will almost certainly be included (p > %d)\n", DEFAULT_PREC); }
+	if (precision > DEFAULT_PREC) { 
+		printf("set precision: \033[1;31mwarning: incorrect decimals will almost certainly be included (p > %d)\033[m\n", DEFAULT_PREC); 
+		if (precision > 56) { precision = 50; printf("Clamped precision to 50 decimal places.\n"); }
+	}
 	memset(f_precision, 0, PRECSTRING_MAX);	// perhaps a bit superfluous
 
 #ifdef LONG_DOUBLE_PRECISION
