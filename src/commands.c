@@ -1,4 +1,9 @@
 #include "commands.h"
+#include "functions.h"
+
+#define PRECSTRING_MAX 128
+
+char f_precision[PRECSTRING_MAX] = { 0 };	// this isn't exactly the place for this, but...
 
 extern const key_mathfuncptr_pair functions[];
 extern const size_t functions_table_size;
@@ -15,6 +20,7 @@ CMD_MAIN my(word_list *wlist) {
 	// check that the my-invocation was properly formatted
 	
 	if (wlist->num_words > 1) {
+		// blocks like these could be replaced with some function pointer action
 		if (strcmp(wlist_get(wlist, 1), "list") == 0) {
 			my_list();			
 		}
@@ -178,17 +184,34 @@ my x = sin((3/4)pi)\n\
 }
 
 CMD_MAIN set(word_list *wlist) {
-	if (wlist->num_words > 1) {
-		
+	if (wlist->num_words < 2) {
+		printf("\nset: error: expected subcommand, none supplied\n");
+		return;
 	}
 
-	else {
-		printf("\nset: error: expected subcommand, none supplied\n");
+	char *subcommand = wlist_get(wlist, 1);
+	if (strcmp(subcommand, "precision") == 0) {
+		if (wlist->num_words < 3) { 
+			printf("\nset precision: error: argument expected.\n");
+			return;
+		}
+		char* precstring = wlist_get(wlist, 2);
+		_double_t prec_val = to_double_t(precstring);
+		set_precision((int)prec_val);
 	}
+
 }
 
-CMD_SUB set_precision() {
-	
+CMD_SUB set_precision(int precision) {
+	if (precision < 1) { printf("set precision: error: precision requested < 1\n"); return; }
+	if (precision > DEFAULT_PREC) { printf("set precision: warning: incorrect decimals will almost certainly be included (p > %d)\n", DEFAULT_PREC); }
+	memset(f_precision, 0, PRECSTRING_MAX);	// perhaps a bit superfluous
+
+#ifdef LONG_DOUBLE_PRECISION
+	sprintf(f_precision, "= \033[1;29m%%.%dLg\033[m\n", precision);
+#else
+	sprintf(f_precision, "= \033[1;29m%%.%dg\033[m\n", precision);
+#endif
 }
 
 CMD_MAIN quit() {

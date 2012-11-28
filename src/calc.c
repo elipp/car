@@ -11,16 +11,13 @@
 #include "tree.h"
 #include "utils.h"
 
-static char* printf_precision = NULL;
+extern char f_precision[];
 
 #ifdef LONG_DOUBLE_PRECISION
 static const char* intfmt = "= \033[1;29m%1.0Lf\033[m\n";
-//static const char* fracfmt = "= \033[1;29m%1.16Lf\033[m\n";
-static const char* fracfmt = "= \033[1;29m%.16Lg\033[m\n";
 static const char* welcome = "calc. using long double precision";
 #else
 static const char* intfmt = "= \033[1;29m%1.0f\033[m\n";
-static const char* fracfmt = "= \033[1;29m%.14g\033[m\n";
 static const char* welcome = "calc. using double-precision floating point";
 #endif
 static const size_t typesize = sizeof(_double_t) * 8;
@@ -41,6 +38,13 @@ int main(int argc, char* argv[]) {
 	printf("%s & the GNU readline library.\n", welcome);
 	#endif
 	
+	char *def_prec = malloc(64);
+#ifdef LONG_DOUBLE_PRECISION
+	sprintf(f_precision, "= \033[1;29m%%.%dLg\033[m\n", DEFAULT_PREC);
+#else
+	sprintf(f_precision, "= \033[1;29m%%.%dg\033[m\n", DEFAULT_PREC);
+#endif
+
 	udc_node *ans = udc_node_create("ans", 0);
 	udctree_add(ans);
 
@@ -58,14 +62,17 @@ int main(int argc, char* argv[]) {
 			word_list *wlist = wlist_generate(input_stripped, " ");
 			int found = wlist_parse_command(wlist);
 			if (found == 0) {
-				// no matching command was found, parse as mathematical input -> all whitespace can now be filtered, to simplify parsing
+				// no matching command was found, parse as mathematical input 
+				// -> all whitespace can now be filtered, to simplify parsing
+				// This validates invalid expressions such as " 5 + 5 3 51 5 3" though...
+
 				input_stripped = strip_all_whitespace(input, input_length);
 				if (!input_stripped) { goto cont; }	// strip_all_whitespace returns NULL if input is completely whitespace
 				_double_t result = parse_mathematical_input(input_stripped);
 
 				if (floor_ptr(result) == result) {
 					printf(intfmt, result);
-				} else { printf(fracfmt, result); }
+				} else { printf(f_precision, result); }
 				
 				#ifdef NO_GNU_READLINE
 				rl_emul_hist_add(input_stripped);

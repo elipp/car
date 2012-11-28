@@ -11,8 +11,10 @@
 #define PARSE_REQUIRED 0x01
 
 #ifdef LONG_DOUBLE_PRECISION
+#define DEFAULT_PREC 16
 typedef long double _double_t;
 #else
+#define DEFAULT_PREC 10
 typedef double _double_t;
 #endif 
 
