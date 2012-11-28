@@ -23,7 +23,6 @@
 #define IS_DIGIT_OR_BRACE(x) ((IS_NUMBER(x) || (x == '(' || x == ')')))
 
 inline _double_t to_double_t(const char*);
-inline int is_digit(char c);
 
 _double_t func_pass_get_result(const char* arg, size_t arg_len, int *found);
 _double_t constant_pass_get_result(const char* arg, size_t arg_len);
@@ -37,11 +36,10 @@ char *strip_all_whitespace_k(char* arg, size_t length);
 // wrapper for tree_get_result
 _double_t parse_mathematical_input(char* arg);
 
-word_list *wlist_generate(const char* arg);
-void wlist_add(word_list *list, char* arg);
+word_list *wlist_generate(const char* arg, const char* delims);
 char *wlist_get(word_list *list, int index);
 char *wlist_recompose(word_list *list, size_t *lengt);
-void wlist_delete(word_list *list);
+void wlist_delete(word_list **list);
 
 // debug print
 void wlist_print(word_list *list);

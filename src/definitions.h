@@ -22,7 +22,7 @@ typedef struct {
 } key_mathfuncptr_pair;
 
 typedef struct {
-	const char* key;
+	char* key;
 	_double_t value;
 } key_constant_pair;
 

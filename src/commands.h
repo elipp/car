@@ -8,10 +8,20 @@
 #include "utils.h"
 #include "ud_constants_tree.h"
 
-static void help(word_list*);
-static void help_functions();
-static void help_constants();
-static void help_my();
-void my(word_list*);
+#define CMD_MAIN static void
+#define CMD_SUB static void
+
+CMD_MAIN help(word_list*);
+CMD_SUB help_functions();
+CMD_SUB help_constants();
+CMD_SUB help_my();
+
+CMD_MAIN set(word_list*);
+CMD_SUB set_precision();
+
+CMD_MAIN my(word_list*);
+CMD_SUB my_list();
+
+CMD_MAIN quit();
 
 #endif

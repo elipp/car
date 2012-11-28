@@ -11,6 +11,8 @@
 #include "tree.h"
 #include "utils.h"
 
+static char* printf_precision = NULL;
+
 #ifdef LONG_DOUBLE_PRECISION
 static const char* intfmt = "= \033[1;29m%1.0Lf\033[m\n";
 //static const char* fracfmt = "= \033[1;29m%1.16Lf\033[m\n";
@@ -29,9 +31,6 @@ extern int quit_signal;
 
 int main(int argc, char* argv[]) {
 
-//	struct timeval tv_start;
-//	struct timeval tv_end;
-
 #ifdef NO_GNU_READLINE
 	rl_emul_init();
 #endif
@@ -41,7 +40,6 @@ int main(int argc, char* argv[]) {
 	#else
 	printf("%s & the GNU readline library.\n", welcome);
 	#endif
-	
 	
 	udc_node *ans = udc_node_create("ans", 0);
 	udctree_add(ans);
@@ -57,7 +55,7 @@ int main(int argc, char* argv[]) {
 		char *input_stripped = strip_surrounding_whitespace(strdup(input), input_length);
 
 		if (input_stripped) { 
-			word_list *wlist = wlist_generate(input_stripped);
+			word_list *wlist = wlist_generate(input_stripped, " ");
 			int found = wlist_parse_command(wlist);
 			if (found == 0) {
 				// no matching command was found, parse as mathematical input -> all whitespace can now be filtered, to simplify parsing
@@ -78,9 +76,10 @@ int main(int argc, char* argv[]) {
 
 			}
 		cont:
-			wlist_delete(wlist);
+			wlist_delete(&wlist);
 						
 		}
+
 		free(input_stripped);
 	}
 

@@ -1,5 +1,6 @@
 #include "definitions.h"
 #include "functions.h"
+#include <string.h>
 
 #ifdef LONG_DOUBLE_PRECISION
 const key_mathfuncptr_pair functions[] =     { { "cos", cosl }, { "sin", sinl }, { "tan", tanl },
@@ -63,6 +64,7 @@ const key_constant_pair constants[] = { { "pi",  3.14159265358979323846264338327
 
 #endif
 
+
 const size_t functions_table_size = sizeof(functions)/sizeof(functions[0]);
 const size_t constants_table_size = sizeof(constants)/sizeof(constants[0]);
 
@@ -70,4 +72,19 @@ const size_t constants_table_size = sizeof(constants)/sizeof(constants[0]);
 const key_strfuncptr_pair chem_functions[] = { "molarmass", func_molar_mass };
 const size_t chem_functions_table_size = sizeof(chem_functions)/sizeof(chem_functions[0]);
 #endif
+
+int clashes_with_predefined(const char* arg) {
+	int i = 0;
+
+	while (i < constants_table_size) {
+		if (strcmp(constants[i].key, arg) == 0) {
+			printf("my: error: operand varname clashes with predefined \"%s\" (= %f)\n", 
+				constants[i].key, (double)constants[i].value);
+			return 1;
+		}
+		++i;
+	}
+	return 0;
+}
+
 

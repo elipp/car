@@ -12,6 +12,8 @@ extern const key_strfuncptr_pair chem_functions[];
 extern const size_t chem_functions_table_size;
 #endif
 
+static void wlist_add(word_list *list, char* arg);
+
 // use either strtold/strtod instead of atof.
 inline _double_t to_double_t(const char* arg) { 
 	char *end;
@@ -21,10 +23,6 @@ inline _double_t to_double_t(const char* arg) {
 	_double_t res = strtod(arg, &end);
 #endif
 	return res;
-}
-
-inline int is_digit(char c) {
-	return IS_DIGIT(c);
 }
 
 char* substring(const char* string, size_t pos, size_t length) {
@@ -386,30 +384,32 @@ _double_t parse_mathematical_input(char* arg) {
 }
 
 // decompose argument into a list of words (delimited by whitespace, strtok)
-word_list *wlist_generate(const char* arg) {
+word_list *wlist_generate(const char* arg, const char* delims) {
 
 	word_list *ret = malloc(sizeof(word_list));
 	ret->num_words = 0;
 	ret->total_length = 0;
 	char *arg_copy = strdup(arg);
 
-	static const char* delims = " ";
-	
-	char *token = strtok(arg_copy, delims);	
+	// could be stripped of surrounding whitespace as well
+
+	char *token = strtok(arg_copy, delims);
+
 	while (token != NULL) {
-		wlist_add(ret, strdup(token));
+		size_t token_len = strlen(token);
+		wlist_add(ret, strip_surrounding_whitespace(strdup(token), token_len));
 		token = strtok(NULL, delims);
-	}	
+	}
 	
 	free(arg_copy);
-	return ret;
+	return ret;	
 }
 
-void wlist_add(word_list *list, char *arg) {
+static void wlist_add(word_list *list, char *arg) {
 
 	word_node *newnode = malloc(sizeof(word_node));
-	// should a copy be taken? :P
-	newnode->text = arg;
+	
+	newnode->text = arg;	// assuming arg is free()able, i.e. already duplicated from something
 	newnode->length = strlen(arg);
 
 	if (list->num_words == 0) {
@@ -425,6 +425,8 @@ void wlist_add(word_list *list, char *arg) {
 	++list->num_words;
 	list->total_length += newnode->length;
 }
+
+// wlist indexing starts at 0; word #1 -> index 0
 
 char *wlist_get(word_list *list, int index) {
 	const size_t num_words = list->num_words;
@@ -442,10 +444,10 @@ char *wlist_get(word_list *list, int index) {
 
 void wlist_print(word_list *list) {
 	int i = 0;
-
+	printf("dumping word_list contents to stdout:\n");
 	word_node *node = list->root;
 	while (i < list->num_words) {
-		printf("#%d: %s, length %lu\n", i, node->text, node->length);
+		printf("%d: length = %lu \tcontent: \"%s\"\n", i, node->length, node->text);
 		node = node->next;
 		++i;
 	}
@@ -453,8 +455,9 @@ void wlist_print(word_list *list) {
 }
 
 char *wlist_recompose(word_list *list, size_t *length) {
-	const size_t sz = list->total_length + list->num_words; // num_words corresponds to the number of additional whitespace chars needed; also, the trailing \0 is needed
-
+	const size_t sz = list->total_length + list->num_words; // num_words corresponds to the number of 
+								// additional whitespace chars needed; also, 
+								// the trailing \0 is added 
 	word_node *iter;
 	
 	*length = sz;
@@ -470,9 +473,9 @@ char *wlist_recompose(word_list *list, size_t *length) {
 	return ret;
 }
 
-void wlist_delete(word_list *list) {
+void wlist_delete(word_list **list) {
 
-	word_node *iter = list->root;
+	word_node *iter = (*list)->root;
 	word_node *nexttmp = iter->next;
 	while (nexttmp != NULL) {
 		free(iter->text);
@@ -482,7 +485,8 @@ void wlist_delete(word_list *list) {
 	}
 	free(iter->text);
 	free(iter);
-	free(list);
+	free(*list);
+	*list = NULL;
 
 }
 
