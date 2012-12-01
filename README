@@ -1,9 +1,9 @@
 calc:
 
-An interactive command-line calculator with a shell-like user interface. Written in C.
+A command-line calculator with a shell-like user interface. Written in C.
 
 Includes all the features one would expect in a function calculator: input history,
-ans, elementary functions, variable assignment.
+ans, elementary functions, variable assignment etc.
 
 Requirements: 
 
@@ -16,6 +16,6 @@ Requirements:
 
 	* rl_emul is basically an interpreter of ANSI (X3.64) escape sequences.
 	It is untested/unstable, and does NOT implement the whole feature-set 
-	of the (unfortunately GPL'd) GNU readline library. 
+	of the (GPL'd) GNU readline library. 
 
 Copyright : everybody.
