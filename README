@@ -1,7 +1,9 @@
 calc:
 
-An interactive command-line calculator. Written in C.
-Includes all the features one would expect in a function calculator.
+An interactive command-line calculator with a shell-like user interface. Written in C.
+
+Includes all the features one would expect in a function calculator: input history,
+ans, elementary functions, variable assignment.
 
 Requirements: 
 
@@ -16,4 +18,4 @@ Requirements:
 	It is untested/unstable, and does NOT implement the whole feature-set 
 	of the (unfortunately GPL'd) GNU readline library. 
 
-Copyright notice: everybody's a holder.
+Copyright : everybody.
