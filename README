@@ -1,21 +1,19 @@
 calc:
 
 An interactive command-line calculator. Written in C.
-
-Supports parsing of general mathematical expressions with user-defined 
-constants (variables). A chemistry plugin & OpenGL-based plotting will be
-implemented in the near future.
+Includes all the features one would expect in a function calculator.
 
 Requirements: 
 
  - the GNU readline library (recommended). However, the provided line-editing
-   library (creatively dubbed "rl_emul") may be used as a replacement *.
+   library (creatively dubbed "rl_emul") may be used instead *.
 
- - A C99-standard compliant C-library/compiler for strtold (only with -DLONG_DOUBLE_PRECISION) 
+ - C99 (for strtold; only with -DLONG_DOUBLE_PRECISION though) 
 	
 	(see Makefile!) 
 
 	* rl_emul is basically an interpreter of ANSI (X3.64) escape sequences.
-	It is untested/unstable, and doesn't try to implement the whole feature-set 
-	of the GNU readline library. Instead, it merely offers similar behaviour and 
-	functionality for those who need it (and a nice programming drill for the author :P)
+	It is untested/unstable, and does NOT implement the whole feature-set 
+	of the (unfortunately GPL'd) GNU readline library. 
+
+Copyright notice: everybody's a holder.

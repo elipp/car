@@ -403,6 +403,7 @@ char *rl_emul_readline(const char* prompt) {
 			cur_pos = 0;
 		}
 		else if (c == CTRL_E) {
+			if (gb_exists) { gb_merge(buffer); }
 			printf("%s", esc_cur_reset_left);
 			printf("\033[%luC", line_len);
 			cur_pos = line_len;
