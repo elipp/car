@@ -8,6 +8,7 @@ static size_t maximum_packet_size = sizeof(packet_data);
 static int sockfd, new_fd;
 struct sockaddr_in si_local, si_other; 
 static struct client local_client;
+static _timer timer;
 
 extern std::stringstream sstream;
 
@@ -44,10 +45,10 @@ int client_createUDPSocket(std::string ipstring, unsigned int port) {
 	}
 	std::cerr << "client: bind: port " << local_port << ".\n";
 	
-	if (fcntl(sockfd, F_SETFL, O_NONBLOCK, 1) == -1) {
-		printf( "client: failed to set non-blocking socket\n" );
-		return -1;
-	}
+//	if (fcntl(sockfd, F_SETFL, O_NONBLOCK, 1) == -1) {
+//		printf( "client: failed to set non-blocking socket\n" );
+//		return -1;
+//	}
 
 	// consider non-blocking for client sockets as well
 	return 1;
@@ -89,8 +90,6 @@ int client_handshake(std::string ipstring) {
 	std::string port_str = int_to_string(local_client.port);
 	local_client.ip_string = std::string(ipstring);
 
-	std::cerr << "local_client.port = " << ntohs(si_local.sin_port) << "\n";
-	
 	std::string handshake = std::string("HANDSHAKE:") + local_client.ip_string + ":" + local_client.name + ":" + port_str;
 	std::cerr << "Sending handshake \"" + handshake + "\" to remote.\n";
 	client_send_packet((unsigned char*)handshake.c_str(), handshake.length(), (struct sockaddr*)&si_other);
@@ -118,13 +117,14 @@ int client_handshake(std::string ipstring) {
 		if (FD_ISSET(sockfd, &readfds))
 		{
 			received_bytes = client_get_data_from_remote();
+			packet_data[received_bytes] = '\0';
 			
 			std::string response ((const char*)packet_data);
 			std::cerr << "received " << received_bytes << " bytes: \"" << response << "\".\n";
 
 			if (response.find("HANDSHAKE:OK:") == std::string::npos) {
 				std::cerr << "Invalid response from server.\n";
-				return 0;
+				return -1;
 			}
 
 			local_client.id_string = response.substr(response.length()-1, 1);
@@ -135,7 +135,7 @@ int client_handshake(std::string ipstring) {
 		}
 		else {
 			std::cerr << "Handshake timed out.\n";
-			return 0;
+			return -1;
 		}
 	}
 
@@ -143,7 +143,7 @@ int client_handshake(std::string ipstring) {
 
 int client_get_data_from_remote() {
 
-	memset(packet_data, 0, maximum_packet_size);
+//	memset(packet_data, 0, maximum_packet_size);	***
 
 	static struct sockaddr_in from;
 	static socklen_t from_length = sizeof(from);
@@ -154,7 +154,7 @@ int client_get_data_from_remote() {
 
 	packet_data[maximum_packet_size-1] = '\0';
 
-	if (received_bytes > 0) { client_process_data_from_remote(); }
+	if (received_bytes > 0) { int r = client_process_data_from_remote(); if (r < 0) { return -1; }}
 
 	return received_bytes;
 }

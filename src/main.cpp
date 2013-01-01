@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <signal.h>
 
+
 #include "OGLFT.h"
 #include "common.h"
 
@@ -24,12 +25,11 @@ std::stringstream sstream;
 
 static unsigned int port = 31111;
 
+static _timer timer;
+
 int do_server_flag = 0, do_client_flag = 0;
 
 static struct client local_client;
-
-static long beg;
-static long end;
 
 static void signal_handler(int signum);
 static int clean_up_and_quit();
@@ -89,8 +89,6 @@ mat4 rotateY(float angle) {	// in radian
 }
 
 static const float dt = 0.1;
-
-static car local_car;
 
 std::streampos fileSize( const char* filePath ){
 
@@ -325,10 +323,10 @@ void drawcars(float* camM) {
 		glRotatef(-wheel_angle, 0.0, 0.0, 1.0);
 		glCallList(rengas_list);
 
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 3.0, c.position.z);
-		face->draw(0, 0, (*iter).second.name.c_str());
+		//glLoadIdentity();
+		//glMultMatrixf(camM);
+		//glTranslatef(c.position.x, 3.0, c.position.z);
+		//face->draw(0, 0, (*iter).second.name.c_str());
 
 		++iter;
 	}
@@ -339,85 +337,84 @@ void process_input() {
 
 	Uint8* keystate = SDL_GetKeyState(NULL);
 
+	struct car& lcar = local_client.lcar;
+
 	static float local_car_acceleration = 0.0;
-	static float local_car_prev_velocity = local_car.velocity;
+	static float local_car_prev_velocity;
+	local_car_prev_velocity = lcar.velocity;
 
 	if (keystate[SDLK_UP]) {
-		local_car.velocity += 0.015;
+		lcar.velocity += 0.015;
 	}
 	else {
-		local_car.velocity *= 0.95;
-		local_car.susp_angle_roll *= 0.90;
-		local_car.tmpx *= 0.50;
+		lcar.velocity *= 0.95;
+		lcar.susp_angle_roll *= 0.90;
+		lcar.tmpx *= 0.50;
 	}
 
 	if (keystate[SDLK_DOWN]) {
-		if (local_car.velocity > 0.01) {
+		if (lcar.velocity > 0.01) {
 			// simulate handbraking slides :D
-			local_car.direction -= 3*local_car.F_centripetal*local_car.velocity*0.20;
-			local_car.velocity *= 0.99;				
+			lcar.direction -= 3*lcar.F_centripetal*lcar.velocity*0.20;
+			lcar.velocity *= 0.99;				
 		}
-		local_car.velocity -= 0.010;
+		lcar.velocity -= 0.010;
 	}
 	else {
-		local_car.velocity *= 0.96;
-		local_car.susp_angle_roll *= 0.90;
-		local_car.tmpx *= 0.80;
+		lcar.velocity *= 0.96;
+		lcar.susp_angle_roll *= 0.90;
+		lcar.tmpx *= 0.80;
 	}
 
 	if (keystate[SDLK_LEFT]) {
-		if (local_car.tmpx < 0.15) {
-			local_car.tmpx += 0.05;
+		if (lcar.tmpx < 0.15) {
+			lcar.tmpx += 0.05;
 		}
-		local_car.F_centripetal = -0.5;
-		local_car.fw_angle = f_wheel_angle(local_car.tmpx);
-		local_car.susp_angle_roll = -local_car.fw_angle*fabs(local_car.velocity)*0.50;
-		if (local_car.velocity < 0) {
-			local_car.direction += 0.051*local_car.fw_angle*local_car.velocity*0.20;
+		lcar.F_centripetal = -0.5;
+		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
+		lcar.susp_angle_roll = -lcar.fw_angle*fabs(lcar.velocity)*0.50;
+		if (lcar.velocity < 0) {
+			lcar.direction += 0.051*lcar.fw_angle*lcar.velocity*0.20;
 		}
 		else {
-			local_car.direction += 0.031*local_car.fw_angle*local_car.velocity*0.20;
+			lcar.direction += 0.031*lcar.fw_angle*lcar.velocity*0.20;
 		}
 	
 	}
 	if (keystate[SDLK_RIGHT]) {
-		if (local_car.tmpx > -0.15) {
-			local_car.tmpx -= 0.05;
+		if (lcar.tmpx > -0.15) {
+			lcar.tmpx -= 0.05;
 		}
-		local_car.F_centripetal = 0.5;
-		local_car.fw_angle = f_wheel_angle(local_car.tmpx);
-		local_car.susp_angle_roll = -local_car.fw_angle*fabs(local_car.velocity)*0.50;
+		lcar.F_centripetal = 0.5;
+		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
+		lcar.susp_angle_roll = -lcar.fw_angle*fabs(lcar.velocity)*0.50;
 
-		if (local_car.velocity < 0) {
-			local_car.direction += 0.046*local_car.fw_angle*local_car.velocity*0.20;
+		if (lcar.velocity < 0) {
+			lcar.direction += 0.046*lcar.fw_angle*lcar.velocity*0.20;
 		}
 		else {
-			local_car.direction += 0.031*local_car.fw_angle*local_car.velocity*0.20;
+			lcar.direction += 0.031*lcar.fw_angle*lcar.velocity*0.20;
 		}
 
 	}
-	local_car_prev_velocity = 0.5*(local_car.velocity+local_car_prev_velocity);
-	local_car_acceleration = 0.2*(local_car.velocity - local_car_prev_velocity) + 0.8*local_car_acceleration;
+	local_car_prev_velocity = 0.5*(lcar.velocity+local_car_prev_velocity);
+	local_car_acceleration = 0.2*(lcar.velocity - local_car_prev_velocity) + 0.8*local_car_acceleration;
 
 	if (!keystate[SDLK_LEFT] && !keystate[SDLK_RIGHT]){
-		local_car.tmpx *= 0.30;
-		local_car.fw_angle = f_wheel_angle(local_car.tmpx);
-		local_car.susp_angle_roll *= 0.50;
-		local_car.F_centripetal = 0;
-		local_car.susp_angle_fwd *= 0.50;
+		lcar.tmpx *= 0.30;
+		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
+		lcar.susp_angle_roll *= 0.50;
+		lcar.F_centripetal = 0;
+		lcar.susp_angle_fwd *= 0.50;
 	}
-	local_car.susp_angle_fwd = -80*local_car_acceleration;
+	lcar.susp_angle_fwd = -80*local_car_acceleration;
+	lcar.position.x += lcar.velocity*sin(lcar.direction-M_PI/2);
+	lcar.position.z += lcar.velocity*cos(lcar.direction-M_PI/2);
 
 	if (keystate[SDLK_ESCAPE]) {
 		signal_handler(SIGINT);
 	}
 
-}
-
-void update_local_car_position() {
-	local_car.position.x += local_car.velocity*sin(local_car.direction-M_PI/2);
-	local_car.position.z += local_car.velocity*cos(local_car.direction-M_PI/2);
-	
 }
 
 void draw() {
@@ -589,17 +586,23 @@ void send_key_state() {
 		st |= KEY_RIGHT;
 	}
 
+	if (keystate[SDLK_ESCAPE]) {
+		signal_handler(SIGINT);
+	}
+
 	client_send_input_state_to_server(st);
 }
 
 static void signal_handler(int signum) {
-	std::cerr << "signal_handler called.\n";
 	if (do_client_flag) {
 		client_post_quit_message();
 		exit(clean_up_and_quit());
 	}
 	else if (do_server_flag) { 
 		server_post_quit_message();
+		exit(clean_up_and_quit());
+	}
+	else {
 		exit(clean_up_and_quit());
 	}
 }
@@ -716,46 +719,55 @@ int main(int argc, char* argv[]) {
 	if (do_client_flag) {
 		if (init_SDL() < 0) { exit(1); };
 		while(true) {
-//			beg = SDL_GetTicks();
+			timer.begin();
 			process_events();
-			process_input();
+			//process_input();
 			send_key_state();
-			int k;
-			client_get_data_from_remote();	// is also processed in this call
-			end = SDL_GetTicks();
-			long dt = end-beg;
-			while (dt < 16) {
-				end = SDL_GetTicks();
-				dt = end-beg;
-			}
+			if (client_get_data_from_remote() < 0) { signal_handler(SIGINT); }// is also processed in this call
 			draw();
 			SDL_GL_SwapBuffers();
+			time_t us = timer.get_us();
 
+			while (us < 16666) {
+				us = timer.get_us();
+			}
+			//std::cerr << 1000000/us << "\n";
+
+
+		}
+	}
+	else if (do_server_flag) {
+		while(true) {
+//			process_events();
+//			process_input();
+			
+			server_receive_packets();	// packets are also processed in this call
 
 		}
 	}
 	else {
-		while(true) {
+		/* local "play" */
+		if (init_SDL() < 0) { exit(1); };
+
+		id_client_map &peers = client_get_peers();
+		peers[1] = local_client;
+		id_client_map::iterator it = peers.find(1);
+
+		while(1) {
+			timer.begin();
+			it->second = local_client;
 			process_events();
 			process_input();
-			server_receive_packets();	// packets are also processed in this call
-			int k;
 
-		//	while ((k = client_get_data_from_remote()) > 0) {
-		//		client_process_data_from_remote();
-		//	}
-//			client_update_position_data();
-			//draw();
-			//SDL_GL_SwapBuffers();
+			time_t us = timer.get_us();
+
+			draw();
+			SDL_GL_SwapBuffers();
+			while (us < 16666) {
+				us = timer.get_us();
+			}
 		}
 	}
-	// local 
-	while(1) {
-		process_events();
-		process_input();
-
-		draw();
-		SDL_GL_SwapBuffers();
-	}
+	return 0;
 
 }

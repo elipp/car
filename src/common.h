@@ -10,6 +10,8 @@
 #include <ctime>
 #include <map>
 
+#include <sys/time.h>
+
 #include "lin_alg.h"
 
 #define KEY_UP (0x1 << 0)
@@ -41,6 +43,31 @@ struct car_serialized {
 	float velocity;
 };
 
+class _timer {
+
+	struct timespec beg;
+	struct timespec end;
+
+public:
+	
+	void begin() {
+		clock_gettime(CLOCK_REALTIME, &beg);
+	}
+	time_t get_ns() {
+		clock_gettime(CLOCK_REALTIME, &end);
+		return (end.tv_sec*1000000000 + end.tv_nsec) - (beg.tv_sec*1000000000 + beg.tv_nsec);
+	}
+	time_t get_us() {
+		clock_gettime(CLOCK_REALTIME, &end);
+		return ((end.tv_sec*1000000000 + end.tv_nsec) - (beg.tv_sec*1000000000 + beg.tv_nsec))/1000;
+	}
+	time_t get_ms() {
+		clock_gettime(CLOCK_REALTIME, &end);
+		return ((end.tv_sec*1000000000 + end.tv_nsec) - (beg.tv_sec*1000000000 + beg.tv_nsec))/1000000;
+	}
+	_timer() { memset(&beg, 0, sizeof(struct timespec)); memset(&end, 0, sizeof(struct timespec)); }
+
+};
 
 class car {
 public:

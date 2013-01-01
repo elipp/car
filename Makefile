@@ -3,14 +3,13 @@ CC=g++ -g
 #g++ main.cpp -Wall net/server.cpp net/client.cpp -lGL -lGLU -lSDL -lm -DOGLFT_NO_SOLID -DOGLFT_NO_QT -I/usr/include/freetype2 OGLFT.o -lfreetype -o joo
 
 CFLAGS=-c -Wall
-LIBS=-lGL -lGLU -lSDL -lm -lfreetype
+LIBS=-lGL -lGLU -lSDL -lm -lfreetype -lrt
 SOURCES=src/main.cpp src/net/server.cpp src/net/client.cpp
 INCLUDE=-I/usr/include/freetype2
 OBJS=server.o client.o
 OBJDIR=objs
 DEFINES=-DOGLFT_NO_SOLID -DOGLFT_NO_QT
 objects = $(addprefix $(OBJDIR)/, $(OBJS))
-# on intel, the OpenCL headers lie in a weird place..
 EXECUTABLE=joo
 
 all: joo 

@@ -7,6 +7,7 @@ static int sockfd, new_fd;
 static struct sockaddr_in my_addr;
 
 static id_client_map clients;
+static _timer timer;
 
 extern std::stringstream sstream;
 
@@ -86,11 +87,11 @@ int server_receive_packets() {
 
 	// the UDP socket is now int non-blocking mode, i.e. recvfrom returns 0 if no packets are to be read
 	
-	memset(packet_data, 0, maximum_packet_size);
+//	memset(packet_data, 0, maximum_packet_size);	***
 	
 	int received_bytes = recvfrom(sockfd, (char*)packet_data,
 	maximum_packet_size, 0, (struct sockaddr*)&from, &from_length);
-	packet_data[maximum_packet_size-1] = '\0';
+	packet_data[received_bytes] = '\0';
 
 	if (received_bytes <= 0) { return 1; }
 	// else:
@@ -133,12 +134,13 @@ int server_receive_packets() {
 			}
 		}	
 
-		memset(packet_data, 0, maximum_packet_size);
+		//memset(packet_data, 0, maximum_packet_size); ***
 		memset(&from, 0, from_length);
 
 		received_bytes = recvfrom(sockfd, (char*)packet_data,
 		maximum_packet_size, 0, (struct sockaddr*)&from, &from_length);
 		
+		packet_data[received_bytes] = '\0';
 
 	} while (received_bytes > 0);
 
@@ -146,11 +148,13 @@ int server_receive_packets() {
 }
 
 int server_send_packet(unsigned char *data, size_t len, struct client &c) {
-	memset(packet_data, 0, maximum_packet_size);
+//	memset(packet_data, 0, maximum_packet_size);	***
 	memcpy(packet_data, data, len);
 	packet_data[len] = '\0';
 	int sent_bytes = sendto(sockfd, (const char*)packet_data, len,
 	0, (struct sockaddr*)&c.address, sizeof(struct sockaddr));
+
+//	std::cerr << "sending \"" << (const char*)packet_data << "\"\n";
 	
 	return sent_bytes;
 
@@ -283,8 +287,11 @@ int server_start(unsigned int port) {
 }
 
 int server_post_position_update(client *c) {
+	//time_t ms = timer.get_ms();
+	//std::cerr << "time since last pupd: " << ms << " ms.\n";
+	//timer.begin();
 	unsigned char posupd_packet_buffer[maximum_packet_size];
-	memset(posupd_packet_buffer, 0, maximum_packet_size);
+	//memset(posupd_packet_buffer, 0, maximum_packet_size); ***
 	std::string posupd_str = "SERVER:PUPD:" + c->id_string + ';';
 	size_t sep_index = posupd_str.find(';') + 1;
 
