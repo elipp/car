@@ -374,7 +374,7 @@ void process_input() {
 		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
 		lcar.susp_angle_roll = -lcar.fw_angle*fabs(lcar.velocity)*0.50;
 		if (lcar.velocity < 0) {
-			lcar.direction += 0.051*lcar.fw_angle*lcar.velocity*0.20;
+			lcar.direction += 0.046*lcar.fw_angle*lcar.velocity*0.20;
 		}
 		else {
 			lcar.direction += 0.031*lcar.fw_angle*lcar.velocity*0.20;

@@ -209,7 +209,7 @@ int server_update_client_status(client *c) {
 		c_car.fw_angle = f_wheel_angle(c_car.tmpx);
 		c_car.susp_angle_roll = -c_car.fw_angle*fabs(c_car.velocity)*0.50;
 		if (c_car.velocity < 0) {
-			c_car.direction += 0.051*c_car.fw_angle*c_car.velocity*0.20;
+			c_car.direction += 0.046*c_car.fw_angle*c_car.velocity*0.20;
 		}
 		else {
 			c_car.direction += 0.031*c_car.fw_angle*c_car.velocity*0.20;
