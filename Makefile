@@ -16,13 +16,13 @@ objdir:
 	if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
 
 joo: objdir $(objects)
-	$(CC) $(LIBS) $(objects) src/main.cpp $(INCLUDE) -o $(EXECUTABLE)
+	$(CC) $(objects) src/main.cpp -o $(EXECUTABLE) $(LIBS) 
 
 $(OBJDIR)/client.o: src/net/client.cpp
-	$(CC) $(CFLAGS) $(LIBS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@ $(LIBS) 
 
 $(OBJDIR)/server.o: src/net/server.cpp
-	$(CC) $(CFLAGS) $(LIBS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@ $(LIBS) 
 
 clean:
 	rm -rf $(EXECUTABLE) $(OBJDIR)/*.o
