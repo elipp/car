@@ -27,7 +27,7 @@ struct client {
 };
 
 int client_send_packet(unsigned char* input_data, size_t packet_size);
-int client_start(std::string ipstring, unsigned int port);
+int client_start(std::string remote_ipstring, unsigned int remote_port);
 int client_post_quit_message();
 int client_send_input_state_to_server(unsigned char st);
 int client_get_position_data();

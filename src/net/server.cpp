@@ -36,34 +36,27 @@ int server_createUDPSocket(unsigned int port) {
 
 struct sockaddr_in get_local_address() { return my_addr; }
 
-int server_add_client(std::string handshake) {
+int server_add_client(std::string handshake, struct sockaddr_in *si_from) {
 
 	static int num_clients = 0;
 	struct client newclient;
 	std::vector<std::string> tokens = tokenize(handshake, ':');
 
-	// format: "HANDSHAKE:<IPSTRING>:<NAME>:<PORT>"
-	if (tokens.size() < 4) { std::cerr << "server_add_client: handshake tokenizing failed.\n"; return -1; }
+	// format: "HANDSHAKE:<NAME>:<PORT>"
+	if (tokens.size() < 3) { std::cerr << "server_add_client: handshake tokenizing failed.\n"; return -1; }
 
-	struct sockaddr_in si_other;
-	memset(&si_other, 0, sizeof(si_other));
+	newclient.port = string_to_int(tokens[2]);
 
-	newclient.port = string_to_int(tokens[3]);
+	const char* ip_str = inet_ntoa(si_from->sin_addr);
 
-	si_other.sin_family = AF_INET;
-	si_other.sin_port = htons((unsigned short) newclient.port);
+	newclient.ip_string = std::string(ip_str);
 
-	newclient.ip_string = tokens[1];
-	if (inet_aton(newclient.ip_string.c_str(), &si_other.sin_addr)==0) {
-		std::cerr << "server_add_client: inet_aton failed. Invalid remote ip?\n";
-		return NULL;
-	}
 	num_clients++;
 
-	newclient.name = tokens[2];
+	newclient.name = tokens[1];
 	newclient.id = num_clients;
 	newclient.id_string = int_to_string(newclient.id);
-	newclient.address = si_other;
+	newclient.address = *si_from;
 	clients.insert(id_client_pair(newclient.id, newclient));
 //	clients[newclient.id] = newclient;	
 	
@@ -104,10 +97,10 @@ int server_receive_packets() {
 
 		if (packet_str.find("HANDSHAKE:") != std::string::npos) {
 			std::cerr << "Client attempting to handshake. Message: \"" << packet_str << "\"\n";		
-			int newclient_id = server_add_client(packet_str);
+			int newclient_id = server_add_client(packet_str, &from);
 			std::string accept = "HANDSHAKE:OK:" + int_to_string(newclient_id);
 			struct client *newclient = get_client_by_id(newclient_id);
-			server_send_packet((unsigned char*)accept.c_str(), accept.length(), *newclient);
+			server_send_packet((unsigned char*)accept.c_str(), accept.length(), newclient);
 			server_post_peer_list();
 		}
 		else if (packet_str.find("QUIT:") != std::string::npos) {
@@ -147,12 +140,12 @@ int server_receive_packets() {
 	return 0;
 }
 
-int server_send_packet(unsigned char *data, size_t len, struct client &c) {
+int server_send_packet(unsigned char *data, size_t len, struct client *c) {
 //	memset(packet_data, 0, maximum_packet_size);	***
 	memcpy(packet_data, data, len);
 	packet_data[len] = '\0';
 	int sent_bytes = sendto(sockfd, (const char*)packet_data, len,
-	0, (struct sockaddr*)&c.address, sizeof(struct sockaddr));
+	0, (struct sockaddr*)&c->address, sizeof(struct sockaddr));
 
 //	std::cerr << "sending \"" << (const char*)packet_data << "\"\n";
 	
@@ -166,7 +159,7 @@ int server_post_quit_message() {
 	id_client_map::iterator iter = clients.begin();
 	std::string quit_msg = "SERVER:QUIT";
 	while (iter != clients.end()) {
-		server_send_packet((unsigned char*)quit_msg.c_str(), quit_msg.length(), (*iter).second);
+		server_send_packet((unsigned char*)quit_msg.c_str(), quit_msg.length(), &(*iter).second);
 		++iter;
 	}
 	return 1;
@@ -269,7 +262,7 @@ int server_post_peer_list() {
 	iter = clients.begin();
 	while (iter != clients.end()) {
 		std::cerr << "server_post_peer_list: peer_list_str = \"" << peer_list_str << "\"\n";
-		server_send_packet((unsigned char*)peer_list_str.c_str(), peer_list_str.length(), (*iter).second);
+		server_send_packet((unsigned char*)peer_list_str.c_str(), peer_list_str.length(), &(*iter).second);
 		++iter;
 	}
 	return 1;
@@ -306,7 +299,7 @@ int server_post_position_update(client *c) {
 
 	id_client_map::iterator iter = clients.begin();
 	while (iter != clients.end()) {
-		server_send_packet((unsigned char*)posupd_packet_buffer, total_packet_size, (*iter).second);
+		server_send_packet((unsigned char*)posupd_packet_buffer, total_packet_size, &(*iter).second);
 		++iter;
 	}
 }

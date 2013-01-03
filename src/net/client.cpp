@@ -82,15 +82,15 @@ std::string get_local_hostname() {
 	return loginname+std::string("@")+std::string(hostname);		
 }
 
-int client_handshake(std::string ipstring) {
+int client_handshake() {	
 
 	local_client.name = get_local_hostname();
 	local_client.address = si_local;
 	local_client.port = ntohs(si_local.sin_port);
 	std::string port_str = int_to_string(local_client.port);
-	local_client.ip_string = std::string(ipstring);
+	local_client.ip_string = "127.0.0.1";
 
-	std::string handshake = std::string("HANDSHAKE:") + local_client.ip_string + ":" + local_client.name + ":" + port_str;
+	std::string handshake = std::string("HANDSHAKE:") + local_client.name + ":" + port_str;	// the ip address should actually be gathered server-side from the very packet that's being sent
 	std::cerr << "Sending handshake \"" + handshake + "\" to remote.\n";
 	client_send_packet((unsigned char*)handshake.c_str(), handshake.length(), (struct sockaddr*)&si_other);
 
@@ -222,10 +222,10 @@ struct client client_get_local_client() {
 	return local_client;
 }
 
-int client_start(std::string ipstring, unsigned int port) {
+int client_start(std::string remote_ipstring, unsigned int remote_port) {
 
-	client_createUDPSocket(ipstring, port);
-	int success = client_handshake(ipstring);
+	client_createUDPSocket(remote_ipstring, remote_port);
+	int success = client_handshake();
 	if (!success) {
 		return -1;
 	}

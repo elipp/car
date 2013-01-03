@@ -33,7 +33,7 @@ int server_createUDPSocket(unsigned int port);
 int server_receive_packets();
 
 int server_start(unsigned int port);
-int server_send_packet(unsigned char *data, size_t len, client& c);
+int server_send_packet(unsigned char *data, size_t len, struct client* c);
 int server_remove_client(int id);
 struct client *get_client_by_id(int id);
 int server_post_quit_message();
