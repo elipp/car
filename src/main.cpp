@@ -6,8 +6,6 @@
 #include <getopt.h>
 #include <signal.h>
 
-
-#include "OGLFT.h"
 #include "common.h"
 
 #include "net/server.h"
@@ -15,8 +13,6 @@
 
 #define WIN_W 800
 #define WIN_H 600
-
-static OGLFT::Monochrome* face = NULL;
 
 float rotx = 0.0;
 float rotz = 0.0;
@@ -136,16 +132,6 @@ int initGL() {
 	gluPerspective(70, (float)WIN_H/(float)WIN_W, 3, 500);
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity();
-
-	face = new OGLFT::Monochrome("/usr/share/fonts/TTF/arial.ttf", 12);
-	if ( face == NULL || !face->isValid() ) {
-		std::cerr << "fontti vituix";
-		return -1;
-	}
-
-	face->setForegroundColor(1.0, 1.0, 1.0);
-
-	glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
 
 	return 1;
 }

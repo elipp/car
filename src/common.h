@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <vector>
 #include <map>
 
 #include <sys/time.h>
@@ -22,6 +23,8 @@
 typedef std::map<const int, struct client> id_client_map;
 typedef std::pair<const int, struct client> id_client_pair;
 typedef std::pair<id_client_map::iterator, bool> id_client_it;
+
+std::vector<std::string> tokenize(const std::string& str, char delim, unsigned tmax);
 
 struct ip_port_struct { 
 	const char* address;
