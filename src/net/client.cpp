@@ -45,10 +45,10 @@ int client_createUDPSocket(std::string ipstring, unsigned short int remote_port)
 	}
 	std::cerr << "client: bind: port " << local_port << ".\n";
 	
-//	if (fcntl(sockfd, F_SETFL, O_NONBLOCK, 1) == -1) {
-//		printf( "client: failed to set non-blocking socket\n" );
-//		return -1;
-//	}
+	if (fcntl(sockfd, F_SETFL, O_NONBLOCK, 1) == -1) {
+		printf( "client: failed to set non-blocking socket\n" );
+		return -1;
+	}
 
 	// consider non-blocking for client sockets as well
 	return 1;
@@ -160,7 +160,7 @@ int client_get_data_from_remote() {
 
 	packet_data[maximum_packet_size-1] = '\0';
 
-	if (received_bytes > 0) { int r = client_process_data_from_remote(); if (r < 0) { return -1; }}
+	if (received_bytes > 0) {int r = client_process_data_from_remote(); if (r < 0) { std::cerr << "r = -1\n"; return -1;}}
 
 	return received_bytes;
 }

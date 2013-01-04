@@ -709,7 +709,10 @@ int main(int argc, char* argv[]) {
 			process_events();
 			//process_input();
 			send_key_state();
-			if (client_get_data_from_remote() < 0) { signal_handler(SIGINT); }// is also processed in this call
+			if (client_get_data_from_remote() < 0) { 
+				std::cerr << "client_get_data_from_remote() < 0!\n";
+				signal_handler(SIGINT); 
+			}// is also processed in this call
 			draw();
 			SDL_GL_SwapBuffers();
 			time_t us = timer.get_us();
@@ -754,6 +757,9 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
+
+	std::cerr << "exiting\n";
+
 	return 0;
 
 }
