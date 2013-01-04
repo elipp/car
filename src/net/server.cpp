@@ -122,7 +122,7 @@ int server_receive_packets() {
 	static _timer timer2;
 	time_t t = timer2.get_ns();
 	if (t > 1000000000) {
-		std::cerr << "packets sent per second: " << num_packets_received << ".\n";
+		std::cerr << "packets received per second: " << num_packets_received << ".\n";
 		timer2.begin();
 		num_packets_received = 0;
 	}
