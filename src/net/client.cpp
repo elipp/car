@@ -162,7 +162,7 @@ int client_get_data_from_remote() {
 
 	if (received_bytes > 0) {int r = client_process_data_from_remote(); if (r < 0) { std::cerr << "r = -1\n"; return -1;}}
 
-	return received_bytes;
+	return 1;
 }
 
 int client_construct_peer_list(std::string peer_str) {
