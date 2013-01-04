@@ -13,15 +13,15 @@
 #include <fcntl.h>
 
 #include "../common.h"
+#include "protocol.h"
 
 
 struct client {
 	struct sockaddr_in address;
 	std::string ip_string;
 	std::string name;
-	int id;
-	std::string id_string;
-	unsigned int port;
+	unsigned short int id;
+	unsigned short port;
 	struct car lcar;
 	unsigned char keystate;
 };

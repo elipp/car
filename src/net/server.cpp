@@ -1,6 +1,7 @@
 #include "server.h"
 
 static unsigned char packet_data[256];
+static unsigned char interm_buf[256];
 static size_t maximum_packet_size = sizeof(packet_data);
 
 static int sockfd, new_fd;
@@ -11,7 +12,7 @@ static _timer timer;
 
 extern std::stringstream sstream;
 
-int server_createUDPSocket(unsigned int port) {
+int server_createUDPSocket(unsigned short int port) {
 	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sockfd <= 0) {
 		std::cerr << "multip: Failed to create socket.\n";
@@ -36,26 +37,30 @@ int server_createUDPSocket(unsigned int port) {
 
 struct sockaddr_in get_local_address() { return my_addr; }
 
-int server_add_client(std::string handshake, struct sockaddr_in *si_from) {
+int server_add_client(struct sockaddr_in *si_from) {
 
 	static int num_clients = 0;
 	struct client newclient;
-	std::vector<std::string> tokens = tokenize(handshake, ':');
 
-	// format: "HANDSHAKE:<NAME>:<PORT>"
-	if (tokens.size() < 3) { std::cerr << "server_add_client: handshake tokenizing failed.\n"; return -1; }
+	// we are expecting (and assuming) C_HANDSHAKE (protocol.h) as first byte, and port as the next two bytes
+	
+	newclient.port = 0;
+	newclient.port |= packet_data[2];
+	newclient.port |= ((unsigned short)(packet_data[1]) << 8) & 0xFF00;
+	// handshake[3] represents the length of the following name string
+	std::cerr << "server_add_client: extracted port " << newclient.port << " from handshake.\n";
 
-	newclient.port = string_to_int(tokens[2]);
+	size_t name_len = packet_data[3];
+	memcpy(interm_buf, &packet_data[4], name_len);
+	interm_buf[name_len] = '\0';
+	newclient.name = std::string((const char*)interm_buf);
 
 	const char* ip_str = inet_ntoa(si_from->sin_addr);
-
 	newclient.ip_string = std::string(ip_str);
 
 	num_clients++;
 
-	newclient.name = tokens[1];
 	newclient.id = num_clients;
-	newclient.id_string = int_to_string(newclient.id);
 	newclient.address = *si_from;
 	clients.insert(id_client_pair(newclient.id, newclient));
 //	clients[newclient.id] = newclient;	
@@ -73,6 +78,45 @@ struct client *get_client_by_id(int id) {
 	}
 }
 
+int server_process_packet(struct sockaddr_in *from) {
+
+	unsigned int from_address = ntohl(from->sin_addr.s_addr);
+	unsigned short from_port = ntohs(from->sin_port);
+	char *inet_addr = inet_ntoa(from->sin_addr);
+
+	if (packet_data[0] == C_HANDSHAKE) {
+		std::cerr << "client @ " << inet_addr << ":" << from_port << " :handshake request\n";
+		int newclient_id = server_add_client(from);
+		if (newclient_id < 0) { std::cerr << "server_add_client: error.\n"; return -1; }
+		interm_buf[0] = S_HANDSHAKE_OK;
+		interm_buf[1] = newclient_id;
+		interm_buf[2] = 0;
+		struct client *newclient = get_client_by_id(newclient_id);
+		server_send_packet(interm_buf, 2, newclient);
+		server_post_peer_list();
+	}
+	else if (packet_data[0] == C_QUIT) {
+		unsigned short id = packet_data[1];
+		struct client *quitting_client = get_client_by_id(id);
+		if (quitting_client) {
+			std::cerr << "Client " << quitting_client->name << " with id " << quitting_client->id << " quitting.\n";
+			server_remove_client(id);
+		}
+		else {
+			std::cerr << "client with id " << id << "not found.\n";
+		}
+	}
+	else if (packet_data[0] == C_KEYSTATE) {
+		unsigned short id = packet_data[1];
+		client *c = get_client_by_id(id);
+		if (c) {
+			c->keystate = packet_data[2];
+			server_update_client_status(c);
+			server_post_position_update(c);
+		}
+	}	
+}
+
 int server_receive_packets() {
 	
 	struct sockaddr_in from;
@@ -81,53 +125,20 @@ int server_receive_packets() {
 	// the UDP socket is now int non-blocking mode, i.e. recvfrom returns 0 if no packets are to be read
 	
 //	memset(packet_data, 0, maximum_packet_size);	***
-	
+	memset(&from, 0, from_length);
+
 	int received_bytes = recvfrom(sockfd, (char*)packet_data,
 	maximum_packet_size, 0, (struct sockaddr*)&from, &from_length);
 	packet_data[received_bytes] = '\0';
 
+	size_t num_packets = 0;
+
 	if (received_bytes <= 0) { return 1; }
 	// else:
 	do {
-		unsigned int from_address = ntohl(from.sin_addr.s_addr);
-		unsigned int from_port = ntohs(from.sin_port);
-		char *inet_addr = inet_ntoa(from.sin_addr);
+		++num_packets;
+		server_process_packet(&from);
 
-		std::string packet_str = std::string((const char*)packet_data);
-
-		if (packet_str.find("HANDSHAKE:") != std::string::npos) {
-			std::cerr << "Client attempting to handshake. Message: \"" << packet_str << "\"\n";		
-			int newclient_id = server_add_client(packet_str, &from);
-			std::string accept = "HANDSHAKE:OK:" + int_to_string(newclient_id);
-			struct client *newclient = get_client_by_id(newclient_id);
-			server_send_packet((unsigned char*)accept.c_str(), accept.length(), newclient);
-			server_post_peer_list();
-		}
-		else if (packet_str.find("QUIT:") != std::string::npos) {
-			std::string quit_client_id = packet_str.substr(5, 1);
-			int id = string_to_int(quit_client_id);
-			struct client *quitting_client = get_client_by_id(id);
-			if (quitting_client) {
-				std::cerr << "Client " << quitting_client->name << " with id " << quitting_client->id << " quitting.\n";
-				server_remove_client(id);
-			}
-			else {
-				std::cerr << "client with id " << quit_client_id << "not found.\n";
-			}
-		}
-		else if (packet_str.find("CLINPST:") != std::string::npos){
-			std::vector<std::string> tokens = tokenize(packet_str, ':', 2);	// set tmax to 2, only extract id
-			int id = string_to_int(tokens[1]);
-			size_t st_pos = packet_str.find(';');
-			client *c = get_client_by_id(id);
-			if (c) {
-				c->keystate = st_pos != std::string::npos ? packet_str[st_pos+1] : 0;
-				server_update_client_status(c);
-				server_post_position_update(c);
-			}
-		}	
-
-		//memset(packet_data, 0, maximum_packet_size); ***
 		memset(&from, 0, from_length);
 
 		received_bytes = recvfrom(sockfd, (char*)packet_data,
@@ -141,11 +152,19 @@ int server_receive_packets() {
 }
 
 int server_send_packet(unsigned char *data, size_t len, struct client *c) {
-//	memset(packet_data, 0, maximum_packet_size);	***
+	static size_t num_packets_sent = 0;
+	
+	time_t t = timer.get_ns();
+	if (t > 1000000000) {
+		std::cerr << "packets sent per second: " << num_packets_sent << ".\n";
+		timer.begin();
+		num_packets_sent = 0;
+	}
 	memcpy(packet_data, data, len);
 	packet_data[len] = '\0';
 	int sent_bytes = sendto(sockfd, (const char*)packet_data, len,
 	0, (struct sockaddr*)&c->address, sizeof(struct sockaddr));
+	num_packets_sent++;
 
 //	std::cerr << "sending \"" << (const char*)packet_data << "\"\n";
 	
@@ -155,11 +174,13 @@ int server_send_packet(unsigned char *data, size_t len, struct client *c) {
 
 
 int server_post_quit_message() {
-	
+
+	interm_buf[0] = S_QUIT;
+	interm_buf[1] = '\0';
+
 	id_client_map::iterator iter = clients.begin();
-	std::string quit_msg = "SERVER:QUIT";
 	while (iter != clients.end()) {
-		server_send_packet((unsigned char*)quit_msg.c_str(), quit_msg.length(), &(*iter).second);
+		server_send_packet(interm_buf, 1, &(*iter).second);
 		++iter;
 	}
 	return 1;
@@ -245,12 +266,16 @@ int server_update_client_status(client *c) {
 
 int server_post_peer_list() {
 	
-	std::string peer_list_str = "SERVER:PEERS:" + int_to_string(clients.size()) + ';';
+	// <horrible workaround>
+	std::string peer_list_str = "TT;";
+	peer_list_str[0] = S_PEER_LIST;
+	peer_list_str[1] = (char)clients.size();
+	// </horrible workaround>
 
 	id_client_map::iterator iter = clients.begin();
 	while (true) {
 		struct client &itclient = (*iter).second;
-		peer_list_str = peer_list_str + itclient.id_string + ":" + itclient.name + ":" + itclient.ip_string;
+		peer_list_str = peer_list_str + int_to_string(itclient.id) + ":" + itclient.name + ":" + itclient.ip_string;
 		++iter;
 		if (iter != clients.end()) {
 			peer_list_str = peer_list_str + ';';
@@ -273,7 +298,7 @@ int server_remove_client(int id) {
 	return 1;
 }
 
-int server_start(unsigned int port) {
+int server_start(unsigned short int port) {
 	server_createUDPSocket(port);
 	server_receive_packets();
 	return 1;
@@ -283,23 +308,20 @@ int server_post_position_update(client *c) {
 	//time_t ms = timer.get_ms();
 	//std::cerr << "time since last pupd: " << ms << " ms.\n";
 	//timer.begin();
-	unsigned char posupd_packet_buffer[maximum_packet_size];
 	//memset(posupd_packet_buffer, 0, maximum_packet_size); ***
-	std::string posupd_str = "SERVER:PUPD:" + c->id_string + ';';
-	size_t sep_index = posupd_str.find(';') + 1;
-
-	memcpy(posupd_packet_buffer, posupd_str.c_str(), posupd_str.length());
+	interm_buf[0] = S_PUPD;
+	interm_buf[1] = c->id;
 
 	struct car_serialized cs = c->lcar.serialize();
-	memcpy(posupd_packet_buffer+sep_index, (const void*)&cs, sizeof(cs));
+	memcpy(&interm_buf[2], (const void*)&cs, sizeof(cs));
 
-	size_t total_packet_size = sep_index + sizeof(cs);
-	posupd_packet_buffer[total_packet_size] = '\0';
+	size_t total_packet_size = 2 + sizeof(cs);
+	interm_buf[total_packet_size] = '\0';
 
 
 	id_client_map::iterator iter = clients.begin();
 	while (iter != clients.end()) {
-		server_send_packet((unsigned char*)posupd_packet_buffer, total_packet_size, &(*iter).second);
+		server_send_packet(interm_buf, total_packet_size, &(*iter).second);
 		++iter;
 	}
 }

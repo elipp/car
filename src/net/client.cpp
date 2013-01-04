@@ -12,7 +12,7 @@ static _timer timer;
 
 extern std::stringstream sstream;
 
-int client_createUDPSocket(std::string ipstring, unsigned int port) {
+int client_createUDPSocket(std::string ipstring, unsigned short int remote_port) {
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sockfd <= 0) {
@@ -20,7 +20,7 @@ int client_createUDPSocket(std::string ipstring, unsigned int port) {
 		return -1;
 	}
 
-	const int default_port = 63355;
+	const unsigned short int default_port = 63355;
 	unsigned short local_port = default_port;
 
 	memset(&si_local, 0, sizeof(struct sockaddr_in));
@@ -31,7 +31,7 @@ int client_createUDPSocket(std::string ipstring, unsigned int port) {
 	si_local.sin_addr.s_addr = INADDR_ANY;
 
 	si_other.sin_family = AF_INET;
-	si_other.sin_port = htons((unsigned short) port);
+	si_other.sin_port = htons((unsigned short) remote_port);
 
 	if (inet_aton(ipstring.c_str(), &si_other.sin_addr)==0) {
 		std::cerr << "client: inet_aton failed. Invalid remote ip?\n";
@@ -54,7 +54,7 @@ int client_createUDPSocket(std::string ipstring, unsigned int port) {
 	return 1;
 }
 
-struct client *client_get_peer_by_id(int id) {
+struct client *client_get_peer_by_id(unsigned short id) {
 	id_client_map::iterator it = peers.find(id);
 	if (it != peers.end()) {
 		return &(*it).second;
@@ -90,9 +90,17 @@ int client_handshake() {
 	std::string port_str = int_to_string(local_client.port);
 	local_client.ip_string = "127.0.0.1";
 
-	std::string handshake = std::string("HANDSHAKE:") + local_client.name + ":" + port_str;	// the ip address should actually be gathered server-side from the very packet that's being sent
-	std::cerr << "Sending handshake \"" + handshake + "\" to remote.\n";
-	client_send_packet((unsigned char*)handshake.c_str(), handshake.length(), (struct sockaddr*)&si_other);
+	size_t name_len = local_client.name.length();
+
+	unsigned char handshake_buf[256];	// just use packet_data?
+	handshake_buf[0] = C_HANDSHAKE;
+	handshake_buf[1] = (unsigned char)((local_client.port & 0xFF00) >> 8);
+	handshake_buf[2] = (unsigned char)(local_client.port & 0x00FF);
+	handshake_buf[3] = (unsigned char)(local_client.name.length());
+	memcpy(&handshake_buf[4], local_client.name.c_str(), name_len);
+	size_t handshake_total_length = 4 + name_len;
+	handshake_buf[handshake_total_length] = '\0';
+	client_send_packet(handshake_buf, handshake_total_length, (struct sockaddr*)&si_other);
 
 	struct sockaddr_in from;
 	socklen_t from_length = sizeof(from);
@@ -111,7 +119,7 @@ int client_handshake() {
 
 	if (select(sockfd + 1, &readfds, NULL, NULL, &timeout) < 0) {
 		std::cerr << "select failed.\n";
-		return 0;
+		return -1;
 	} 
 	else {
 		if (FD_ISSET(sockfd, &readfds))
@@ -119,17 +127,15 @@ int client_handshake() {
 			received_bytes = client_get_data_from_remote();
 			packet_data[received_bytes] = '\0';
 			
-			std::string response ((const char*)packet_data);
-			std::cerr << "received " << received_bytes << " bytes: \"" << response << "\".\n";
+			std::cerr << "handshake: received " << received_bytes << " bytes from remote.\n";
 
-			if (response.find("HANDSHAKE:OK:") == std::string::npos) {
+			if (packet_data[0] != S_HANDSHAKE_OK) {
 				std::cerr << "Invalid response from server.\n";
 				return -1;
 			}
-
-			local_client.id_string = response.substr(response.length()-1, 1);
-			std::cerr << "received local client id: " << local_client.id_string << " from server.\n";
-			local_client.id = string_to_int(local_client.id_string);
+			local_client.id = packet_data[1];
+			std::cerr << "local client id: " << local_client.id << ".\n";
+//			peers.insert(id_client_pair(local_client.id, local_client));
 
 			return 1;
 		}
@@ -162,7 +168,7 @@ int client_get_data_from_remote() {
 int client_construct_peer_list(std::string peer_str) {
 
 	std::vector<std::string> tokens = tokenize(peer_str, ':', 3);
-	unsigned num_peers = string_to_int(tokens[2]);
+	unsigned short num_peers = peer_str[1];
 
 	std::vector<std::string> peert = tokenize(peer_str, ';');	
 	std::vector<std::string>::iterator iter = peert.begin() + 1;	// the first token contains SERVER:PEERS:# etc
@@ -173,7 +179,6 @@ int client_construct_peer_list(std::string peer_str) {
 		std::cerr << (*iter) << "\n";
 		struct client newclient;
 		std::vector<std::string> subtokens = tokenize((*iter), ':');
-		newclient.id_string = subtokens[0];
 		newclient.id = string_to_int(subtokens[0]);
 		newclient.name = subtokens[1];
 		newclient.ip_string = subtokens[2];
@@ -193,18 +198,15 @@ int client_construct_peer_list(std::string peer_str) {
 int client_process_data_from_remote() {
 	//
 	std::string packet_str = std::string((const char*)packet_data);
-	// should probably check sender ip address before processing..
-	if (packet_str.find("SERVER:QUIT") != std::string::npos) {
-		std::cerr << "server going down. exiting.\n";
+	if (packet_data[0] == S_QUIT) {
+		std::cerr << "server going down (S_QUIT). exiting.\n";
 		return -1;
 	}
-	else if (packet_str.find("SERVER:PUPD:") != std::string::npos) {
-		std::vector<std::string> t = tokenize(packet_str, ':', 3);
-		int id = string_to_int(t[2]);
-		client_update_position_data(id, packet_data);
+	else if (packet_data[0] == S_PUPD) {
+		client_update_position_data();
 		return 1;
 	}
-	else if (packet_str.find("SERVER:PEERS:") != std::string::npos) {
+	else if (packet_data[0] == S_PEER_LIST) {
 		client_construct_peer_list(packet_str);	
 		return 1;
 	}
@@ -214,8 +216,10 @@ int client_process_data_from_remote() {
 }
 
 int client_post_quit_message() {
-	std::string quit_msg = "QUIT:" + local_client.id_string;
-	client_send_packet((unsigned char*)quit_msg.c_str(), quit_msg.length(), (struct sockaddr*)&si_other);
+	packet_data[0] = C_QUIT;
+	packet_data[1] = local_client.id;
+	packet_data[2] = 0;
+	client_send_packet(packet_data, 2, (struct sockaddr*)&si_other);
 }
 
 struct client client_get_local_client() { 
@@ -234,17 +238,20 @@ int client_start(std::string remote_ipstring, unsigned int remote_port) {
 }
 
 int client_send_input_state_to_server(unsigned char keystate) {
-	std::string state_string = std::string(("CLINPST:") + local_client.id_string + ";" + std::string((const char*)&keystate));
-	client_send_packet((unsigned char*)state_string.c_str(), state_string.length(), (struct sockaddr*)&si_other);
+	packet_data[0] = C_KEYSTATE;
+	packet_data[1] = local_client.id;
+	packet_data[2] = keystate;
+	packet_data[3] = 0;
+	client_send_packet(packet_data, 3, (struct sockaddr*)&si_other);
 }
 
-int client_update_position_data(int player_id, unsigned char *data) {
-	std::string tmp = std::string((const char*)data);
-	size_t spos = tmp.find(';') + 1;
+int client_update_position_data() {
+	// assume data[0] == S_PUPD
+	unsigned short player_id = packet_data[1];
 	struct client *c = client_get_peer_by_id(player_id);
 	if (c) {
 		struct car_serialized c_ser;
-		memcpy((char*)&c_ser, data + spos, sizeof(struct car_serialized));
+		memcpy((char*)&c_ser, &packet_data[2], sizeof(struct car_serialized));
 		c->lcar.update_from_serialized(c_ser);
 	}
 	else {

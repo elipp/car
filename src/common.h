@@ -20,8 +20,8 @@
 #define KEY_LEFT (0x1 << 2)
 #define KEY_RIGHT (0x1 << 3)
 
-typedef std::map<const int, struct client> id_client_map;
-typedef std::pair<const int, struct client> id_client_pair;
+typedef std::map<const unsigned short int, struct client> id_client_map;
+typedef std::pair<const unsigned short int, struct client> id_client_pair;
 typedef std::pair<id_client_map::iterator, bool> id_client_it;
 
 std::vector<std::string> tokenize(const std::string& str, char delim, unsigned tmax);
@@ -67,6 +67,10 @@ public:
 	time_t get_ms() {
 		clock_gettime(CLOCK_REALTIME, &end);
 		return ((end.tv_sec*1000000000 + end.tv_nsec) - (beg.tv_sec*1000000000 + beg.tv_nsec))/1000000;
+	}
+	double get_s() {
+		return ((double)(end.tv_sec*1000000000 + end.tv_nsec) - (double)(beg.tv_sec*1000000000 + beg.tv_nsec))/1000000000.0;
+
 	}
 	_timer() { memset(&beg, 0, sizeof(struct timespec)); memset(&end, 0, sizeof(struct timespec)); }
 
