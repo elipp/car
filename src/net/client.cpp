@@ -125,12 +125,12 @@ int client_handshake() {
 		if (FD_ISSET(sockfd, &readfds))
 		{
 			received_bytes = client_get_data_from_remote();
-			packet_data[received_bytes] = '\0';
+			//packet_data[received_bytes] = '\0';
 			
 			std::cerr << "handshake: received " << received_bytes << " bytes from remote.\n";
 
 			if (packet_data[0] != S_HANDSHAKE_OK) {
-				std::cerr << "Invalid response from server.\n";
+				std::cerr << "Invalid response " << (int)packet_data[0] << " from server.\n";
 				return -1;
 			}
 			local_client.id = packet_data[1];
@@ -160,7 +160,7 @@ int client_get_data_from_remote() {
 
 	packet_data[maximum_packet_size-1] = '\0';
 
-	if (received_bytes > 0) {int r = client_process_data_from_remote(); if (r < 0) { std::cerr << "r = -1\n"; return -1;}}
+	if (received_bytes > 0) { return client_process_data_from_remote(); }
 
 	return 1;
 }
@@ -183,7 +183,7 @@ int client_construct_peer_list(std::string peer_str) {
 		newclient.name = subtokens[1];
 		newclient.ip_string = subtokens[2];
 		if (peers.find(newclient.id) == peers.end()) {
-			std::cerr << "adding client " << newclient.name << " to map.\n";
+			std::cerr << "adding client " << newclient.name << " with id " << newclient.id << " to map.\n";
 			peers.insert(id_client_pair(newclient.id, newclient));
 		}
 		++iter;

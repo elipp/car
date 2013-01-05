@@ -115,16 +115,21 @@ int server_process_packet(struct sockaddr_in *from) {
 			server_post_position_update(c);
 		}
 	}	
+	else { 
+		return 0;
+	}
 }
 
 int server_receive_packets() {
 	static size_t num_packets_received = 0;
+	static size_t num_bytes_received = 0;
 	static _timer timer2;
 	time_t t = timer2.get_ns();
 	if (t > 1000000000) {
-		std::cerr << "packets received per second: " << num_packets_received << ".\n";
+		std::cerr << "packets received per second: " << num_packets_received << " (" << num_bytes_received << " B/s).\n";
 		timer2.begin();
 		num_packets_received = 0;
+		num_bytes_received = 0;
 	}
 	
 	struct sockaddr_in from;
@@ -139,6 +144,8 @@ int server_receive_packets() {
 	maximum_packet_size, 0, (struct sockaddr*)&from, &from_length);
 	packet_data[received_bytes] = '\0';
 
+	num_bytes_received += received_bytes < 0 ? 0 : received_bytes;
+
 	size_t num_packets = 0;
 
 	if (received_bytes <= 0) { return 1; }
@@ -146,6 +153,8 @@ int server_receive_packets() {
 	num_packets_received++;
 	do {
 		++num_packets;
+		num_bytes_received += received_bytes < 0 ? 0 : received_bytes;
+;
 		server_process_packet(&from);
 
 		memset(&from, 0, from_length);
