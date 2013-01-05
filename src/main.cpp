@@ -710,7 +710,6 @@ int main(int argc, char* argv[]) {
 			//process_input();
 			send_key_state();
 			if (client_get_data_from_remote() < 0) { 
-				std::cerr << "client_get_data_from_remote() < 0!\n";
 				signal_handler(SIGINT); 
 			}// is also processed in this call
 			draw();
