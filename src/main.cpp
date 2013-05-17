@@ -1,764 +1,701 @@
-#include <SDL/SDL.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <vector>
+#include <string>
+#include <stdarg.h>
 
-#include <unistd.h>
-#include <getopt.h>
+#include <cassert>
 #include <signal.h>
 
+#include <Windows.h>
+#define GLEW_STATIC 
+#include <GL/glew.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/wglew.h>
+
+#include "glwindow_win32.h"
+#include "lin_alg.h"
 #include "common.h"
+#include "objloader.h"
+#include "shader.h"
+#include "model.h"
+#include "texture.h"
+#include "text.h"
 
-#include "net/server.h"
-#include "net/client.h"
+static const float WINDOW_WIDTH = 1440.0;
+static const float WINDOW_HEIGHT = 960.0;
+static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
+static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
 
-#define WIN_W 800
-#define WIN_H 600
-
-float rotx = 0.0;
-float rotz = 0.0;
-
-std::stringstream sstream;
-
-static unsigned int port = 31111;
-
-static _timer timer;
-
-int do_server_flag = 0, do_client_flag = 0;
-
-static struct client local_client;
-
-static void signal_handler(int signum);
-static int clean_up_and_quit();
-
-int string_to_int(const std::string &string) {
-	sstream.str("");
-	sstream.clear();
-	int r;
-	sstream << string;
-	sstream >> r;
-	return r;
+namespace Text {
+	mat4 Projection;
+	mat4 ModelView(MAT_IDENTITY);
+	GLuint texId;
 }
 
-std::string int_to_string(int i) {
-	sstream.str("");
-	sstream.clear();
+static GLint PMODE = GL_FILL;	// polygon mode toggle
+static LPPOINT cursorPos = new POINT;	/* holds cursor position */
 
-	std::string r;
-	sstream << i;
-	sstream >> r;
-	return r;
-}
+extern bool active;
+extern bool keys[];
 
-float sqrt_thirty_recip = 0.18257418583505537115;
+static const double GAMMA = 6.67;
+
+float c_vel_fwd = 0, c_vel_side = 0;
+
+struct mesh {
+	GLuint VBOid;
+	GLuint facecount;
+};
+
+struct mesh chassis, wheel, plane;
+
+GLuint IBOid, FBOid, FBO_textureId;
+
+GLfloat tess_level_inner = 1.0;
+GLfloat tess_level_outer = 1.0;
+
+static GLint earth_tex_id, hmap_id;
+
+bool mouseLocked = false;
+
+GLfloat running = 0.0;
+
+static ShaderProgram *regular_shader;
+static ShaderProgram *normal_plot_shader;
+static ShaderProgram *text_shader;
+
+mat4 view;
+Quaternion viewq;
+static float qx = 0, qy = 0;
+mat4 projection;
+vec4 view_position;
+vec4 cameraVel;
+
+static std::vector<Model> models;
+
+GLushort * indices; 
+
+#ifndef M_PI
+#define M_PI 3.1415926535
+#endif
+
+struct car {
+	vec4 position;
+	float direction;
+	float wheel_rot;
+	float velocity;
+	float susp_angle_roll;
+	float susp_angle_fwd;
+	float front_wheel_angle;
+	float front_wheel_tmpx;
+	float F_centripetal;
+};
+
+static const float FW_ANGLE_LIMIT = M_PI/6; // rad
+static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
 // f(x) = -(1/(x+1/sqrt(30))^2) + 30
 // f(x) = 1/(-x + 1/sqrt(30))^2 - 30
 
 float f_wheel_angle(float x) {
 	float t;
 	if (x >= 0) {
-		t = x+sqrt_thirty_recip;
+		t = x+SQRT_FW_ANGLE_LIMIT_RECIP;
 		t *= t;
-		return -(1/t) + 30;
+		return -(1/t) + FW_ANGLE_LIMIT;
 	}
 	else {
-		t = -x+sqrt_thirty_recip;
+		t = -x+SQRT_FW_ANGLE_LIMIT_RECIP;
 		t *= t;
-		return (1/t) - 30;
+		return (1/t) - FW_ANGLE_LIMIT;
 	}
 }
 
-GLuint car_list;
-GLuint rengas_list;
-GLuint skybox_list;
-GLuint texture_car;
-GLuint texture_tire;
-GLuint texture_skybox;
+static struct car local_car = { vec4(0.0,0.0,0.0,1.0), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
-
-mat4 rotateY(float angle) {	// in radian
-	float tmp[16] = { cos(angle), 0, -sin(angle), 0,
-		0, 1, 0, 0,
-		sin(angle), 0, cos(angle), 0,
-		0, 0, 0, 1 };
-	mat4 M(tmp);
-	return M;
+void rotatex(float mod) {
+	qy += mod;
+	Quaternion xq = Quaternion::fromAxisAngle(1.0, 0.0, 0.0, qx);
+	Quaternion yq = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, qy);
+	viewq = yq * xq;
 }
 
-static const float dt = 0.1;
-
-std::streampos fileSize( const char* filePath ){
-
-	std::streampos fsize = 0;
-	std::ifstream file( filePath, std::ios::binary );
-
-	fsize = file.tellg();
-	file.seekg( 0, std::ios::end );
-	fsize = file.tellg() - fsize;
-	file.close();
-
-	return fsize;
+void rotatey(float mod) {
+	qx -= mod;
+	Quaternion xq = Quaternion::fromAxisAngle(1.0, 0.0, 0.0, qx);
+	Quaternion yq = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, qy);
+	viewq = yq * xq;
 }
 
-int initGL() {
-	//GLenum err = glewInit();
-	//if (GLEW_OK != err) {
-	//	std::cerr << "glew init failed. lolz.\n";
-	//}
-
-	glEnable( GL_TEXTURE_2D );
-	glEnable( GL_DEPTH_TEST);
-
-	GLfloat mat_specular[] = { 1.0, 1.0, 1.0, 1.0 };
-	GLfloat mat_shininess[] = { 50.0 };
-	GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
-	GLfloat skybox_ambient[] = {1.0, 1.0, 1.0, 1.0 };
-	glClearColor (0.0, 0.0, 0.0, 0.0);
-	//glShadeModel (GL_SMOOTH);
-	glShadeModel(GL_FLAT);
-
-	glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
-	glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-	glEnable(GL_LIGHT1);
-	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-	glLightfv(GL_LIGHT1, GL_AMBIENT, skybox_ambient);
-
-	glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
-	glViewport(0, 0, WIN_W, WIN_H);
-	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glMatrixMode( GL_PROJECTION );
-	glLoadIdentity();
-	gluPerspective(70, (float)WIN_H/(float)WIN_W, 3, 500);
-	glMatrixMode( GL_MODELVIEW );
-	glLoadIdentity();
-
-	return 1;
+void update_c_pos() {
+	view_position -= viewq * vec4(c_vel_side, 0.0, 0.0, 1.0);
+	view_position += viewq * vec4(0.0, 0.0, c_vel_fwd, 1.0);
 }
 
-vertex *loadBobj(const char* filename, size_t *num) {
-
-	std::ifstream infile(filename, std::ios::binary);
-	if (!infile.is_open()) { std::cerr << "FATAL: Couldn't open file \"" << filename << "\"\n"; infile.close(); exit(1); }
-
-	std::size_t filesize = fileSize(filename);
-	infile.seekg(4, std::ios::beg);
-	int num_vertices;
-	infile.read((char*)&num_vertices, sizeof(int));
-	std::cout << "file name: " << filename << " - num_vertices " << num_vertices << ", filesize: " <<  filesize << "\n";
-	vertex *vertices = new vertex[num_vertices];
-	infile.seekg(8, std::ios::beg);
-	infile.read((char*)vertices, filesize - 8);
-	infile.close();
-
-	*num = num_vertices;
-
-	return vertices;
-
-}
-
-GLuint genList(const char* filename) {
-	size_t num_vertices;
-	vertex *vertices = loadBobj(filename, &num_vertices);
-	GLuint list_id = glGenLists(1);
-	glNewList(list_id, GL_COMPILE);
-	glBegin(GL_TRIANGLES);
-	for (size_t i = 0; i < num_vertices; i++) {
-		glVertex3f(vertices[i].vx, vertices[i].vy, vertices[i].vz);
-		glNormal3f(vertices[i].nx, vertices[i].ny, vertices[i].nz);
-		glTexCoord2f(vertices[i].u, vertices[i].v);
-	}
-	glEnd();
-	glEndList();
-	delete [] vertices;
-
-	return list_id;
-}
-
-int genLists() {
-	car_list = genList("models/auto.bobj");
-	rengas_list = genList("models/rengas.bobj");
-	skybox_list = genList("models/skybox.bobj");
-	return 1;
-}
-
-char* loadTextureData(const char* filename, std::size_t *size) {
-
-	unsigned long filesize = fileSize(filename);
-	char *data = new char[filesize];
-	std::ifstream infile(filename, std::ios::binary);
-	infile.seekg(14, std::ios::beg);	
-	infile.read(data, filesize-14);
-	infile.close();
-	*size = filesize;
-	return data;
-
-}
-
-
-int genTexture() {
-
-	glGenTextures(1, &texture_car);
-	glBindTexture(GL_TEXTURE_2D, texture_car);
-	glTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-
-	//	unsigned long filesize = fileSize("kangas.bmp");
-	std::size_t filesize;
-	char* data = loadTextureData("textures/cartexture.bmp", &filesize);
-	gluBuild2DMipmaps( GL_TEXTURE_2D, 3, 512, 512, GL_BGR, GL_UNSIGNED_BYTE, data);
-	delete [] data;
-
-	glGenTextures(1, &texture_tire);
-	glBindTexture(GL_TEXTURE_2D, texture_tire);
-	glTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-
-	//	unsigned long filesize = fileSize("kangas.bmp");
-	const long g = 3*128*128;
-	data = new char[g];
-	memset(data, 51, g);
-	//	gluBuild2DMipmaps( GL_TEXTURE_2D, 3, 1024, 1024, GL_BGR, GL_UNSIGNED_BYTE, data);
-	gluBuild2DMipmaps(GL_TEXTURE_2D, 3, 32, 32, GL_BGR, GL_UNSIGNED_BYTE, data);
-	delete [] data;
-
-	data = loadTextureData("textures/skybox.bmp", &filesize);
-	glGenTextures(1, &texture_skybox);
-	glBindTexture(GL_TEXTURE_2D, texture_skybox);
-	glTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-
-	gluBuild2DMipmaps(GL_TEXTURE_2D, 3, 2048, 2048, GL_BGR, GL_UNSIGNED_BYTE, data);
-	delete [] data;
-
-}
-
-void drawcars(float* camM) {
-
-	id_client_map& peers = client_get_peers();
-	id_client_map::iterator iter = peers.begin();
-	while (iter != peers.end()) {
-		struct car &c = (*iter).second.lcar;
-//		std::cerr << "drawing " << iter->name << "'s car at position " << c.position.x << " " << c.position.z << "\n";
-		mat4 O = rotateY(c.direction);
-		/* chassis */
-		glEnable(GL_LIGHT0);
-		glDisable(GL_LIGHT1);
-
-		glBindTexture(GL_TEXTURE_2D, texture_car);
-
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 0.0, c.position.z);
-
-		glMultMatrixf(O.data);
-		glRotatef(c.susp_angle_roll, 1.0, 0.0, 0.0);
-		glRotatef(c.susp_angle_fwd, 0.0, 0.0, 1.0);
-		glCallList(car_list);
-
-		static float wheel_angle = 0;
-		wheel_angle -= c.velocity * 71.0;
-
-		glBindTexture(GL_TEXTURE_2D, texture_tire);
-		/* front wheels */
-		glMatrixMode(GL_MODELVIEW);
-
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 0.0, c.position.z);
-		glMultMatrixf(O.data);
-		glTranslatef(-2.2, -0.6, 0.9);
-		glRotatef(180+c.fw_angle, 0.0, 1.0, 0.0);
-		glRotatef(wheel_angle, 0.0, 0.0, 1.0);
-		glCallList(rengas_list);
-
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 0.0, c.position.z);
-		glMultMatrixf(O.data);
-		glTranslatef(-2.2, -0.6, -0.9);
-		glRotatef(c.fw_angle, 0.0, 1.0, 0.0);
-		glRotatef(-wheel_angle, 0.0, 0.0, 1.0);
-		glCallList(rengas_list);
-
-		/* back wheels */
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 0.0, c.position.z);
-		glMultMatrixf(O.data);
-		glTranslatef(1.3, -0.6, 0.9);
-		glRotatef(180, 0.0, 1.0, 0.0);
-		glRotatef(wheel_angle, 0.0, 0.0, 1.0);
-		glCallList(rengas_list);
-
-		glLoadIdentity();
-		glMultMatrixf(camM);
-		glTranslatef(c.position.x, 0.0, c.position.z);
-		glMultMatrixf(O.data);
-		glTranslatef(1.3, -0.6, -0.9);
-		glRotatef(-wheel_angle, 0.0, 0.0, 1.0);
-		glCallList(rengas_list);
-
-		//glLoadIdentity();
-		//glMultMatrixf(camM);
-		//glTranslatef(c.position.x, 3.0, c.position.z);
-		//face->draw(0, 0, (*iter).second.name.c_str());
-
-		++iter;
-	}
-
-}
-
-void process_input() {
-
-	Uint8* keystate = SDL_GetKeyState(NULL);
-
-	struct car& lcar = local_client.lcar;
-
-	static float local_car_acceleration = 0.0;
-	static float local_car_prev_velocity;
-	local_car_prev_velocity = lcar.velocity;
-
-	if (keystate[SDLK_UP]) {
-		lcar.velocity += 0.015;
-	}
-	else {
-		lcar.velocity *= 0.95;
-		lcar.susp_angle_roll *= 0.90;
-		lcar.tmpx *= 0.50;
-	}
-
-	if (keystate[SDLK_DOWN]) {
-		if (lcar.velocity > 0.01) {
-			// simulate handbraking slides :D
-			lcar.direction -= 3*lcar.F_centripetal*lcar.velocity*0.20;
-			lcar.velocity *= 0.99;				
-		}
-		lcar.velocity -= 0.010;
-	}
-	else {
-		lcar.velocity *= 0.96;
-		lcar.susp_angle_roll *= 0.90;
-		lcar.tmpx *= 0.80;
-	}
-
-	if (keystate[SDLK_LEFT]) {
-		if (lcar.tmpx < 0.15) {
-			lcar.tmpx += 0.05;
-		}
-		lcar.F_centripetal = -0.5;
-		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
-		lcar.susp_angle_roll = -lcar.fw_angle*fabs(lcar.velocity)*0.50;
-		if (lcar.velocity < 0) {
-			lcar.direction += 0.046*lcar.fw_angle*lcar.velocity*0.20;
-		}
-		else {
-			lcar.direction += 0.031*lcar.fw_angle*lcar.velocity*0.20;
-		}
-	
-	}
-	if (keystate[SDLK_RIGHT]) {
-		if (lcar.tmpx > -0.15) {
-			lcar.tmpx -= 0.05;
-		}
-		lcar.F_centripetal = 0.5;
-		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
-		lcar.susp_angle_roll = -lcar.fw_angle*fabs(lcar.velocity)*0.50;
-
-		if (lcar.velocity < 0) {
-			lcar.direction += 0.046*lcar.fw_angle*lcar.velocity*0.20;
-		}
-		else {
-			lcar.direction += 0.031*lcar.fw_angle*lcar.velocity*0.20;
-		}
-
-	}
-	local_car_prev_velocity = 0.5*(lcar.velocity+local_car_prev_velocity);
-	local_car_acceleration = 0.2*(lcar.velocity - local_car_prev_velocity) + 0.8*local_car_acceleration;
-
-	if (!keystate[SDLK_LEFT] && !keystate[SDLK_RIGHT]){
-		lcar.tmpx *= 0.30;
-		lcar.fw_angle = f_wheel_angle(lcar.tmpx);
-		lcar.susp_angle_roll *= 0.50;
-		lcar.F_centripetal = 0;
-		lcar.susp_angle_fwd *= 0.50;
-	}
-	lcar.susp_angle_fwd = -80*local_car_acceleration;
-	lcar.position.x += lcar.velocity*sin(lcar.direction-M_PI/2);
-	lcar.position.z += lcar.velocity*cos(lcar.direction-M_PI/2);
-
-	if (keystate[SDLK_ESCAPE]) {
-		signal_handler(SIGINT);
-	}
-
-}
-
-void draw() {
-
-	//	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	glRotatef(rotz, 1.0, 0.0, 0.0);
-	glRotatef(rotx, 0.0, 1.0, 0.0);
-	glTranslatef(0.0, -3.0, -8.0);
-	static GLfloat camM[16];
-	glGetFloatv(GL_MODELVIEW_MATRIX, camM);
-
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(40, (float)WIN_W/(float)WIN_H, 3, 500);
-
-	drawcars(camM);
-
-	glDisable(GL_LIGHT0);
-	glEnable(GL_LIGHT1);
-	glBindTexture(GL_TEXTURE_2D, texture_skybox);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	glMultMatrixf(camM);
-	glScalef(100.0, 100.0, 100.0);
-	glCallList(skybox_list);
-
-	/*int fps = 1000.0/(float)dt;
-	std::ostringstream stream;
-	stream << fps;
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, WIN_W, 0, WIN_H, -1, 1);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	face->draw(15, 15, (stream.str() + " FPS").c_str()); */
-}
-
-static void process_events( void )
+void control()
 {
-	/* Our SDL event placeholder. */
-	SDL_Event event;
+	static const float fwd_modifier = 0.008;
+	static const float side_modifier = 0.005;
+	static const float mouse_modifier = 0.0004;
 
-	static float prev_mpos[2];
-	static float cur_mpos[2];
-	/* Grab all the events off the queue. */
-	while( SDL_PollEvent( &event ) ) {
+	static const float turning_modifier_forward = 0.19;
+	static const float turning_modifier_reverse = 0.16;
 
-		switch( event.type ) {
-			case SDL_MOUSEMOTION:
-				if (event.motion.x == WIN_W/2 && event.motion.y == WIN_H/2) { break; }
-				cur_mpos[0] = event.motion.x;
-				cur_mpos[1] = event.motion.y;
+	static const float accel_modifier = 0.012;
+	static const float brake_modifier = 0.010;
 
-				rotx -= 0.01*(float)(WIN_W/2 - cur_mpos[0]);
-				rotz += 0.01*(float)(WIN_H/2 - cur_mpos[1]);
+	if(mouseLocked) {
+		unsigned int buttonmask;
+		
+		GetCursorPos(cursorPos);
+		SetCursorPos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
+		float dx = (HALF_WINDOW_WIDTH - cursorPos->x);
+		float dy = -(HALF_WINDOW_HEIGHT - cursorPos->y);
 
-				//				std::cout << rotx << " " << rotz << "\n";
-				SDL_WarpMouse(WIN_W/2, WIN_H/2);
-				break;
+		static float local_car_acceleration = 0.0;
+		static float local_car_prev_velocity;
+		local_car_prev_velocity = local_car.velocity;
 
-			case SDL_QUIT:
-				/* Handle quit requests (like Ctrl-c). */
-				exit(0);
-				break;
+		if (keys[VK_UP]) {
+			local_car.velocity += accel_modifier;
 		}
+		else {
+			local_car.susp_angle_roll *= 0.90;
+			local_car.front_wheel_tmpx *= 0.50;
+		}
+		
+		if (keys[VK_DOWN]) {
+			if (local_car.velocity > 0.01) {
+				local_car.direction -= 3*local_car.F_centripetal*local_car.velocity*0.20;
+				local_car.velocity *= 0.99;
+			}
+			local_car.velocity -= brake_modifier;
+
+		}
+		else {
+				local_car.susp_angle_roll *= 0.90;
+				local_car.front_wheel_tmpx *= 0.50;
+		}
+		local_car.velocity *= 0.95;	// regardless of keystate
+
+		if (keys[VK_LEFT]) {
+			if (local_car.front_wheel_tmpx < 15.0) {
+				local_car.front_wheel_tmpx += 0.5;
+			}
+			local_car.F_centripetal = -1.0;
+			local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
+			local_car.susp_angle_roll = fabs(local_car.front_wheel_angle*local_car.velocity*0.8);
+			if (local_car.velocity > 0) {
+				local_car.direction -= turning_modifier_forward*local_car.F_centripetal*local_car.velocity;
+			}
+			else {
+				local_car.direction -= turning_modifier_reverse*local_car.F_centripetal*local_car.velocity;
+			}
+
+		} 
+		if (keys[VK_RIGHT]) {
+			if (local_car.front_wheel_tmpx > -15.0) {
+				local_car.front_wheel_tmpx -= 0.5;
+			}
+			local_car.F_centripetal = 1.0;
+			local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
+			local_car.susp_angle_roll = -fabs(local_car.front_wheel_angle*local_car.velocity*0.8);
+			if (local_car.velocity > 0) {
+				local_car.direction -= turning_modifier_forward*local_car.F_centripetal*local_car.velocity;
+			}
+			else {
+				local_car.direction -= turning_modifier_reverse*local_car.F_centripetal*local_car.velocity;
+			}
+
+		} 
+
+		local_car_prev_velocity = 0.5*(local_car.velocity+local_car_prev_velocity);
+		local_car_acceleration = 0.2*(local_car.velocity - local_car_prev_velocity) + 0.8*local_car_acceleration;
+
+	if (!keys[VK_LEFT] && !keys[VK_RIGHT]){
+		local_car.front_wheel_tmpx *= 0.30;
+		local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
+		local_car.susp_angle_roll *= 0.50;
+		local_car.susp_angle_fwd *= 0.50;
+		local_car.F_centripetal = 0.0;
+	}
+	local_car.susp_angle_fwd = 7*local_car_acceleration;
+	local_car.position(V::x) += local_car.velocity*sin(local_car.direction-M_PI/2);
+	local_car.position(V::z) += local_car.velocity*cos(local_car.direction-M_PI/2);
+
+	if (keys['W']) {
+		c_vel_fwd += fwd_modifier;
+	}
+	if (keys['S']) {
+		c_vel_fwd -= fwd_modifier;
+	}	
+	
+	c_vel_fwd *= 0.97;
+
+	if (keys['A']) {
+		c_vel_side -= side_modifier;
+	}
+	if (keys['D']) {
+		c_vel_side += side_modifier;
+	}
+	c_vel_side *= 0.95;
+		if (keys['N']) {
+			keys['N'] = false;
+		}
+
+		if (keys['P']) {
+			PMODE = (PMODE == GL_FILL ? GL_LINE : GL_FILL);
+			keys['P'] = false;
+		}
+
+		if (keys['T']) {
+			keys['T'] = false;
+		}
+		if (dy != 0) {
+			rotatey(mouse_modifier*dy);
+		}
+		if (dx != 0) {
+			rotatex(mouse_modifier*dx);
+		}
+
 
 	}
 
 }
 
-/* the addr string is of format "a.b.c.d:<port>" */
-struct ip_port_struct ip_port_struct_from_addr(const char* addr) {
+static GLuint skybox_VBOid;
+static GLuint skybox_facecount;
+static mat4 skyboxmat = mat4::identity();
 
-	struct ip_port_struct r;
-	std::string copy = std::string(addr);
+inline double rand01() {
+	return (double)rand()/(double)RAND_MAX;
+}
 
-	std::vector<std::string> tokens = tokenize(copy, ':');
-	std::string ipstr = tokens[0];
-	r.address = strdup(ipstr.c_str()); 
-	std::cerr << "r.address: " << r.address << "\n";
-
-	r.port = string_to_int(tokens[1]);
-	std::cout << "port: " << r.port << "\n";
-
+vec4 randomvec4(float min, float max) {
+	float r1, r2, r3, r4;
+	r1 = rand01() * max + min;
+	r2 = rand01() * max + min;
+	r3 = rand01() * max + min;
+	r4 = 0;
+	vec4 r(r1, r2, r3, r4);
+	//r.print();
 	return r;
-
 }
 
-static struct option long_options[] =
-{
-	{ "server", required_argument, &do_server_flag, 's' },
-	{ "connect", required_argument, &do_client_flag, 'c' },
-	{ NULL, 0, NULL, 0 }
-};
+GLushort *generateIndices() {
+	// due to the design of the .bobj file format, the index buffers just run arithmetically (0, 1, 2, ..., 0xFFFF)
+	GLushort index_count = 0xFFFF;
+	GLushort *indices = new GLushort[index_count];
 
-
-struct ip_port_struct connect_flag_action(const char* arg) {
-	struct ip_port_struct addr = ip_port_struct_from_addr(arg);
-	do_client_flag = 1;
-	return addr;
-}
-
-void server_flag_action(const char* arg) {
-	std::stringstream stream;
-	stream.clear();
-	stream.str(optarg);
-	stream >> port;
-	do_server_flag = 1;
-
-}
-
-std::vector<std::string> tokenize(const std::string& str, char delim, unsigned tmax) {
-	// c++ std::string::find-based implementation
-	std::vector<std::string> tokens;
-	size_t found_index = 0;
-	size_t prev_index = 0;
-
-	unsigned i = 0;
-	found_index = str.find(delim, found_index);
-
-	while (found_index != std::string::npos && i < tmax) {
-		std::string token = str.substr(prev_index, found_index - prev_index);
-//		std::cerr << token << " at " << found_index << "\n";
-		tokens.push_back(token);
-		++i;
-		prev_index = found_index + 1;
-		found_index = str.find(delim, found_index+1);
+	for (int i = 0; i < index_count; i++) {
+		indices[i] = i;
 	}
-	if (str.length() > prev_index + 1) {
-		std::string last_token = str.substr(prev_index, str.length() - prev_index);
-		tokens.push_back(last_token);
-//		std::cerr << last_token << " at " << prev_index << "\n";
-//		std::cerr << "tokenize: found " << tokens.size() << " tokens total.\n";
-	}
-
-	return tokens;
-
+	return indices;
 }
 
-void send_key_state() {
-	/* FORMAT:
-	 * CLINPST:<CL_ID>:<INPUT_STATE_BITMASK>
-	 */
-	// INPUT_STATE_BITMASK:
-	// UP: 		00000001
-	// DOWN:	00000010
-	// LEFT:	00000100
-	// RIGHT:	00001000
+void initializeStrings() {
+
+	// NOTE: it wouldn't be such a bad idea to just take in a vector 
+	// of strings, and to generate one single static VBO for them all.
+
+	wpstring_holder::append(wpstring("car. windows.", 15, 15), WPS_STATIC);
+	wpstring_holder::append(wpstring("Frames per second: ", WINDOW_WIDTH-180, WINDOW_HEIGHT-20), WPS_STATIC);
+
+	// reserved index 2 for FPS display. 
+	const std::string initialfps = "00.00";
+	wpstring_holder::append(wpstring(initialfps, WINDOW_WIDTH-50, WINDOW_HEIGHT-20), WPS_DYNAMIC);
+	wpstring_holder::append(wpstring("Camera pos: ", 20, WINDOW_HEIGHT-20), WPS_STATIC);
+	wpstring_holder::append(wpstring("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 102, WINDOW_HEIGHT-20), WPS_DYNAMIC);
+	//wpstring_holder::append(wpstring("IHANPERSEESTASAATANAETAEJTUAJRTJFOIJASOEFIJOI", 102, WINDOW_HEIGHT-40), WPS_DYNAMIC);
 	
-	unsigned char st = 0;
-	Uint8* keystate = SDL_GetKeyState(NULL);
+	wpstring_holder::append(wpstring("'p' for polygonmode toggle.", WINDOW_WIDTH-220, 35), WPS_STATIC);
+	wpstring_holder::append(wpstring("'n' for normal plot toggle.", WINDOW_WIDTH-220, 50), WPS_STATIC);
+	wpstring_holder::append(wpstring("'ESC' to lock/unlock mouse.", WINDOW_WIDTH-220, 80), WPS_STATIC);
 
-	if (keystate[SDLK_UP]) {
-		st |= KEY_UP;
-	}
-	if (keystate[SDLK_DOWN]) {
-		st |= KEY_DOWN;
-	}
-	if (keystate[SDLK_LEFT]) {
-		st |= KEY_LEFT;
-	}
-	if (keystate[SDLK_RIGHT]) {
-		st |= KEY_RIGHT;
-	}
+	wpstring_holder::createBufferObjects();
 
-	if (keystate[SDLK_ESCAPE]) {
-		signal_handler(SIGINT);
-	}
-
-	client_send_input_state_to_server(st);
 }
 
-static void signal_handler(int signum) {
-	if (do_client_flag) {
-		client_post_quit_message();
-		exit(clean_up_and_quit());
-	}
-	else if (do_server_flag) { 
-		server_post_quit_message();
-		exit(clean_up_and_quit());
-	}
-	else {
-		exit(clean_up_and_quit());
-	}
+void drawText() {
+	
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_DEPTH_TEST);
+
+	glBindBuffer(GL_ARRAY_BUFFER, wpstring_holder::get_static_VBOid());
+
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
+	
+	glUseProgram(text_shader->getProgramHandle());
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, Text::texId);
+
+	text_shader->update_uniform_1i("texture1", 0);
+	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)Text::ModelView.rawData());
+	text_shader->update_uniform_mat4("Projection", (const GLfloat*)Text::Projection.rawData());
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
+	
+	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::get_static_strings_total_length(), GL_UNSIGNED_SHORT, NULL);
+		
+	glBindBuffer(GL_ARRAY_BUFFER, wpstring_holder::get_dynamic_VBOid());
+	// not sure if needed or not
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
+
+	glUseProgram(text_shader->getProgramHandle());
+	text_shader->update_uniform_1i("texture1", 0);
+	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)Text::ModelView.rawData());
+	text_shader->update_uniform_mat4("Projection", (const GLfloat*)Text::Projection.rawData());
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
+	
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, Text::texId);
+
+	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::getDynamicStringCount()*wpstring_max_length, GL_UNSIGNED_SHORT, NULL);
+
+	glUseProgram(0);
+	glEnable(GL_DEPTH_TEST);
+
 }
 
-int init_SDL() {
 
-	const SDL_VideoInfo* info = NULL;
-	int bpp = 0;
-	int flags = 0;
+#define uniform_assert_warn(uniform) do {\
+if (uniform == -1) { \
+	logWindowOutput("(warning: uniform optimized away by GLSL compiler: %s at %d:%d\n", #uniform, __FILE__, __LINE__);\
+}\
+} while(0)
 
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		std::cerr << "Video initialization failed: " << SDL_GetError() << "\n";
-		return -1;
+int initGL(void)
+{
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+
+	glEnable(GL_DEPTH_TEST);
+
+	GLenum err = glewInit();
+
+	if (GLEW_OK != err)
+	{
+		logWindowOutput( "Error: %s\n", glewGetErrorString(err));
 	}
 
-	info = SDL_GetVideoInfo();
+	logWindowOutput( "OpenGL version: %s\n", glGetString(GL_VERSION));
+	logWindowOutput( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-	if(!info) {
-		std::cerr << "Video query failed: " << SDL_GetError() << "\n";
-		return -1;
+	logWindowOutput( "Loading models...\n");
+
+	chassis.VBOid = loadNewestBObj("models/chassis.bobj", &chassis.facecount);
+	wheel.VBOid = loadNewestBObj("models/wheel.bobj", &wheel.facecount);
+	plane.VBOid = loadNewestBObj("models/plane.bobj", &plane.facecount);
+	logWindowOutput( "done.\n");
+	indices = generateIndices();
+
+	logWindowOutput( "Loading textures...");
+	TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
+	logWindowOutput( "done.\n");
+
+	if (!TextureBank::validate()) {
+		logWindowOutput( "Error: failed to validate TextureBank (fatal).\n");
+		return 0;
+	}
+	earth_tex_id = TextureBank::get_id_by_name("textures/EarthTexture.jpg");
+	hmap_id = TextureBank::get_id_by_name("textures/earth_height_normal_map.jpg");
+	Text::texId = TextureBank::get_id_by_name("textures/dina_all.png");
+	
+	regular_shader = new ShaderProgram("shaders/regular"); 
+	normal_plot_shader = new ShaderProgram("shaders/normalplot");
+	text_shader = new ShaderProgram("shaders/text_shader");
+
+	if (regular_shader->is_bad() || normal_plot_shader->is_bad() || text_shader->is_bad()) { 
+		logWindowOutput( "Error: shader error (fatal).\n");
+		return 0; 
 	}
 
-	bpp = info->vfmt->BitsPerPixel;
 
-	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
-	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
-	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
-	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	glGenBuffers(1, &IBOid);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
+	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned short int)*3*facecount, indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(GLushort)(0xFFFF), indices, GL_STATIC_DRAW);
 
-	flags = SDL_OPENGL | SDL_HWSURFACE;
+	delete [] indices;	
 
-	if(SDL_SetVideoMode(WIN_W, WIN_H, bpp, flags) == 0) {
-		fprintf(stderr, "Video mode set failed: %s\n", SDL_GetError());
-		return -1;
+	glPatchParameteri(GL_PATCH_VERTICES, 3);
+
+	//GLuint programHandle = regular_shader->getProgramHandle();
+
+	//glBindFragDataLocation(programHandle, 0, "out_frag_color");
+	regular_shader->construct_uniform_map();
+	normal_plot_shader->construct_uniform_map();
+	text_shader->construct_uniform_map();
+
+
+	//GLuint fragloc = glGetFragDataLocation( programHandle, "out_frag_color"); uniform_assert_warn(fragloc);
+
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+
+
+	view = mat4::identity();
+
+	projection = mat4::proj_persp(M_PI/8.0, (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT, 2.0, 1000.0);
+
+	Text::Projection = mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
+	
+	Text::ModelView = mat4(MAT_IDENTITY);
+
+	view_position = vec4(0.0, 0.0, -9.0, 1.0);
+	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
+		
+	//glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+	//wglSwapIntervalEXT(2); // prefer hardware-forced vsync over this
+
+	models.push_back(Model(1.0, 1.0, chassis.VBOid, earth_tex_id, chassis.facecount, true, false));
+	models.push_back(Model(1.0, 1.0, wheel.VBOid, earth_tex_id, wheel.facecount, true, false));
+
+	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
+	
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
+
+	// fbo generation for shadow mapping stuff.
+
+	glGenFramebuffers(1, &FBOid);
+	glBindFramebuffer(GL_FRAMEBUFFER, FBOid);
+
+	glGenTextures(1, &FBO_textureId);
+	glBindTexture(GL_TEXTURE_2D, FBO_textureId);
+
+static int SHADOW_MAP_WIDTH = 1*WINDOW_WIDTH;
+static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP );	// these two are related to artifact mitigation
+	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
+
+	glFramebufferTexture2D (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, FBO_textureId, 0);
+
+	glDrawBuffer(GL_NONE);	// this, too, has something to do with only including the depth component 
+	glReadBuffer(GL_NONE);
+
+	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		logWindowOutput( "error: Shadow-map FBO initialization failed!\n");
+		return 0;
 	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	int k = initGL();
-	if (initGL() < 0) { return -1; }
-	genTexture();
-	genLists();
+
+	return 1;
+
 }
 
-static int clean_up_and_quit() {
-	SDL_Quit();
-	return 0;
+void drawPlane() {
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glUseProgram(regular_shader->getProgramHandle());
+
+	static const mat4 modelview = mat4::identity();//mat4::scale(100.0, 100.0, 100.0);
+	regular_shader->update_uniform_mat4("ModelView", modelview.rawData());
+	
+	regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
+	glBindBuffer(GL_ARRAY_BUFFER, plane.VBOid);
+	
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+
+	glDrawElements(GL_TRIANGLES, plane.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 }
 
-int main(int argc, char* argv[]) {
 
-	int option_index;
-	struct ip_port_struct addr;
-	struct ip_port_struct remote;
-	extern char *optarg;	// don't know what these are :D
-	extern int optind, opterr, optopt;
+void drawCar(const struct car &car) {
+	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
+	glUseProgram(regular_shader->getProgramHandle());	
 
-	signal(SIGINT, signal_handler);
+	running += 0.015;
+	if (running > 1000000) { running = 0; }
 
-	int c;
-	while ((c = getopt_long(argc, argv, "s:c:", long_options, &option_index)) != -1) {
-		switch(c) {
-			case 0:
-				std::cout << long_options[option_index].name << " " << optarg << " supplied\n";
-				if (strcmp(long_options[option_index].name, "connect") == 0) {
-					remote = connect_flag_action(optarg);
-					do_client_flag = 1;
-				}
-				else if (strcmp(long_options[option_index].name, "server") == 0){
-					server_flag_action(optarg);
-					do_server_flag = 1;
-				}
-				break;
+	regular_shader->update_uniform_1f("running", running);
+	regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
 
-			case 's':
-				std::cout << "-s supplied.\n";
-				server_flag_action(optarg);
-				do_server_flag = 1;
-				break;
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);  // is still in full matafaking effizzect :D 
+	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);	 
 
-			case 'c':
-				std::cout << "-c supplied.\n";
-				remote = connect_flag_action(optarg);
-				do_client_flag = 1;
-				break;
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 
-			case '?':
-				std::cout << "wtf.\n";
-				break;
-			case -1:
-				break;
+	viewq.normalize();
+	view = viewq.toRotationMatrix();
+	view = view*mat4::translate(view_position);
 
-		}
+	static float direction = 0.0;	// in the xz-plane
+
+	// no need to reconstruct iterator every time
+	static std::vector<Model>::iterator current;
+	current = models.begin();
+
+	static const vec4 chassis_color(0.8, 0.3, 0.5, 1.0);
+	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
+
+	
+	mat4 modelview = view * mat4::translate(car.position) * mat4::rotate(-car.direction, 0.0, 1.0, 0.0);
+	mat4 mw = modelview*mat4::rotate(car.susp_angle_roll, 1.0, 0.0, 0.0);
+	mw *= mat4::rotate(car.susp_angle_fwd, 0.0, 0.0, 1.0);
+	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
+
+	regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
+	regular_shader->update_uniform_vec4("paint_color", chassis_color.rawData());
+	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, (*current).getTextureId());
+	regular_shader->update_uniform_1i("texture_color", 0);
+
+	glDisable(GL_BLEND);
+	glDrawElements(GL_TRIANGLES, chassis.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+
+	glBindBuffer(GL_ARRAY_BUFFER, wheel.VBOid);
+	
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+	
+	regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
+	
+	static float wheel_angle = 0.0;
+	wheel_angle -= 1.05*car.velocity;
+
+	// front wheels
+	static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
+	mw = modelview;
+	mw *= front_left_wheel_translation;
+	mw *= mat4::rotate(M_PI - car.front_wheel_angle, 0.0, 1.0, 0.0);
+	mw *= mat4::rotate(-wheel_angle, 0.0, 0.0, 1.0);
 
 
-	}
-	std::cerr << "do_server_flag: " << do_server_flag << ", do_client_flag: " << do_client_flag << "\n";
-
-	if (do_server_flag && do_client_flag ) {
-		std::cerr << "Both client AND server can't be launched at the same time.\n";
-		exit(1);
-	}
-	if (do_server_flag) {
-		std::cerr << "starting server on port " << port <<"\n";
-		server_start(port);
-	}
-	else if (do_client_flag) {
-		if (client_start(remote.address, remote.port) < 0) {
-			std::cerr << "client_start failed. Exiting.\n";
-		}
-	}
+	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
+	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+	
+	static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
+	mw = modelview;
+	mw *= front_right_wheel_translation;
+	mw *= mat4::rotate(-car.front_wheel_angle, 0.0, 1.0, 0.0);
+	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
 
 
-	// separate loops for client and server "clients" :D
-	if (do_client_flag) {
-		if (init_SDL() < 0) { exit(1); };
-		while(true) {
-			timer.begin();
-			process_events();
-			//process_input();
-			send_key_state();
-			if (client_get_data_from_remote() < 0) { 
-				signal_handler(SIGINT); 
-			}// is also processed in this call
-			draw();
-			SDL_GL_SwapBuffers();
-			time_t us = timer.get_us();
+	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
+	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
 
-			while (us < 16666) {
-				us = timer.get_us();
+	// back wheels
+	static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
+	mw = modelview;
+	mw *= back_left_wheel_translation;
+	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
+
+	
+	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
+	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+	
+	static const mat4 back_right_wheel_translation = mat4::translate(vec4(1.3, -0.6, -0.9, 1.0));
+
+	mw = modelview;
+	mw *= back_right_wheel_translation;
+	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
+
+	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
+	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+}
+
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+	std::string cpustr(checkCPUCapabilities());
+	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
+
+	MSG msg;
+	BOOL done=FALSE;
+
+	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	
+	logWindowOutput("%s\n", cpustr.c_str());
+	//ShowCursor(FALSE);
+
+	bool esc = false;
+	initializeStrings();
+	
+	_timer timer;
+	
+	while(!done)
+	{
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			if(msg.message == WM_QUIT)
+			{
+				done=TRUE;
 			}
-			//std::cerr << 1000000/us << "\n";
-
-
-		}
-	}
-	else if (do_server_flag) {
-		while(true) {
-//			process_events();
-//			process_input();
-			
-			server_receive_packets();	// packets are also processed in this call
-
-		}
-	}
-	else {
-		/* local "play" */
-		if (init_SDL() < 0) { exit(1); };
-
-		id_client_map &peers = client_get_peers();
-		peers[1] = local_client;
-		id_client_map::iterator it = peers.find(1);
-
-		while(1) {
-			timer.begin();
-			it->second = local_client;
-			process_events();
-			process_input();
-
-			time_t us = timer.get_us();
-
-			draw();
-			SDL_GL_SwapBuffers();
-			while (us < 16666) {
-				us = timer.get_us();
+			else {
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
 			}
 		}
+		else {
+			if (active)
+			{
+				if(keys[VK_ESCAPE])
+				{
+					if (!esc) {
+						mouseLocked = !mouseLocked;
+						ShowCursor(mouseLocked ? FALSE : TRUE);
+						esc = true;
+					}
+					//done=TRUE;
+				}
+				else{
+					esc=false;
+
+					control();
+					update_c_pos();
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					drawCar(local_car);
+					drawPlane();
+					long us = timer.get_us();
+					double fps = 1000000/us;
+					static char buffer[128];
+					int l = sprintf(buffer, "%4.2f", fps);
+					buffer[l] = '\0';
+					std::string fps_str(buffer);
+
+					wpstring_holder::updateDynamicString(0, fps_str);
+					l = sprintf(buffer, "(%4.2f, %4.2f, %4.2f)", view_position(V::x), view_position(V::y), view_position(V::z));
+
+					buffer[l] = '\0';
+					std::string pos_str(buffer);
+					wpstring_holder::updateDynamicString(1, pos_str);
+	
+					drawText();
+
+					window_swapbuffers();
+					timer.begin();
+				}
+			}
+		}
+
 	}
 
-	std::cerr << "exiting\n";
-
-	return 0;
-
+	KillGLWindow();
+	glDeleteBuffers(1, &IBOid);
+	return (msg.wParam);
 }
+
