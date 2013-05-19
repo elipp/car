@@ -1,21 +1,21 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#ifdef _WIN32
+#include <Winsock2.h>
 #include <Windows.h>
-#endif
+
 #include <fstream>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#ifdef __linux__
-#include <sys/time.h>
-#endif
+
 #define GLEW_STATIC 
 #include <GL/glew.h>
 #include <GL/gl.h>
+
+#include "lin_alg.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265359
@@ -29,7 +29,21 @@ static const float _180_PER_PI = (180.0/M_PI);
 inline float RADIANS(float angle_in_degrees) { return angle_in_degrees*PI_PER_180; }
 inline float DEGREES(float angle_in_radians) { return angle_in_radians*_180_PER_PI; }
 
-void logWindowOutput(const char* format, ...);
+class Car {
+public:
+	float _position[3];
+	float direction;
+	float wheel_rot;
+	float velocity;
+	float susp_angle_roll;
+	float susp_angle_fwd;
+	float front_wheel_angle;
+	float front_wheel_tmpx;
+	float F_centripetal;
+
+	vec4 position() const { return vec4(_position[0], _position[1], _position[2], 1.0); }
+	Car() { memset(this, 0, sizeof(*this)); }
+}; 
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 

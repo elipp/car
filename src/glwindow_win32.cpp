@@ -254,7 +254,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
     DWORD child_get_last_error  = GetLastError ();
  
     
-    hWnd_child = CreateWindowEx ( WS_EX_CLIENTEDGE,                      // no extended styles           
+  /*  hWnd_child = CreateWindowEx ( WS_EX_CLIENTEDGE,                      // no extended styles           
                                 "EDIT",           // class name                   
                                 windowName_c,          // window name                  
                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_VSCROLL |
@@ -278,7 +278,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	ShowWindow (hWnd_child, SW_SHOW); 
     UpdateWindow (hWnd_child);
 	// clear log window
-	clearLogWindow();
+	clearLogWindow(); */
 
 	if (!initGL())
 	{
@@ -341,9 +341,22 @@ static std::string *convertLF_to_CRLF(const char *buf) {
 	return buffer;
 }
 
-
+void logWindowOutput(const char* format, ...) {
+	char msg_buf[512];
+	va_list args;
+	va_start(args, format);
+	SYSTEMTIME st;
+    GetSystemTime(&st);
+	std::size_t timestamp_len = sprintf(msg_buf, "%02d:%02d:%02d.%03d > ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+	std::size_t msg_len = vsprintf(msg_buf + timestamp_len, format, args);
+	std::size_t total_len = timestamp_len + msg_len;
+	msg_buf[total_len] = '\0';
+	va_end(args);
+	fprintf(stderr, "%s", msg_buf);
+}
+/*
 void logWindowOutput(const char *format, ...) {
-	static char msg_buf[2048];
+	char msg_buf[512];
 	va_list args;
 	va_start(args, format);
 	SYSTEMTIME st;
@@ -359,8 +372,8 @@ void logWindowOutput(const char *format, ...) {
    SendMessage(hWnd_child, EM_SETSEL, (WPARAM)nLength, (LPARAM)nLength);
    SendMessage(hWnd_child, EM_REPLACESEL, (WPARAM)FALSE, (LPARAM)converted->c_str());
    SendMessage(hWnd_child, EM_SCROLLCARET, (WPARAM)0, (LPARAM)0);
-   	delete converted;
-}
+   	delete converted; 
+} */
 
 static void clearLogWindow() {
 	int nLength = GetWindowTextLength(hWnd_child); 

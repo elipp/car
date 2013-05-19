@@ -9,6 +9,7 @@
 #include <cassert>
 #include <signal.h>
 
+#include <Winsock2.h>
 #include <Windows.h>
 #define GLEW_STATIC 
 #include <GL/glew.h>
@@ -16,6 +17,8 @@
 #include <GL/glu.h>
 #include <GL/wglew.h>
 
+#include "net/net_server.h"
+#include "net/net_client.h"
 #include "glwindow_win32.h"
 #include "lin_alg.h"
 #include "common.h"
@@ -77,23 +80,13 @@ vec4 cameraVel;
 
 static std::vector<Model> models;
 
+static Car local_car;
+
 GLushort * indices; 
 
 #ifndef M_PI
 #define M_PI 3.1415926535
 #endif
-
-struct car {
-	vec4 position;
-	float direction;
-	float wheel_rot;
-	float velocity;
-	float susp_angle_roll;
-	float susp_angle_fwd;
-	float front_wheel_angle;
-	float front_wheel_tmpx;
-	float F_centripetal;
-};
 
 static const float FW_ANGLE_LIMIT = M_PI/6; // rad
 static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
@@ -113,8 +106,6 @@ float f_wheel_angle(float x) {
 		return (1/t) - FW_ANGLE_LIMIT;
 	}
 }
-
-static struct car local_car = { vec4(0.0,0.0,0.0,1.0), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
 void rotatex(float mod) {
 	qy += mod;
@@ -222,9 +213,11 @@ void control()
 		local_car.susp_angle_fwd *= 0.50;
 		local_car.F_centripetal = 0.0;
 	}
+	
 	local_car.susp_angle_fwd = 7*local_car_acceleration;
-	local_car.position(V::x) += local_car.velocity*sin(local_car.direction-M_PI/2);
-	local_car.position(V::z) += local_car.velocity*cos(local_car.direction-M_PI/2);
+	local_car._position[0] += local_car.velocity*sin(local_car.direction-M_PI/2);
+	local_car._position[2] += local_car.velocity*cos(local_car.direction-M_PI/2);
+	
 
 	if (keys['W']) {
 		c_vel_fwd += fwd_modifier;
@@ -517,7 +510,7 @@ void drawPlane() {
 }
 
 
-void drawCar(const struct car &car) {
+void drawCar(const Car &car) {
 	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 	glUseProgram(regular_shader->getProgramHandle());	
 
@@ -547,8 +540,7 @@ void drawCar(const struct car &car) {
 	static const vec4 chassis_color(0.8, 0.3, 0.5, 1.0);
 	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
-	
-	mat4 modelview = view * mat4::translate(car.position) * mat4::rotate(-car.direction, 0.0, 1.0, 0.0);
+	mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.direction, 0.0, 1.0, 0.0);
 	mat4 mw = modelview*mat4::rotate(car.susp_angle_roll, 1.0, 0.0, 0.0);
 	mw *= mat4::rotate(car.susp_angle_fwd, 0.0, 0.0, 1.0);
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
@@ -621,11 +613,20 @@ void drawCar(const struct car &car) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+
+	
+	if(AllocConsole()) {
+	freopen("CONOUT$", "wt", stderr);
+	SetConsoleTitle("debug output");
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+	}
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
 
 	MSG msg;
 	BOOL done=FALSE;
+
+	if (!Server::init(50000)) { logWindowOutput("server init failed on port 50000\n"); }
 
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	
@@ -643,6 +644,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			if(msg.message == WM_QUIT)
 			{
+				logWindowOutput("Waiting for server thread to stop...\n");
+				Server::post_quit_and_cleanup();
+				logWindowOutput("Done.\n");
 				done=TRUE;
 			}
 			else {

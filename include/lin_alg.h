@@ -9,12 +9,16 @@
 #include <x86intrin.h>
 #endif
 
-#include <stdio.h>
+#include <cstdio>
 #include <cstring>
 #include <cmath>
 #include <cstdio>
 
-#include "common.h"
+class vec4;
+class mat4;
+class Quaternion;
+
+extern void logWindowOutput(const char* format, ...);
 
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
 
@@ -36,9 +40,6 @@
         }
 #endif
 
-namespace V {
-	enum { x = 0, y = 1, z = 2, w = 3 };
-}
 
 enum { MAT_ZERO = 0x0, MAT_IDENTITY = 0x1 };
 
@@ -50,9 +51,9 @@ const char* checkCPUCapabilities();
 
 // forward declarations 
 
-class vec4;
-class mat4;
-class Quaternion;
+namespace V {
+	enum { x = 0, y = 1, z = 2, w = 3 };
+}
 
 #ifdef _WIN32
 __declspec(align(16)) // to ensure 16-byte alignment in memory
@@ -342,8 +343,6 @@ public:
 		free(q);
 #endif
 	}
-
-
 } 
 #ifdef __linux__
 __attribute__((aligned(16)))

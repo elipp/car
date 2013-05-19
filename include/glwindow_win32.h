@@ -1,5 +1,6 @@
-#ifndef WINDOW_INIT_WIN32_H
-#define WINDOW_INIT_WIN32_H
+#ifndef GLWINDOW_WIN32_H
+#define GLWINDOW_WIN32_H
+
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -11,12 +12,14 @@
 #include <cassert>
 #include <signal.h>
 
+#include <Winsock2.h>
 #include <Windows.h>
 #define GLEW_STATIC 
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/wglew.h>
+
 
 void window_swapbuffers();
 

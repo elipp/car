@@ -1,6 +1,7 @@
 #ifndef TEXTURE_H
 #define TEXTURE_H
 
+#include <Winsock2.h>
 #include <Windows.h>
 #define GLEW_STATIC 
 #include <GL/glew.h>

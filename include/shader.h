@@ -1,6 +1,7 @@
 #ifndef SHADER_H
 #define SHADER_H
 
+#include <Winsock2.h>
 #include <Windows.h>
 #define GLEW_STATIC 
 #include <GL/glew.h>
