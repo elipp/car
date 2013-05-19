@@ -18,3 +18,12 @@ void protocol_make_header(char* buffer, struct Client *client, unsigned short co
 	accum_write(buffer, (const void*)&client->seq_number, sizeof(client->seq_number));
 	accum_write(buffer, (const void*)&command_arg_mask, sizeof(command_arg_mask));
 }
+
+#define IPBUFSIZE 32
+
+std::string get_dot_notation_ipv4(struct sockaddr_in *saddr) {
+		char ip_buf[IPBUFSIZE];
+		inet_ntop(saddr->sin_family, &saddr->sin_addr, ip_buf, IPBUFSIZE);
+		ip_buf[IPBUFSIZE-1] = '\0';
+		return std::string(ip_buf);
+}

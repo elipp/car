@@ -9,12 +9,13 @@ int Socket::initialized() {
 
 int Socket::initialize() {
 	// windows specific; the rest don't need this
+	if (initialized()) { return 1; }
 	int ret;
 	WSAData wsaData;
 	ret = WSAStartup(MAKEWORD(2,2), &wsaData);
 	
 	if (ret != 0) {
-		logWindowOutput("WSAStartup failed.: %d\n", ret);
+		fprintf(stderr, "WSAStartup failed.: %d\n", ret);
 		return 0;
 	}
 	_initialized = 1;
@@ -29,14 +30,15 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 	fd = socket(AF_INET, TYPE, 0);
 	if (fd <= 0) {
-		logWindowOutput("Socket: Failed to create socket (TYPE: %d).\n", TYPE);
+		fprintf(stderr, "Socket: Failed to create socket (TYPE: %d).\n", WSAGetLastError());
+		return;
 	}
 	my_addr.sin_family = AF_INET;
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	my_addr.sin_port = htons((unsigned short) port);
 
 	if (bind(fd, (const sockaddr*)&my_addr, sizeof(struct sockaddr_in) ) < 0 ) {
-		logWindowOutput("Socket: Failed to bind socket.\n");
+		fprintf(stderr, "Socket: Failed to bind socket.\n");
 		return;
 	}
 	
@@ -44,20 +46,20 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 	if (!blocking) {
 		if (ioctlsocket(fd, FIONBIO, &socket_mode) == SOCKET_ERROR) {
-			logWindowOutput("Socket: failed to set non-blocking socket\n");
+			fprintf(stderr, "Socket: failed to set non-blocking socket\n");
 			return;
 		}
-		logWindowOutput("Socket: using non-blocking socket.\n");
+		fprintf(stderr, "Socket: using non-blocking socket.\n");
 	}
 	else { 
-		logWindowOutput("Socket: using blocking socket.\n");
+		fprintf(stderr, "Socket: using blocking socket.\n");
 	}
 	_bad = false;
 
 }
 
-int Socket::send_data(char *data, size_t len, struct sockaddr_in *recipient) {
-	int sent_bytes = sendto(fd, (const char*)data, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
+int Socket::send_data(struct sockaddr_in *recipient, size_t len) {
+	int sent_bytes = sendto(fd, (const char*)outbound_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
 	return sent_bytes;
 }
 
@@ -82,6 +84,14 @@ void Socket::close() {
 void Socket::copy_from_packet_buffer(void *dst, size_t beg_offset, size_t end_offset) {
 	size_t size = end_offset-beg_offset;
 	memcpy(dst, packet_buffer + beg_offset, size); 
+}
+
+void Socket::copy_to_outbound_buffer(void *src, size_t src_size, size_t dest_offset) {
+	if (dest_offset + src_size > PACKET_SIZE_MAX) {
+		fprintf(stderr, "copy_to_outbound_buffer(): warning: size of data to be copied > PACKET_SIZE_MAX. Truncating.\n");
+		src_size = PACKET_SIZE_MAX - dest_offset - 1;
+	}
+	memcpy(outbound_buffer + dest_offset, src, src_size);
 }
 
 char Socket::get_packet_buffer_char(int index) {

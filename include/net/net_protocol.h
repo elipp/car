@@ -2,7 +2,7 @@
 #define NET_PROTOCOL_H
 
 #include <cstring>
-#include "net_client.h"
+#include "net/net_client.h"
 
 const int PROTOCOL_ID = 0xABACABAD;	// can't use a #define here; memcpy.
 const unsigned short ID_SERVER = 0x0000; 
@@ -21,13 +21,15 @@ const unsigned short ID_SERVER = 0x0000;
 #define C_QUIT (unsigned char) 0xFF
 
 void protocol_make_header(char *buffer, struct Client *client, unsigned short command_arg_mask);
+std::string get_dot_notation_ipv4(struct sockaddr_in *saddr);
+
 
 /*
 The following protocol header for all datagram packets is used:
 
 byte offset		content
 0-4				(int) PROTOCOL_ID, packages which do not have this identifier will be dropped
-4-6				(unsigned short) sender_id.	0x0000 for server, 0xFFFF for unassigned client
+4-6				(unsigned short) sender_id.	0x00 for server, 0xFF for unassigned client
 6-10			(unsigned int) packet sequence number.
 10-11			(unsigned char) command byte. see above
 11-12			(unsigned char) command byte arg (optional). for example, S_PEER_LIST would have the number of peers here

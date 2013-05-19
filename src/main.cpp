@@ -626,7 +626,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MSG msg;
 	BOOL done=FALSE;
 
-	if (!Server::init(50000)) { logWindowOutput("server init failed on port 50000\n"); }
+	LocalClient::init("Jarmo2", "127.0.0.1", (unsigned short)50000);
 
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	
@@ -645,7 +645,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if(msg.message == WM_QUIT)
 			{
 				logWindowOutput("Waiting for server thread to stop...\n");
-				Server::post_quit_and_cleanup();
+				//Server::post_quit_and_cleanup();
 				logWindowOutput("Done.\n");
 				done=TRUE;
 			}

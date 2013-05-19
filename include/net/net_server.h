@@ -3,6 +3,7 @@
 
 #include <thread>
 #include <unordered_map>
+#include "net_protocol.h"
 #include "net_socket.h"
 #include "net_client.h"
 
@@ -19,7 +20,7 @@ public:
 
 	static Socket socket;
 	static void listen();
-	static void handshake(struct Client client);
+	static void handshake(struct Client *client);
 	static unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
 	static void remove_client(int id);
 	static id_client_map::iterator get_client_by_id(unsigned short id);
