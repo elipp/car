@@ -11,10 +11,13 @@ class Socket {
 
 	int fd;
 	struct sockaddr_in my_addr;
-	unsigned current_data_length;
-	bool _bad;
+	unsigned current_data_length_in;
+	unsigned current_data_length_out;
+
 	char packet_buffer[PACKET_SIZE_MAX];
 	char outbound_buffer[PACKET_SIZE_MAX];
+
+	bool _bad;
 public:
 
 	void copy_from_packet_buffer(void *dst, size_t beg_offset, size_t end_offset);
@@ -22,7 +25,7 @@ public:
 	static int initialized();
 	Socket(unsigned short port, int TYPE, bool blocking);
 	static int initialize();	// winsock requires WSAStartup and all that stuff
-	int send_data(struct sockaddr_in *recipient, size_t len);
+	int send_data(const struct sockaddr_in *recipient, size_t len);
 	int receive_data(struct sockaddr_in *from);
 	char get_packet_buffer_char(int index);
 	void close();

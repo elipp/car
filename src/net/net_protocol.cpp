@@ -9,7 +9,7 @@ static inline void accum_write(char *buffer, const void *data, size_t size) {
 	accum_offset += size;
 }
 
-void protocol_make_header(char* buffer, struct Client *client, unsigned short command_arg_mask) {
+void protocol_make_header(char* buffer, const struct Client *client, unsigned short command_arg_mask) {
 	accum_reset();
 
 	accum_write(buffer, (const void*)&PROTOCOL_ID, sizeof(PROTOCOL_ID));
@@ -21,9 +21,10 @@ void protocol_make_header(char* buffer, struct Client *client, unsigned short co
 
 #define IPBUFSIZE 32
 
-std::string get_dot_notation_ipv4(struct sockaddr_in *saddr) {
+std::string get_dot_notation_ipv4(const struct sockaddr_in *saddr) {
 		char ip_buf[IPBUFSIZE];
-		inet_ntop(saddr->sin_family, &saddr->sin_addr, ip_buf, IPBUFSIZE);
+		IN_ADDR sin_addr = saddr->sin_addr;
+		inet_ntop(saddr->sin_family, &sin_addr, ip_buf, IPBUFSIZE);
 		ip_buf[IPBUFSIZE-1] = '\0';
 		return std::string(ip_buf);
 }

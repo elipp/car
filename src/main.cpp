@@ -644,9 +644,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			if(msg.message == WM_QUIT)
 			{
-				logWindowOutput("Waiting for server thread to stop...\n");
+				fprintf(stderr, "Sending quit message (C_QUIT) to server.\n");
+				LocalClient::post_quit_message();
 				//Server::post_quit_and_cleanup();
-				logWindowOutput("Done.\n");
+				
 				done=TRUE;
 			}
 			else {

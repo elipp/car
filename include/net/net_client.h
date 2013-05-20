@@ -42,6 +42,8 @@ public:
 	static void listen();
 	static void reconstruct_peer_list();
 	static void handle_current_packet();
+	static void post_quit_message();
+	static int send_current_data(size_t size); // use a wrapper like this in order to increment seq_numbers
 private:
 	LocalClient() {}
 };

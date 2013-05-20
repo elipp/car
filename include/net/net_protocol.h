@@ -20,10 +20,13 @@ const unsigned short ID_SERVER = 0x0000;
 #define C_PONG (unsigned char) 0xF4
 #define C_QUIT (unsigned char) 0xFF
 
-void protocol_make_header(char *buffer, struct Client *client, unsigned short command_arg_mask);
-std::string get_dot_notation_ipv4(struct sockaddr_in *saddr);
+void protocol_make_header(char *buffer, const struct Client *client, unsigned short command_arg_mask);
+std::string get_dot_notation_ipv4(const struct sockaddr_in *saddr);
 
-
+typedef union {
+		unsigned short us;
+		unsigned char ch[2];
+} command_arg_mask_union;
 /*
 The following protocol header for all datagram packets is used:
 

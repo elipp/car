@@ -27,6 +27,7 @@ public:
 	static void ping_clients();
 	static void broadcast_state();
 	static void handle_current_packet(struct sockaddr_in *from);
+	static int send_data_to_client(struct Client &client, size_t data_size);
 
 	static void post_quit_and_cleanup();
 private:

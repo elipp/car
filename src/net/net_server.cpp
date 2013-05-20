@@ -25,7 +25,7 @@ void Server::listen() {
 			 int((from.sin_addr.s_addr&0xFF00)>>8),
 			 int((from.sin_addr.s_addr&0xFF0000)>>16),
 			 int((from.sin_addr.s_addr&0xFF000000)>>24)); */
-			fprintf(stderr, "Received %d bytes from %s\n", bytes, ip.c_str());
+			fprintf(stderr, "Received %d bytes from %s.\n", bytes, ip.c_str());
 			Server::handle_current_packet(&from);
 		}
 	}
@@ -54,9 +54,7 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 	if (protocol_id != PROTOCOL_ID) {
 		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
 	}
-	else {
-		fprintf(stderr, "protocol matches! :)\n");
-	}
+
 	unsigned short client_id;
 	socket.copy_from_packet_buffer(&client_id, 4, 6);
 
@@ -80,7 +78,8 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 		}
 	}
 	else if (cmdbyte == C_QUIT) {
-		
+		clients.erase(client_id);
+		fprintf(stderr, "Received C_QUIT from client %d\n", client_id);
 	}
 	else {
 		fprintf(stderr, "received unknown cmdbyte %u with arg %u\n", cmdbyte, cmdbyte_arg);
@@ -116,5 +115,12 @@ void Server::handshake(struct Client *client) {
 	
 	protocol_make_header(socket.get_outbound_buffer(), client, mask);
 	socket.copy_to_outbound_buffer(&client->id, sizeof(client->id), 12);
-	socket.send_data(&client->address, 14);
+	int bytes = send_data_to_client(*client, 14);
+}
+
+int Server::send_data_to_client(struct Client &client, size_t data_size) {
+	// use this wrapper in order to appropriately increment seq numberz
+	int bytes = socket.send_data(&client.address, data_size);
+	++client.seq_number;
+	return bytes;
 }
