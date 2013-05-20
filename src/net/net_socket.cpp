@@ -26,8 +26,8 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 	_bad = true;
 	
 	memset(packet_buffer, 0x0, PACKET_SIZE_MAX);
-	current_data_length_in = 0;
-	current_data_length_out = 0;
+	_current_data_length_in = 0;
+	_current_data_length_out = 0;
 
 	fd = socket(AF_INET, TYPE, 0);
 	if (fd <= 0) {
@@ -61,7 +61,7 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 int Socket::send_data(const struct sockaddr_in *recipient, size_t len) {
 	int sent_bytes = sendto(fd, (const char*)outbound_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
-	current_data_length_out = len;
+	_current_data_length_out = len;
 	return sent_bytes;
 }
 
@@ -70,12 +70,12 @@ int Socket::receive_data(struct sockaddr_in *from) {
 	
 	memset(from, 0x0, from_length);
 	
-	current_data_length_in = 
+	_current_data_length_in = 
 		recvfrom(fd, packet_buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)from, &from_length);
 
-	packet_buffer[current_data_length_in] = '\0';
+	packet_buffer[_current_data_length_in] = '\0';
 	
-	return current_data_length_in;
+	return _current_data_length_in;
 }
 
 void Socket::close() {

@@ -12,20 +12,22 @@
 
 struct Client {
 	struct sockaddr_in address;
-	char* ip_string;
-	char* name;
+	std::string ip_string;
+	std::string name;
 	unsigned short id;
 	Car car;
 	unsigned char keystate;
 	unsigned seq_number;
+	unsigned active_ping_seq_number;
+	_timer ping_timer;
 
-	Client() { memset(this, 0x0, sizeof(struct Client)); }
-	
-	~Client() { 
-		// FIXMEFIXMEFIXME.
-		// THESE CAUSE A SEGMENTATION FAULT
-		//if(ip_string != NULL) { free((void*)ip_string); }
-		//if(name != NULL) { free((void*)name); }
+	Client() { 
+		memset(&address, 0x0, sizeof(address));
+		id = 0;
+		memset(&car, 0x0, sizeof(car));
+		keystate = 0x0;
+		seq_number = 0x0;
+		active_ping_seq_number = 0x0;
 	}
 };
 
@@ -43,6 +45,8 @@ public:
 	static void reconstruct_peer_list();
 	static void handle_current_packet();
 	static void post_quit_message();
+	static void pong(unsigned remote_seq_number);
+	static void quit();
 	static int send_current_data(size_t size); // use a wrapper like this in order to increment seq_numbers
 private:
 	LocalClient() {}

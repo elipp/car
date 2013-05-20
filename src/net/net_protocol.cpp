@@ -9,13 +9,12 @@ static inline void accum_write(char *buffer, const void *data, size_t size) {
 	accum_offset += size;
 }
 
-void protocol_make_header(char* buffer, const struct Client *client, unsigned short command_arg_mask) {
+void protocol_make_header(char* buffer, unsigned short sender_id, unsigned int seq_number, unsigned short command_arg_mask) {
 	accum_reset();
 
 	accum_write(buffer, (const void*)&PROTOCOL_ID, sizeof(PROTOCOL_ID));
-	unsigned short id = client->id;
-	accum_write(buffer, (const void*)&id, sizeof(id));
-	accum_write(buffer, (const void*)&client->seq_number, sizeof(client->seq_number));
+	accum_write(buffer, (const void*)&sender_id, sizeof(sender_id));
+	accum_write(buffer, (const void*)&seq_number, sizeof(seq_number));
 	accum_write(buffer, (const void*)&command_arg_mask, sizeof(command_arg_mask));
 }
 
@@ -27,4 +26,21 @@ std::string get_dot_notation_ipv4(const struct sockaddr_in *saddr) {
 		inet_ntop(saddr->sin_family, &sin_addr, ip_buf, IPBUFSIZE);
 		ip_buf[IPBUFSIZE-1] = '\0';
 		return std::string(ip_buf);
+}
+
+void protocol_update_seq_number(char *buffer, unsigned int seq_number) {
+	memcpy(buffer+6, &seq_number, sizeof(seq_number)); 
+}
+
+void buffer_print_raw(const char* buffer, size_t size) {
+	for (size_t i = 0; i < size; ++i) {
+		if ((unsigned char)buffer[i] < 0x7F && (unsigned char)buffer[i] > 0x1F) {
+			fprintf(stderr, "%c  ", buffer[i]);
+		}
+		else {
+			fprintf(stderr, "%02x ", (unsigned char)buffer[i]);
+		}
+		if (i % 16 == 15) { fprintf(stderr, "\n"); }
+	}
+	fprintf(stderr, "\n");
 }

@@ -14,6 +14,7 @@ class Server {
 	static std::thread listen_thread;
 	static id_client_map clients;
 	static unsigned num_clients;
+	static unsigned seq_number;
 public:
 	
 	static int init(unsigned short port);
@@ -28,6 +29,7 @@ public:
 	static void broadcast_state();
 	static void handle_current_packet(struct sockaddr_in *from);
 	static int send_data_to_client(struct Client &client, size_t data_size);
+	static void post_peer_list();
 
 	static void post_quit_and_cleanup();
 private:

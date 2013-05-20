@@ -645,8 +645,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if(msg.message == WM_QUIT)
 			{
 				fprintf(stderr, "Sending quit message (C_QUIT) to server.\n");
-				LocalClient::post_quit_message();
-				//Server::post_quit_and_cleanup();
+				LocalClient::quit();
 				
 				done=TRUE;
 			}

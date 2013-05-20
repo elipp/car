@@ -79,7 +79,7 @@ public:
 	bool init() {
 		LARGE_INTEGER li;
 		if (!QueryPerformanceFrequency(&li)) {
-			logWindowOutput( "_timer: initialization failed.\n");
+			fprintf(stderr, "_timer: initialization failed.\n");
 			return false;
 		}
 		cpu_freq = double(li.QuadPart);	// in Hz. this is subject to dynamic frequency scaling, though
@@ -103,7 +103,7 @@ public:
 		return double(1000000*(_timer::get_s()));
 	}
 	_timer() {
-		if (!init()) { logWindowOutput("_timer error.\n"); }
+		if (!init()) { fprintf(stderr, "_timer error.\n"); }
 	}
 };
 
