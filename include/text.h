@@ -5,8 +5,6 @@
 #include <cstring>
 #include <vector>
 #include <array>
-#include <deque>
-#include <queue>
 
 #include "glwindow_win32.h"
 #include "common.h"
@@ -90,11 +88,10 @@ public:
 class onScreenLog {
 	static float pos_x, pos_y;
 	static mat4 modelview;
-	static std::array<char, ON_SCREEN_LOG_BUFFER_SIZE> data;
 	static GLuint VBOid;
 	static unsigned most_recent_index;
 	static unsigned most_recent_line_num;
-	static std::deque<unsigned char> line_lengths;
+
 public:
 	static void scroll(float ds);
 	static void print(const char* format, ...);

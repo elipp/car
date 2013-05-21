@@ -250,14 +250,11 @@ const wpstring &wpstring_holder::getDynamicString(int index) {
 
 float onScreenLog::pos_x = 2.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT;
 mat4 onScreenLog::modelview = mat4::identity();
-std::array<char, ON_SCREEN_LOG_BUFFER_SIZE> onScreenLog::data;
 GLuint onScreenLog::VBOid = 0;
 unsigned onScreenLog::most_recent_index = 0;
 unsigned onScreenLog::most_recent_line_num = 0;
-std::deque<unsigned char> onScreenLog::line_lengths;
 
 int onScreenLog::init() {
-	data.fill(0x20);
 	generate_VBO();
 	return 1;
 }
@@ -278,10 +275,7 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 		if (c == '\n') {
 			y_adjustment += char_spacing_vert;
 			x_adjustment = -char_spacing_horiz;	// workaround, is incremented at the bottom of the lewp
-			line_lengths.push_back((unsigned char)(i - line_beg_index));
-			if (line_lengths.size() > ON_SCREEN_LOG_NUM_LINES) {
-				line_lengths.pop_front();
-			}
+			
 			line_beg_index = i;
 			++most_recent_line_num;
 		}
@@ -289,10 +283,6 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 		else if (i % ON_SCREEN_LOG_LINE_LEN == ON_SCREEN_LOG_LINE_LEN_MINUS_ONE) {
 			y_adjustment += char_spacing_vert;
 			x_adjustment = 0;
-			line_lengths.push_back((unsigned char)ON_SCREEN_LOG_LINE_LEN);
-			if (line_lengths.size() > ON_SCREEN_LOG_NUM_LINES) {
-				line_lengths.pop_front();
-			}
 			line_beg_index = i;
 			++most_recent_line_num;
 		}

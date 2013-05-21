@@ -251,7 +251,7 @@ void ShaderProgram::construct_uniform_map() {
 		uniform_name_buf[name_len] = '\0';
 		GLuint loc = glGetUniformLocation(programHandle, uniform_name_buf);
 		uniforms.insert(std::pair<std::string, int>(std::string(uniform_name_buf), loc));
-		onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d\n", id_string.c_str(), uniform_name_buf, loc);
+		onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d.\n", id_string.c_str(), uniform_name_buf, loc);
 	}
 }
 
