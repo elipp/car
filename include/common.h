@@ -11,11 +11,10 @@
 #include <cstring>
 #include <iostream>
 
-#define GLEW_STATIC 
-#include <GL/glew.h>
-#include <GL/gl.h>
-
 #include "lin_alg.h"
+#include "glwindow_win32.h"
+
+
 
 #ifndef M_PI
 #define M_PI 3.14159265359

@@ -1,0 +1,23 @@
+#version 410 core
+
+layout (location = 0) in vec3 Position_VS_in;
+layout (location = 1) in vec3 Normal_VS_in;
+layout (location = 2) in vec2 TexCoord_VS_in;
+
+uniform mat4 ModelView;
+uniform mat4 Projection;
+
+layout (location = 0) out vec3 WorldPos_FS_in;	// use location-based data passing; names dont have to match exactly this way ^^
+layout (location = 1) out vec3 Normal_FS_in;
+layout (location = 2) out vec2 TexCoord_FS_in;
+
+void main(void)
+{
+	vec3 normal_normalized = normalize(Normal_VS_in); // probably is normalized already
+
+	gl_Position = Projection*ModelView*vec4(Position_VS_in, 1.0);
+	WorldPos_FS_in = ModelView*vec4(Position_VS_in, 1.0);
+	Normal_FS_in = normal_normalized;
+	TexCoord_FS_in = TexCoord_VS_in;
+}
+

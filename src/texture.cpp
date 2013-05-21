@@ -1,7 +1,11 @@
-﻿#include "texture.h"
+﻿#include <cstdio>
+
 #include "lodepng.h"
+#include "texture.h"
 #include "jpeglib.h"
-#include <cstdio>
+
+#include "text.h"
+
 
 static int loadJPEG(const std::string &filename, unsigned char **out_buffer, unsigned *width, unsigned *height) {
 
@@ -86,7 +90,7 @@ static std::string get_file_extension(const std::string &filename) {
 		++i;
 	}
 	std::string ext = filename.substr(i+1, filename.length() - (i+1));
-	//logWindowOutput("get_file_extension: \"%s\"\n", ext.c_str());
+	//onScreenLog::print("get_file_extension: \"%s\"\n", ext.c_str());
 	return ext;
 }
 Texture::Texture(const std::string &filename, const GLint filter_param) : name(filename)
@@ -94,14 +98,14 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 
 	//haidi haida. oikea kurahaara ja jakorasia.
 
-	unsigned char *buffer;
-	unsigned width, height;
+	unsigned char *buffer = NULL;
+	unsigned width = 0, height = 0;
 	
 	std::string ext = get_file_extension(filename);
 	if (ext == "jpg" || ext == "jpeg") {
 		hasAlpha = false;
 		if (!loadJPEG(filename, &buffer, &width, &height)) {
-			logWindowOutput("Texture: fatal error: loading file %s failed.\n", filename.c_str());
+			onScreenLog::print("Texture: fatal error: loading file %s failed.\n", filename.c_str());
 			_otherbad = true;
 		}
 	
@@ -109,11 +113,12 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	else if (ext == "png") {
 		hasAlpha = true;
 		if(!loadPNG(filename, &buffer, &width, &height)) {
-			logWindowOutput("Texture: fatal error: loading file %s failed.\n", filename.c_str());
+			onScreenLog::print("Texture: fatal error: loading file %s failed.\n", filename.c_str());
 			_otherbad=true;
 		}
+		_otherbad=true;
 	} else {
-		logWindowOutput("Texture: fatal error: unsupported image format \"%s\" (only PNG/JPG are supported)\n", ext.c_str());
+		onScreenLog::print("Texture: fatal error: unsupported image format \"%s\" (only PNG/JPG are supported)\n", ext.c_str());
 		_otherbad = true; 
 		return; 
 	}
@@ -174,16 +179,16 @@ bool TextureBank::validate() {
 				const Texture &t = (*iter);
 				if (t.bad()) {
 					all_good = false;
-					logWindowOutput( "[Textures] invalid textures detected:\n");
+					onScreenLog::print( "[Textures] invalid textures detected:\n");
 					
 					if (t.badheader()) {
-						logWindowOutput( "%s: bad file header.\n", t.getName().c_str()); }
+						onScreenLog::print( "%s: bad file header.\n", t.getName().c_str()); }
 					
 					else if (t.nosuch())
-						logWindowOutput( "%s: no such file or directory.\n", t.getName().c_str());
+						onScreenLog::print( "%s: no such file or directory.\n", t.getName().c_str());
 
 					else if (t.otherbad())
-						logWindowOutput( "%s: file either is not square (n-by-n), or not power of two (128x128, 256x256 etc.)\n\n", t.getName().c_str());
+						onScreenLog::print( "%s: file either is not square (n-by-n), or not power of two (128x128, 256x256 etc.)\n\n", t.getName().c_str());
 					}
 					
 			}

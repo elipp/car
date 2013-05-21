@@ -1,5 +1,7 @@
 #include "lin_alg.h"
 
+#include "text.h"
+
 static const __m128 ZERO = _mm_setzero_ps();
 static const __m128 MINUS_ONES = _mm_set_ps(-1.0, -1.0, -1.0, -1.0);
 static const __m128 QUAT_CONJUGATE = _mm_set_ps(1.0, -1.0, -1.0, -1.0);	// in reverse order!
@@ -80,8 +82,6 @@ const char* checkCPUCapabilities() {
 #define SSE3_BIT_ENABLED ((c.ecx & 0x00000001) == 0x00000001) // register ecx, bit 0
 #define SSE41_BIT_ENABLED ((c.ecx & 0x00080000) == 0x00080000) // register ecx, bit 19
 	
-	logWindowOutput( "cpuid results: %x %x %x %x\n", c.eax, c.ebx, c.ecx, c.edx);
-
 	if (!SSE_BIT_ENABLED) {
 		return "ERROR: SSE not supported by host processor!";
 	}
@@ -237,11 +237,12 @@ void mat4::print() {
 
 	mat4 &M = (*this);
 	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++)
-			printf("%4.3f ", M.elementAt(j,i));
-		printf("\n");
+		for (int j = 0; j < 4; j++) {
+			onScreenLog::print("%4.3f ", M.elementAt(j,i));
+		}
+		onScreenLog::print("\n");
 	}
-	printf("\n");
+	onScreenLog::print("\n");
 
 }
 

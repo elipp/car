@@ -1,0 +1,29 @@
+#version 330 core
+
+precision highp float;
+
+layout (location = 0) in vec3 Position_VS_in;
+layout (location = 1) in vec3 Normal_VS_in;
+layout (location = 2) in vec2 TexCoord_VS_in;
+
+uniform mat4 ModelView;
+uniform sampler2D heightmap;
+
+layout (location = 0) out vec3 Position_GS_in;
+layout (location = 1) out vec3 Normal_GS_in;
+layout (location = 2) out vec2 TexCoord_GS_in;
+
+mat3 normal_matrix = mat3(inverse(transpose(mat3(ModelView))));
+
+void main(void)
+{
+	float height_sample = length(texture2D(heightmap, vec2(Normal_VS_in.x, Normal_VS_in.y + 0.5)));
+	vec4 normal_map_sample = texture2D(heightmap, Normal_VS_in);
+	vec3 normal_adjusted = normalize(Normal_VS_in + normal_map_sample.xyz);
+	vec3 normal_normalized = normalize(Normal_VS_in);
+	gl_Position = vec4(Position_VS_in + normal_normalized*height_sample, 1.0);
+	//Normal_GS_in = (ModelView*vec4(Normal_VS_in, 0.0)).xyz;
+	Normal_GS_in=normal_matrix*(Normal_VS_in + normal_adjusted);
+	//Normal_GS_in = vec4(Normal_VS_in,1.0);
+	TexCoord_GS_in = Normal_VS_in;
+}

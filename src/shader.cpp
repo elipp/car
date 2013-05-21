@@ -1,4 +1,4 @@
-
+#include "text.h"
 #include "common.h"
 #include "shader.h"
 
@@ -46,7 +46,7 @@ ShaderProgram::ShaderProgram(const std::string &name_base) {
 			shaderObjIDs[TessellationEvaluationShader] = glCreateShader(GL_TESS_EVALUATION_SHADER);
 		}	
 		else {
-			logWindowOutput("ShaderProgram error: %s: TessellationControlShader enabled but no TessellationEvaluationShader provided.\n", name_base.c_str());
+			onScreenLog::print("ShaderProgram error: %s: TessellationControlShader enabled but no TessellationEvaluationShader provided.\n", name_base.c_str());
 			set_bad(); goto cleanup;
 		}
 	}
@@ -125,14 +125,14 @@ inline const char* shader_present(const GLuint *objIDs, GLint index) {
 }
 
 void ShaderProgram::printStatus () const {
-	logWindowOutput("ShaderProgram %s status:\n", id_string.c_str());
-	logWindowOutput("shader\t\t\tpresent?\tid\n");
-	logWindowOutput("Vertex shader: \t\t%s\t\t%d\n", shader_present(shaderObjIDs, VertexShader), shaderObjIDs[VertexShader]);
-	logWindowOutput("TessCtrl shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationControlShader), shaderObjIDs[TessellationControlShader]);
-	logWindowOutput("TessEval shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationEvaluationShader), shaderObjIDs[TessellationEvaluationShader]);
-	logWindowOutput("Geometry shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, GeometryShader), shaderObjIDs[GeometryShader]);
-	logWindowOutput("Fragment shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, FragmentShader), shaderObjIDs[FragmentShader]);
-	logWindowOutput("bad flag: %d\n\n", bad);
+	onScreenLog::print("ShaderProgram %s status:\n", id_string.c_str());
+	onScreenLog::print("shader\t\t\tpresent?\tid\n");
+	onScreenLog::print("Vertex shader: \t\t%s\t\t%d\n", shader_present(shaderObjIDs, VertexShader), shaderObjIDs[VertexShader]);
+	onScreenLog::print("TessCtrl shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationControlShader), shaderObjIDs[TessellationControlShader]);
+	onScreenLog::print("TessEval shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationEvaluationShader), shaderObjIDs[TessellationEvaluationShader]);
+	onScreenLog::print("Geometry shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, GeometryShader), shaderObjIDs[GeometryShader]);
+	onScreenLog::print("Fragment shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, FragmentShader), shaderObjIDs[FragmentShader]);
+	onScreenLog::print("bad flag: %d\n\n", bad);
 }
 
 char* ShaderProgram::readShaderFromFile(const std::string &filename, GLsizei *filesize)
@@ -140,7 +140,7 @@ char* ShaderProgram::readShaderFromFile(const std::string &filename, GLsizei *fi
 	std::ifstream in(filename.c_str(), std::ios::in | std::ios::binary);
 
 	if (!in.is_open()) { 
-		logWindowOutput( "(warning: ShaderProgram: couldn't open file %s: no such file or directory)\n", filename.c_str());
+		onScreenLog::print( "(warning: ShaderProgram: couldn't open file %s: no such file or directory)\n", filename.c_str());
 		return NULL; 
 	}
 	size_t length = cpp_getfilesize(in);
@@ -167,7 +167,7 @@ GLint ShaderProgram::checkShaderCompileStatus_all() // GL_COMPILE_STATUS
 
 			if (succeeded[i] == GL_FALSE)
 			{	
-				logWindowOutput( "glGetShaderiv returned GL_FALSE for query GL_COMPILE_STATUS for shader %s, id: %d\n", shader_filenames[i].c_str(), shaderObjIDs[i]);
+				onScreenLog::print( "glGetShaderiv returned GL_FALSE for query GL_COMPILE_STATUS for shader %s, id: %d\n", shader_filenames[i].c_str(), shaderObjIDs[i]);
 				GLint log_length = 0;
 				++num_errors;
 				glGetShaderiv(shaderObjIDs[i], GL_INFO_LOG_LENGTH, &log_length);
@@ -189,14 +189,14 @@ GLint ShaderProgram::checkShaderCompileStatus_all() // GL_COMPILE_STATUS
 
 	if (num_errors > 0) {	
 
-		logWindowOutput( "\nShader %s: error log (glGetShaderInfoLog):\n-----------------------------------------------------------------\n\n", id_string.c_str());
+		onScreenLog::print( "\nShader %s: error log (glGetShaderInfoLog):\n-----------------------------------------------------------------\n\n", id_string.c_str());
 		for (int i = VertexShader; i <= FragmentShader; i++) {
 			if (succeeded[i] != GL_TRUE) {
-				logWindowOutput( "filename: %s\n\n", shader_filenames[i].c_str());
-				logWindowOutput( "%s\n\n", log_buffers[i]);
+				onScreenLog::print( "filename: %s\n\n", shader_filenames[i].c_str());
+				onScreenLog::print( "%s\n\n", log_buffers[i]);
 			}
 		}
-		logWindowOutput( "\n---------------------------------------------------\n");
+		onScreenLog::print( "\n---------------------------------------------------\n");
 	}
 	for (int i = VertexShader; i <= FragmentShader; i++) {	
 		if (log_buffers[i]) delete [] log_buffers[i];
@@ -212,26 +212,26 @@ GLint ShaderProgram::checkProgramLinkStatus() {
 	glGetProgramiv(programHandle, GL_LINK_STATUS, &status);
 	if (status == GL_FALSE) {
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		logWindowOutput( "ShaderProgram::checkProgramLinkStatus: shader program link error. Log:\n%s\n", logbuffer);
+		onScreenLog::print( "ShaderProgram::checkProgramLinkStatus: shader program link error. Log:\n%s\n", logbuffer);
 		return 0;
 	}
 	else {
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		logWindowOutput( "Program %s; LINK:\n", id_string.c_str());
-		if (log_len > 0) { logWindowOutput("log: \n"); 
-						   logWindowOutput("%s\n\n", logbuffer);
+		onScreenLog::print( "Program %s; LINK:\n", id_string.c_str());
+		if (log_len > 0) { onScreenLog::print("log: \n"); 
+						   onScreenLog::print("%s\n\n", logbuffer);
 		}
-		else { logWindowOutput( "<OK>\n\n"); }
+		else { onScreenLog::print( "<OK>\n\n"); }
 
 		glValidateProgram(programHandle);
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		logWindowOutput( "Program %s; VALIDATION:\n\n", id_string.c_str());
-		if (log_len > 0) {  logWindowOutput("log: \n"); 
-							logWindowOutput("%s\n\n", logbuffer);
+		onScreenLog::print( "Program %s; VALIDATION:\n\n", id_string.c_str());
+		if (log_len > 0) {  onScreenLog::print("log: \n"); 
+							onScreenLog::print("%s\n\n", logbuffer);
 		}
-		else { logWindowOutput("<OK>\n\n"); }
+		else { onScreenLog::print("<OK>\n\n"); }
 
-		logWindowOutput("\n");
+		onScreenLog::print("\n");
 		return 1;
 	}
 }
@@ -251,7 +251,7 @@ void ShaderProgram::construct_uniform_map() {
 		uniform_name_buf[name_len] = '\0';
 		GLuint loc = glGetUniformLocation(programHandle, uniform_name_buf);
 		uniforms.insert(std::pair<std::string, int>(std::string(uniform_name_buf), loc));
-		logWindowOutput( "construct_uniform_map: %s: inserted uniform %s with location %d\n", id_string.c_str(), uniform_name_buf, loc);
+		onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d\n", id_string.c_str(), uniform_name_buf, loc);
 	}
 }
 
@@ -260,7 +260,7 @@ void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//logWindowOutput( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//onScreenLog::print( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -272,7 +272,7 @@ void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//logWindowOutput( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//onScreenLog::print( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -284,7 +284,7 @@ void ShaderProgram::update_uniform_1f(const std::string &uniform_name, GLfloat v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//logWindowOutput( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//onScreenLog::print( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -297,7 +297,7 @@ void ShaderProgram::update_uniform_1i(const std::string &uniform_name, GLint val
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//logWindowOutput( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//onScreenLog::print( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {

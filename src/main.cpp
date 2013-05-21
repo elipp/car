@@ -21,12 +21,9 @@
 #include "model.h"
 #include "texture.h"
 #include "text.h"
+#include "vertex.h"
 
-namespace Text {
-	mat4 Projection;
-	mat4 ModelView(MAT_IDENTITY);
-	GLuint texId;
-}
+
 
 static GLint PMODE = GL_FILL;	// polygon mode toggle
 static LPPOINT cursorPos = new POINT;	/* holds cursor position */
@@ -56,9 +53,9 @@ bool mouseLocked = false;
 
 GLfloat running = 0.0;
 
-static ShaderProgram *regular_shader;
-static ShaderProgram *normal_plot_shader;
-static ShaderProgram *text_shader;
+static ShaderProgram *regular_shader = NULL;
+static ShaderProgram *normal_plot_shader = NULL;
+
 
 mat4 view;
 Quaternion viewq;
@@ -236,6 +233,9 @@ void control()
 		if (keys['T']) {
 			keys['T'] = false;
 		}
+		
+	
+
 		if (dy != 0) {
 			rotatey(mouse_modifier*dy);
 		}
@@ -244,6 +244,14 @@ void control()
 		}
 
 
+	}
+	if (keys[VK_PRIOR]) {
+		onScreenLog::scroll(12.0);
+		keys[VK_PRIOR] = false;
+	}
+	if (keys[VK_NEXT]) {
+		onScreenLog::scroll(-12.0);	
+		keys[VK_NEXT] = false;
 	}
 
 }
@@ -289,7 +297,7 @@ void initializeStrings() {
 	// reserved index 2 for FPS display. 
 	const std::string initialfps = "00.00";
 	wpstring_holder::append(wpstring(initialfps, WINDOW_WIDTH-50, WINDOW_HEIGHT-20), WPS_DYNAMIC);
-	wpstring_holder::append(wpstring("", 102, WINDOW_HEIGHT-20), WPS_DYNAMIC);	
+	wpstring_holder::append(wpstring("", 12, HALF_WINDOW_HEIGHT), WPS_DYNAMIC);	
 
 	wpstring_holder::createBufferObjects();
 
@@ -308,11 +316,11 @@ void drawText() {
 	glUseProgram(text_shader->getProgramHandle());
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, Text::texId);
+	glBindTexture(GL_TEXTURE_2D, text_texId);
 
 	text_shader->update_uniform_1i("texture1", 0);
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)Text::ModelView.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)Text::Projection.rawData());
+	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)text_ModelView.rawData());
+	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
 	
 	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::get_static_strings_total_length(), GL_UNSIGNED_SHORT, NULL);
@@ -324,12 +332,12 @@ void drawText() {
 
 	glUseProgram(text_shader->getProgramHandle());
 	text_shader->update_uniform_1i("texture1", 0);
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)Text::ModelView.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)Text::Projection.rawData());
+	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)text_ModelView.rawData());
+	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
 	
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, Text::texId);
+	glBindTexture(GL_TEXTURE_2D, text_texId);
 
 	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::getDynamicStringCount()*WPSTRING_LENGTH_MAX, GL_UNSIGNED_SHORT, NULL);
 
@@ -345,52 +353,55 @@ void print_to_GL_window(const std::string &text) {
 
 #define uniform_assert_warn(uniform) do {\
 if (uniform == -1) { \
-	logWindowOutput("(warning: uniform optimized away by GLSL compiler: %s at %d:%d\n", #uniform, __FILE__, __LINE__);\
+	onScreenLog::print("(warning: uniform optimized away by GLSL compiler: %s at %d:%d\n", #uniform, __FILE__, __LINE__);\
 }\
 } while(0)
 
+PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+
 int initGL(void)
-{
+{	
+	
+	if(ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
+		return 0;
+	}
 	glClearColor(0.0, 0.0, 0.0, 1.0);
+	initializeStrings();
+	
+	onScreenLog::init();
+	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
 	glEnable(GL_DEPTH_TEST);
 
-	GLenum err = glewInit();
+	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
+	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-	if (GLEW_OK != err)
-	{
-		logWindowOutput( "Error: %s\n", glewGetErrorString(err));
-	}
-
-	logWindowOutput( "OpenGL version: %s\n", glGetString(GL_VERSION));
-	logWindowOutput( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-
-	logWindowOutput( "Loading models...\n");
+	onScreenLog::print( "Loading models...\n");
 
 	chassis.VBOid = loadNewestBObj("models/chassis.bobj", &chassis.facecount);
 	wheel.VBOid = loadNewestBObj("models/wheel.bobj", &wheel.facecount);
 	plane.VBOid = loadNewestBObj("models/plane.bobj", &plane.facecount);
-	logWindowOutput( "done.\n");
+	onScreenLog::print( "done.\n");
 	indices = generateIndices();
 
-	logWindowOutput( "Loading textures...");
+	onScreenLog::print( "Loading textures...");
 	TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
-	logWindowOutput( "done.\n");
+	onScreenLog::print( "done.\n");
 
 	if (!TextureBank::validate()) {
-		logWindowOutput( "Error: failed to validate TextureBank (fatal).\n");
+		onScreenLog::print( "Error: failed to validate TextureBank (fatal).\n");
 		return 0;
 	}
 	earth_tex_id = TextureBank::get_id_by_name("textures/EarthTexture.jpg");
 	hmap_id = TextureBank::get_id_by_name("textures/earth_height_normal_map.jpg");
-	Text::texId = TextureBank::get_id_by_name("textures/dina_all.png");
+	text_texId = TextureBank::get_id_by_name("textures/dina_all.png");
 	
 	regular_shader = new ShaderProgram("shaders/regular"); 
 	normal_plot_shader = new ShaderProgram("shaders/normalplot");
 	text_shader = new ShaderProgram("shaders/text_shader");
 
 	if (regular_shader->is_bad() || normal_plot_shader->is_bad() || text_shader->is_bad()) { 
-		logWindowOutput( "Error: shader error (fatal).\n");
+		onScreenLog::print( "Error: shader error (fatal).\n");
 		return 0; 
 	}
 
@@ -422,10 +433,6 @@ int initGL(void)
 	view = mat4::identity();
 
 	projection = mat4::proj_persp(M_PI/8.0, (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT, 2.0, 1000.0);
-
-	Text::Projection = mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
-	
-	Text::ModelView = mat4(MAT_IDENTITY);
 
 	view_position = vec4(0.0, 0.0, -9.0, 1.0);
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
@@ -460,8 +467,8 @@ static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP );	// these two are related to artifact mitigation
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
+	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );	// these two are related to artifact mitigation
+	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 
 	glFramebufferTexture2D (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, FBO_textureId, 0);
 
@@ -469,7 +476,7 @@ static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
 	glReadBuffer(GL_NONE);
 
 	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		logWindowOutput( "error: Shadow-map FBO initialization failed!\n");
+		onScreenLog::print( "error: Shadow-map FBO initialization failed!\n");
 		return 0;
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -498,6 +505,7 @@ void drawPlane() {
 
 
 void drawCar(const Car &car) {
+	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 	glUseProgram(regular_shader->getProgramHandle());	
 
@@ -539,6 +547,8 @@ void drawCar(const Car &car) {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, (*current).getTextureId());
 	regular_shader->update_uniform_1i("texture_color", 0);
+
+	//modelview.print();
 
 	glDisable(GL_BLEND);
 	glDrawElements(GL_TRIANGLES, chassis.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
@@ -607,14 +617,8 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-
+	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	
-	if(AllocConsole()) {
-		// this will screw up program framerate, VSYNC
-		freopen("CONOUT$", "wt", stderr);
-		SetConsoleTitle("debug output");
-		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
 
@@ -623,18 +627,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	LocalClient::init("Jarmo2", "127.0.0.1", (unsigned short)50000);
 
-	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
-	
 	wglSwapIntervalEXT(1);
 
-
-	logWindowOutput("%s\n", cpustr.c_str());
+	onScreenLog::print("%s\n", cpustr.c_str());
 	//ShowCursor(FALSE);
 
 	bool esc = false;
-	initializeStrings();
 	
-	print_to_GL_window("moro, ma oon melkein vittupaa!!!!\nkyrpa\n");
+	onScreenLog::print("moro, ma oon melkein vittupaa!!!!\nkyrpa!!\n");
 
 	_timer timer;
 	
@@ -675,6 +675,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					drawCar(local_car);
 					drawText();
 					
+					onScreenLog::draw();
+
 					window_swapbuffers();
 					long us_per_frame = timer.get_us();
 					std::string fps_str = get_fps(us_per_frame);

@@ -1,5 +1,17 @@
 #include "glwindow_win32.h"
 
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <vector>
+#include <string>
+#include <stdarg.h>
+
+#include <cassert>
+#include <signal.h>
+
+
 static HGLRC hRC = NULL;
 static HDC hDC	  = NULL;
 static HWND hWnd = NULL;
@@ -341,6 +353,8 @@ static std::string *convertLF_to_CRLF(const char *buf) {
 	return buffer;
 }
 
+extern void print_to_GL_window(const std::string &text);
+
 void logWindowOutput(const char* format, ...) {
 	char msg_buf[512];
 	va_list args;
@@ -352,10 +366,10 @@ void logWindowOutput(const char* format, ...) {
 	std::size_t total_len = timestamp_len + msg_len;
 	msg_buf[total_len] = '\0';
 	va_end(args);
-	fprintf(stderr, "%s", msg_buf);
+	print_to_GL_window(msg_buf);
 }
 /*
-void logWindowOutput(const char *format, ...) {
+void onScreenLog::print(const char *format, ...) {
 	char msg_buf[512];
 	va_list args;
 	va_start(args, format);
@@ -389,7 +403,7 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 		height=1;										// Making Height Equal One
 	}
 
-	glViewport(0,0,width,height);						// Reset The Current Viewport
+//	glViewport(0,0,width,height);						// Reset The Current Viewport
 
 
 	// Calculate The Aspect Ratio Of The Window

@@ -4,11 +4,21 @@
 #include <string>
 #include <cstring>
 #include <vector>
+#include <array>
+#include <deque>
+#include <queue>
 
 #include "glwindow_win32.h"
 #include "common.h"
 #include "precalculated_texcoords.h"
 #include "lin_alg.h"
+#include "shader.h"
+
+extern mat4 text_Projection;
+extern mat4 text_ModelView;
+extern GLuint text_texId;
+
+extern ShaderProgram *text_shader;
 
 #define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
 
@@ -27,14 +37,14 @@ struct glyph {
 
 class wpstring_holder;
 
-#define WPSTRING_LENGTH_MAX 256
+#define WPSTRING_LENGTH_MAX 1024
 
 static const GLuint WPS_DYNAMIC = 0x0, WPS_STATIC = 0x01;
 
 class wpstring {
 
 	friend class wpstring_holder;
-	std::string text;
+	std::array<char, WPSTRING_LENGTH_MAX> text;
 	size_t actual_size;
 
 public:
@@ -68,6 +78,33 @@ public:
 	static std::size_t getStaticStringCount() { return static_strings.size(); }
 	static std::size_t getDynamicStringCount() { return dynamic_strings.size(); }
 	static const wpstring &getDynamicString(int index);
+
+};
+
+#define ON_SCREEN_LOG_BUFFER_SIZE 8096
+#define ON_SCREEN_LOG_LINE_LEN 128	// characters. => holds 253 lines of text
+#define ON_SCREEN_LOG_NUM_LINES (8096 / 32)
+#define ON_SCREEN_LOG_LINE_LEN_MINUS_ONE (ON_SCREEN_LOG_LINE_LEN - 1)
+#define ON_SCREEN_LOG_NUM_LINES_DISPLAYED 8
+
+class onScreenLog {
+	static float pos_x, pos_y;
+	static mat4 modelview;
+	static std::array<char, ON_SCREEN_LOG_BUFFER_SIZE> data;
+	static GLuint VBOid;
+	static unsigned most_recent_index;
+	static unsigned most_recent_line_num;
+	static std::deque<unsigned char> line_lengths;
+public:
+	static void scroll(float ds);
+	static void print(const char* format, ...);
+	static void clear();
+	static void generate_VBO();
+	static void update_VBO(const char* buffer, unsigned length);
+	static void draw();
+	static int init();
+private:
+	onScreenLog();
 
 };
 

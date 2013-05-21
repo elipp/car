@@ -18,7 +18,8 @@ class vec4;
 class mat4;
 class Quaternion;
 
-extern void logWindowOutput(const char* format, ...);
+#include "glwindow_win32.h"
+
 
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
 
