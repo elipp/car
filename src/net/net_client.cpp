@@ -54,13 +54,15 @@ int LocalClient::handshake() {
 
 	fprintf(stderr, "Awaiting for reply...\n");
 	
+#define TIMEOUT 1
+
 	int seconds = 0;
 	int bytes = socket.receive_data(&from);
 
 	while(bytes <= 0) {
 		bytes = socket.receive_data(&from);
-		if (seconds > 5) {
-			fprintf(stderr, "Handshake timed out (5 seconds)!\n");
+		if (seconds > TIMEOUT) {
+			fprintf(stderr, "Handshake timed out (%d seconds)!\n", TIMEOUT);
 			return 0;
 		}
 		Sleep(1000);

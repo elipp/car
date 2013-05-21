@@ -9,17 +9,11 @@
 #include <cassert>
 #include <signal.h>
 
-#include <Winsock2.h>
-#include <Windows.h>
-#define GLEW_STATIC 
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/wglew.h>
+#include "glwindow_win32.h"
 
 #include "net/net_server.h"
 #include "net/net_client.h"
-#include "glwindow_win32.h"
+
 #include "lin_alg.h"
 #include "common.h"
 #include "objloader.h"
@@ -27,11 +21,6 @@
 #include "model.h"
 #include "texture.h"
 #include "text.h"
-
-static const float WINDOW_WIDTH = 1440.0;
-static const float WINDOW_HEIGHT = 960.0;
-static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
-static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
 
 namespace Text {
 	mat4 Projection;
@@ -300,13 +289,7 @@ void initializeStrings() {
 	// reserved index 2 for FPS display. 
 	const std::string initialfps = "00.00";
 	wpstring_holder::append(wpstring(initialfps, WINDOW_WIDTH-50, WINDOW_HEIGHT-20), WPS_DYNAMIC);
-	wpstring_holder::append(wpstring("Camera pos: ", 20, WINDOW_HEIGHT-20), WPS_STATIC);
-	wpstring_holder::append(wpstring("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 102, WINDOW_HEIGHT-20), WPS_DYNAMIC);
-	//wpstring_holder::append(wpstring("IHANPERSEESTASAATANAETAEJTUAJRTJFOIJASOEFIJOI", 102, WINDOW_HEIGHT-40), WPS_DYNAMIC);
-	
-	wpstring_holder::append(wpstring("'p' for polygonmode toggle.", WINDOW_WIDTH-220, 35), WPS_STATIC);
-	wpstring_holder::append(wpstring("'n' for normal plot toggle.", WINDOW_WIDTH-220, 50), WPS_STATIC);
-	wpstring_holder::append(wpstring("'ESC' to lock/unlock mouse.", WINDOW_WIDTH-220, 80), WPS_STATIC);
+	wpstring_holder::append(wpstring("", 102, WINDOW_HEIGHT-20), WPS_DYNAMIC);	
 
 	wpstring_holder::createBufferObjects();
 
@@ -348,11 +331,15 @@ void drawText() {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, Text::texId);
 
-	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::getDynamicStringCount()*wpstring_max_length, GL_UNSIGNED_SHORT, NULL);
+	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::getDynamicStringCount()*WPSTRING_LENGTH_MAX, GL_UNSIGNED_SHORT, NULL);
 
 	glUseProgram(0);
 	glEnable(GL_DEPTH_TEST);
 
+}
+
+void print_to_GL_window(const std::string &text) {
+	wpstring_holder::updateDynamicString(1, text, wpstring_holder::getDynamicString(1).getActualSize());	
 }
 
 
@@ -610,15 +597,23 @@ void drawCar(const Car &car) {
 }
 
 
+static std::string get_fps(long us_per_frame) {
+	double f = 1000000/us_per_frame;
+	static char fps[8];
+	sprintf_s(fps, 8, "%4.2f", f);
+	return std::string(fps);
+}
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 
 	
 	if(AllocConsole()) {
-	freopen("CONOUT$", "wt", stderr);
-	SetConsoleTitle("debug output");
-	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+		// this will screw up program framerate, VSYNC
+		freopen("CONOUT$", "wt", stderr);
+		SetConsoleTitle("debug output");
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	}
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -630,12 +625,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	
+	wglSwapIntervalEXT(1);
+
+
 	logWindowOutput("%s\n", cpustr.c_str());
 	//ShowCursor(FALSE);
 
 	bool esc = false;
 	initializeStrings();
 	
+	print_to_GL_window("moro, ma oon melkein vittupaa!!!!\nkyrpa\n");
+
 	_timer timer;
 	
 	while(!done)
@@ -673,24 +673,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					update_c_pos();
 					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 					drawCar(local_car);
-					drawPlane();
-					long us = timer.get_us();
-					double fps = 1000000/us;
-					static char buffer[128];
-					int l = sprintf(buffer, "%4.2f", fps);
-					buffer[l] = '\0';
-					std::string fps_str(buffer);
+					drawText();
+					
+					window_swapbuffers();
+					long us_per_frame = timer.get_us();
+					std::string fps_str = get_fps(us_per_frame);
 
 					wpstring_holder::updateDynamicString(0, fps_str);
-					l = sprintf(buffer, "(%4.2f, %4.2f, %4.2f)", view_position(V::x), view_position(V::y), view_position(V::z));
 
-					buffer[l] = '\0';
-					std::string pos_str(buffer);
-					wpstring_holder::updateDynamicString(1, pos_str);
-	
-					drawText();
-
-					window_swapbuffers();
 					timer.begin();
 				}
 			}

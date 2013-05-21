@@ -20,6 +20,10 @@
 #include <GL/glu.h>
 #include <GL/wglew.h>
 
+static const float WINDOW_WIDTH = 1440.0;
+static const float WINDOW_HEIGHT = 960.0;
+static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
+static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
 
 void window_swapbuffers();
 
