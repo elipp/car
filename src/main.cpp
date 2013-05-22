@@ -18,12 +18,9 @@
 #include "common.h"
 #include "objloader.h"
 #include "shader.h"
-#include "model.h"
 #include "texture.h"
 #include "text.h"
 #include "vertex.h"
-
-
 
 static GLint PMODE = GL_FILL;	// polygon mode toggle
 static LPPOINT cursorPos = new POINT;	/* holds cursor position */
@@ -44,11 +41,6 @@ struct mesh chassis, wheel, plane;
 
 GLuint IBOid, FBOid, FBO_textureId;
 
-GLfloat tess_level_inner = 1.0;
-GLfloat tess_level_outer = 1.0;
-
-static GLint earth_tex_id, hmap_id;
-
 bool mouseLocked = false;
 
 GLfloat running = 0.0;
@@ -56,15 +48,12 @@ GLfloat running = 0.0;
 static ShaderProgram *regular_shader = NULL;
 static ShaderProgram *normal_plot_shader = NULL;
 
-
 mat4 view;
 Quaternion viewq;
 static float qx = 0, qy = 0;
 mat4 projection;
 vec4 view_position;
 vec4 cameraVel;
-
-static std::vector<Model> models;
 
 static Car local_car;
 
@@ -230,12 +219,6 @@ void control()
 			keys['P'] = false;
 		}
 
-		if (keys['T']) {
-			keys['T'] = false;
-		}
-		
-	
-
 		if (dy != 0) {
 			rotatey(mouse_modifier*dy);
 		}
@@ -245,6 +228,7 @@ void control()
 
 
 	}
+	// these are active regardless of mouse_locked status
 	if (keys[VK_PRIOR]) {
 		onScreenLog::scroll(12.0);
 		keys[VK_PRIOR] = false;
@@ -253,6 +237,11 @@ void control()
 		onScreenLog::scroll(-12.0);	
 		keys[VK_NEXT] = false;
 	}
+	if (keys['L']) {
+			onScreenLog::toggle_visibility();
+			keys['L'] = false;
+	}
+		
 
 }
 
@@ -286,70 +275,6 @@ GLushort *generateIndices() {
 	return indices;
 }
 
-void initializeStrings() {
-
-	// NOTE: it wouldn't be such a bad idea to just take in a vector 
-	// of strings, and to generate one single static VBO for them all.
-
-	wpstring_holder::append(wpstring("car. windows.", 15, 15), WPS_STATIC);
-	wpstring_holder::append(wpstring("Frames per second: ", WINDOW_WIDTH-180, WINDOW_HEIGHT-20), WPS_STATIC);
-
-	// reserved index 2 for FPS display. 
-	const std::string initialfps = "00.00";
-	wpstring_holder::append(wpstring(initialfps, WINDOW_WIDTH-50, WINDOW_HEIGHT-20), WPS_DYNAMIC);
-	wpstring_holder::append(wpstring("", 12, HALF_WINDOW_HEIGHT), WPS_DYNAMIC);	
-
-	wpstring_holder::createBufferObjects();
-
-}
-
-void drawText() {
-	
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_DEPTH_TEST);
-
-	glBindBuffer(GL_ARRAY_BUFFER, wpstring_holder::get_static_VBOid());
-
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
-	
-	glUseProgram(text_shader->getProgramHandle());
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, text_texId);
-
-	text_shader->update_uniform_1i("texture1", 0);
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)text_ModelView.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
-	
-	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::get_static_strings_total_length(), GL_UNSIGNED_SHORT, NULL);
-		
-	glBindBuffer(GL_ARRAY_BUFFER, wpstring_holder::get_dynamic_VBOid());
-	// not sure if needed or not
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
-
-	glUseProgram(text_shader->getProgramHandle());
-	text_shader->update_uniform_1i("texture1", 0);
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)text_ModelView.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wpstring_holder::get_IBOid());
-	
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, text_texId);
-
-	glDrawElements(GL_TRIANGLES, 6*wpstring_holder::getDynamicStringCount()*WPSTRING_LENGTH_MAX, GL_UNSIGNED_SHORT, NULL);
-
-	glUseProgram(0);
-	glEnable(GL_DEPTH_TEST);
-
-}
-
-void print_to_GL_window(const std::string &text) {
-	wpstring_holder::updateDynamicString(1, text, wpstring_holder::getDynamicString(1).getActualSize());	
-}
-
 
 #define uniform_assert_warn(uniform) do {\
 if (uniform == -1) { \
@@ -366,8 +291,7 @@ int initGL(void)
 		return 0;
 	}
 	glClearColor(0.0, 0.0, 0.0, 1.0);
-	initializeStrings();
-	
+
 	onScreenLog::init();
 	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
@@ -392,8 +316,7 @@ int initGL(void)
 		onScreenLog::print( "Error: failed to validate TextureBank (fatal).\n");
 		return 0;
 	}
-	earth_tex_id = TextureBank::get_id_by_name("textures/EarthTexture.jpg");
-	hmap_id = TextureBank::get_id_by_name("textures/earth_height_normal_map.jpg");
+
 	text_texId = TextureBank::get_id_by_name("textures/dina_all.png");
 	
 	regular_shader = new ShaderProgram("shaders/regular"); 
@@ -437,12 +360,6 @@ int initGL(void)
 	view_position = vec4(0.0, 0.0, -9.0, 1.0);
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
 		
-	//glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-	//wglSwapIntervalEXT(2); // prefer hardware-forced vsync over this
-
-	models.push_back(Model(1.0, 1.0, chassis.VBOid, earth_tex_id, chassis.facecount, true, false));
-	models.push_back(Model(1.0, 1.0, wheel.VBOid, earth_tex_id, wheel.facecount, true, false));
-
 	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
 	
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
@@ -529,8 +446,6 @@ void drawCar(const Car &car) {
 	static float direction = 0.0;	// in the xz-plane
 
 	// no need to reconstruct iterator every time
-	static std::vector<Model>::iterator current;
-	current = models.begin();
 
 	static const vec4 chassis_color(0.8, 0.3, 0.5, 1.0);
 	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
@@ -544,9 +459,11 @@ void drawCar(const Car &car) {
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
 	regular_shader->update_uniform_vec4("paint_color", chassis_color.rawData());
 	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, (*current).getTextureId());
-	regular_shader->update_uniform_1i("texture_color", 0);
+	
+	// the car doesn't have a texture as of yet :P laterz
+	//glActiveTexture(GL_TEXTURE0);
+	//glBindTexture(GL_TEXTURE_2D, TEXTURE_ID);
+	//regular_shader->update_uniform_1i("texture_color", 0);
 
 	//modelview.print();
 
@@ -673,7 +590,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					update_c_pos();
 					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 					drawCar(local_car);
-					drawText();
 					
 					onScreenLog::draw();
 
@@ -681,7 +597,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					long us_per_frame = timer.get_us();
 					std::string fps_str = get_fps(us_per_frame);
 
-					wpstring_holder::updateDynamicString(0, fps_str);
 
 					timer.begin();
 				}

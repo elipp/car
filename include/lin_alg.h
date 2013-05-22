@@ -12,13 +12,18 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
-#include <cstdio>
+#include <ostream>
 
 class vec4;
 class mat4;
 class Quaternion;
 
+std::ostream &operator<< (std::ostream& out, const vec4 &v);
+std::ostream &operator<< (std::ostream& out, const mat4 &M);
+std::ostream &operator<< (std::ostream& out, const Quaternion &q);
+
 #include "glwindow_win32.h"
+#include "text.h"
 
 
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
@@ -94,9 +99,9 @@ public:
 	void normalize();
 	vec4 normalized() const;
 	void zero();
-	void print();
+	
+	friend std::ostream &operator<< (std::ostream& out, const vec4 &v);
 
-	// this is actually needed, for example for glUniform4fv
 	void *rawData() const;
 
 	friend float dot(const vec4 &a, const vec4 &b);
@@ -214,8 +219,8 @@ public:
 	
 	void *rawData() const;	// returns a column-major float[16]
 	void printRaw() const;	// prints elements in actual memory order.
+		
 
-	void print();
 
 	friend mat4 operator*(float scalar, const mat4& m);
 	
@@ -290,7 +295,7 @@ public:
 	void normalize();
 	Quaternion conjugate() const;
 
-	void print() const;
+	friend std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 	
 	void operator*=(const Quaternion &b);
 	Quaternion operator*(const Quaternion& b) const;

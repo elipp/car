@@ -14,8 +14,6 @@
 #include "lin_alg.h"
 #include "glwindow_win32.h"
 
-
-
 #ifndef M_PI
 #define M_PI 3.14159265359
 #endif
@@ -44,7 +42,6 @@ public:
 	Car() { memset(this, 0, sizeof(*this)); }
 }; 
 
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 #define GOTO_OFFSET(origin, iter, offset) \
 	do { \

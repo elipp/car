@@ -7,6 +7,7 @@
 
 #include <gl_core_4_2.h>
 
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
 extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;

@@ -353,49 +353,6 @@ static std::string *convertLF_to_CRLF(const char *buf) {
 	return buffer;
 }
 
-extern void print_to_GL_window(const std::string &text);
-
-void logWindowOutput(const char* format, ...) {
-	char msg_buf[512];
-	va_list args;
-	va_start(args, format);
-	SYSTEMTIME st;
-    GetSystemTime(&st);
-	std::size_t timestamp_len = sprintf(msg_buf, "%02d:%02d:%02d.%03d > ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-	std::size_t msg_len = vsprintf(msg_buf + timestamp_len, format, args);
-	std::size_t total_len = timestamp_len + msg_len;
-	msg_buf[total_len] = '\0';
-	va_end(args);
-	print_to_GL_window(msg_buf);
-}
-/*
-void onScreenLog::print(const char *format, ...) {
-	char msg_buf[512];
-	va_list args;
-	va_start(args, format);
-	SYSTEMTIME st;
-    GetSystemTime(&st);
-	std::size_t timestamp_len = sprintf(msg_buf, "%02d:%02d:%02d.%03d > ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-	std::size_t msg_len = vsprintf(msg_buf + timestamp_len, format, args);
-	std::size_t total_len = timestamp_len + msg_len;
-	msg_buf[total_len] = '\0';
-	std::string *converted = convertLF_to_CRLF(msg_buf);
-
-    va_end(args);
-	int nLength = GetWindowTextLength(hWnd_child); 
-   SendMessage(hWnd_child, EM_SETSEL, (WPARAM)nLength, (LPARAM)nLength);
-   SendMessage(hWnd_child, EM_REPLACESEL, (WPARAM)FALSE, (LPARAM)converted->c_str());
-   SendMessage(hWnd_child, EM_SCROLLCARET, (WPARAM)0, (LPARAM)0);
-   	delete converted; 
-} */
-
-static void clearLogWindow() {
-	int nLength = GetWindowTextLength(hWnd_child); 
-   SendMessage(hWnd_child, EM_SETSEL, (WPARAM)0, (LPARAM)nLength);
-   SendMessage(hWnd_child, EM_REPLACESEL, (WPARAM)FALSE, (LPARAM)NULL);
-}
-
-
 GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize The GL Window
 {
 	if (height==0)										// Prevent A Divide By Zero By

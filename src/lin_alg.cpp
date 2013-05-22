@@ -1,5 +1,4 @@
 #include "lin_alg.h"
-
 #include "text.h"
 
 static const __m128 ZERO = _mm_setzero_ps();
@@ -27,6 +26,16 @@ static const float zero_arr[16] = { 0.0, 0.0, 0.0, 0.0,
 const vec4 vec4::zero_const = vec4(ZERO);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
+
+std::ostream &operator<<(std::ostream &out, const __m128 &m) {
+	out.precision(4);
+	out << "(" << m.m128_f32[0] << ", " 
+		<< m.m128_f32[1] << ", "
+		<< m.m128_f32[2] << ", "
+		<< m.m128_f32[3] << ")\n";
+	return out;
+}
+
 
 static float MM_DPPS_XYZ_SSE(__m128 a, __m128 b) {
 	const __m128 mul = _mm_mul_ps(a, b);
@@ -227,23 +236,9 @@ void vec4::zero() {
 	(*this) = vec4::zero_const;
 }
 
-void vec4::print(){
-
-	printf("(%4.3f, %4.3f, %4.3f, %4.3f)\n", data.m128_f32[0], data.m128_f32[1], data.m128_f32[2], data.m128_f32[3]);
-
-}
-
-void mat4::print() {
-
-	mat4 &M = (*this);
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			onScreenLog::print("%4.3f ", M.elementAt(j,i));
-		}
-		onScreenLog::print("\n");
-	}
-	onScreenLog::print("\n");
-
+std::ostream &operator<< (std::ostream& out, const vec4 &v) {
+	out << v.getData();
+	return out;
 }
 
 void* vec4::rawData() const {
@@ -488,7 +483,15 @@ void mat4::printRaw() const {
 		printf(fmt, *(ptr + i), *(ptr + i + 1), *(ptr + i + 2), *(ptr + i + 3));
 	printf ("\n");
 
-	
+}
+
+std::ostream &operator<< (std::ostream& out, const mat4 &M) {
+	mat4 T = M.transposed();
+	// the mat4 class operates on a column-major basis, so in order to see
+	// the matrix data output quickly enough and in a familiar format, we need to 
+	// transpose it first. This occurs throughout, because row() is much, much slower :P
+	out << T.column(0).getData() << T.column(1).getData() << T.column(2).getData() << T.column(3).getData();
+	return out;
 }
 
 mat4 mat4::proj_ortho(float left, float right, float bottom, float top, float zNear, float zFar) {
@@ -730,8 +733,11 @@ Quaternion Quaternion::fromAxisAngle(float x, float y, float z, float angle_radi
 	return q;
 }
 
-void Quaternion::print() const { printf("[(%4.5f, %4.5f, %4.5f), %4.5f]\n\n", element(Q::x), element(Q::y), element(Q::z), element(Q::w)); }
 
+std::ostream &operator<< (std::ostream& out, const Quaternion &q) {
+	out << q.getData();
+	return out;
+}
 
 void Quaternion::normalize() { 
 
