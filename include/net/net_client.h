@@ -32,22 +32,29 @@ struct Client {
 };
 
 class LocalClient {
-public:
 	static std::thread client_thread;
 	static Socket socket;
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
 	static std::unordered_map<unsigned short, struct Client> peers;
+	
+	static int _listening;
 
-	static int init(const std::string &name, const std::string &remote_ip, unsigned short int port);
-	static int handshake();
-	static void listen();
-	static void reconstruct_peer_list();
+	static void start_thread();	// thread wrapper function
+	static bool _bad;
 	static void handle_current_packet();
-	static void post_quit_message();
 	static void pong(unsigned remote_seq_number);
-	static void quit();
+	static void listen();
+	static int handshake();
+	static void construct_peer_list();
+	static void post_quit_message();
+	
 	static int send_current_data(size_t size); // use a wrapper like this in order to increment seq_numbers
+
+public:
+	static int init(const std::string &name, const std::string &remote_ip, unsigned short int port);
+	static void quit();
+
 private:
 	LocalClient() {}
 };

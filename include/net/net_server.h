@@ -15,23 +15,21 @@ class Server {
 	static id_client_map clients;
 	static unsigned num_clients;
 	static unsigned seq_number;
-public:
-	
-	static int init(unsigned short port);
-
-	static Socket socket;
-	static void listen();
-	static void handshake(struct Client *client);
-	static unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
-	static void remove_client(int id);
-	static id_client_map::iterator get_client_by_id(unsigned short id);
 	static void ping_clients();
 	static void broadcast_state();
 	static void handle_current_packet(struct sockaddr_in *from);
 	static int send_data_to_client(struct Client &client, size_t data_size);
 	static void post_peer_list();
-
-	static void post_quit_and_cleanup();
+	static Socket socket;
+	static void listen();
+	static void handshake(struct Client *client);
+	static unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
+	static id_client_map::iterator remove_client(id_client_map::iterator &iter);
+	static void broadcast_shutdown_message();
+public:
+	static id_client_map::iterator get_client_by_id(unsigned short id);
+	static int init(unsigned short port);
+	static void shutdown();
 private:
 	Server();
 };

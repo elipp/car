@@ -328,6 +328,9 @@ int initGL(void)
 		return 0; 
 	}
 
+	onScreenLog::draw();
+	window_swapbuffers();
+
 
 	glGenBuffers(1, &IBOid);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
@@ -533,8 +536,16 @@ static std::string get_fps(long us_per_frame) {
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
+{	
+	if(AllocConsole()) {
+	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
+		freopen("CONOUT$", "wt", stderr);
+		SetConsoleTitle("debug output");
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+	}
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	
+
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }

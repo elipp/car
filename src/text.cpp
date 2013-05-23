@@ -17,8 +17,8 @@ float char_spacing_vert = 11.0;
 float char_spacing_horiz = 7.0;
 unsigned onScreenLog::line_length = OSL_LINE_LEN;
 unsigned onScreenLog::num_lines_displayed = OSL_BUFFER_SIZE / OSL_LINE_LEN;
-unsigned onScreenLog::most_recent_index = 0;
-unsigned onScreenLog::most_recent_line_num = 0;
+unsigned onScreenLog::current_index = 0;
+unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 
 template<class T>
@@ -123,14 +123,14 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 			x_adjustment = -char_spacing_horiz;	// workaround, is incremented at the bottom of the lewp
 			
 			line_beg_index = i;
-			++most_recent_line_num;
+			++current_line_num;
 		}
 
 		else if (i % OSL_LINE_LEN == OSL_LINE_LEN_MINUS_ONE) {
 			y_adjustment += char_spacing_vert;
 			x_adjustment = 0;
 			line_beg_index = i;
-			++most_recent_line_num;
+			++current_line_num;
 		}
 	
 		glyphs[i] = glyph_from_char(pos_x + x_adjustment, pos_y + y_adjustment, c);
@@ -139,14 +139,15 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 		x_adjustment += char_spacing_horiz;
 	}
 	
-	unsigned prev_most_recent_index = most_recent_index;
+	unsigned prev_current_index = current_index;
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	glBufferSubData(GL_ARRAY_BUFFER, prev_most_recent_index*sizeof(glyph), length*sizeof(glyph), (const GLvoid*)glyphs);
+	glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), length*sizeof(glyph), (const GLvoid*)glyphs);
 	
-	most_recent_index += length;
+	current_index += length;
 
-	if (y_adjustment - modelview(3,1) > WINDOW_HEIGHT) { scroll(-char_spacing_vert); }
+	if ((y_adjustment+pos_y) - modelview(3,1) > WINDOW_HEIGHT) {}
+	fprintf(stderr, "(y_adj + pos_y) - modelview(3,1)= %f\n", y_adjustment + pos_y - modelview(3,1));
 
 	delete [] glyphs;
 
@@ -166,10 +167,11 @@ void onScreenLog::print(const char* fmt, ...) {
 
 //	fprintf(stderr, "%s\n", buffer);
 
-	if (most_recent_index + total_len < OSL_BUFFER_SIZE) {	
+	if (current_index + total_len < OSL_BUFFER_SIZE) {	
 		update_VBO(buffer, total_len);
 	}
-	// else fail silently :p
+	// else fail silently X:D:D:Dd a nice, fast solution would be to 
+	// just start filling at the beginning of the VBO and use glScissor :P
 }
 
 void onScreenLog::scroll(float ds) {
@@ -182,6 +184,10 @@ void onScreenLog::generate_VBO() {
 	glBufferData(GL_ARRAY_BUFFER, OSL_BUFFER_SIZE*sizeof(glyph), NULL, GL_DYNAMIC_DRAW);
 
 	// actual vertex data will be sent by subsequent glBufferSubdata calls
+}
+
+void onScreenLog::set_y_translation(float new_y) {
+	modelview(3,1) = new_y;
 }
 
 void onScreenLog::draw() {
@@ -204,13 +210,13 @@ void onScreenLog::draw() {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);	// uses a shared index buffer.
 	
 	// ranged drawing will be implemented later
-	glDrawElements(GL_TRIANGLES, 6*most_recent_index, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDrawElements(GL_TRIANGLES, 6*current_index, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 
 }	
 
 void onScreenLog::clear() {
-	most_recent_index = 0;
-	most_recent_line_num = 0;
+	current_index = 0;
+	current_line_num = 0;
 	modelview = mat4::identity();
 }
 

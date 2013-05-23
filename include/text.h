@@ -50,11 +50,12 @@ class onScreenLog {
 	static GLuint VBOid;
 	static unsigned line_length;
 	static unsigned num_lines_displayed;
-	static unsigned most_recent_index;
-	static unsigned most_recent_line_num;
+	static unsigned current_index;
+	static unsigned current_line_num;
 	static void generate_VBO();
 	static void update_VBO(const char* buffer, unsigned length);
 	static bool _visible;
+	static void set_y_translation(float new_y);
 
 public:
 	static void toggle_visibility() { _visible = !_visible; }

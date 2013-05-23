@@ -12,8 +12,8 @@ class Socket {
 	int fd;
 	struct sockaddr_in my_addr;
 
-	char packet_buffer[PACKET_SIZE_MAX];
-	char outbound_buffer[PACKET_SIZE_MAX];
+	char inbound_packet_buffer[PACKET_SIZE_MAX];
+	char outbound_packet_buffer[PACKET_SIZE_MAX];
 
 	bool _bad;
 	
@@ -36,8 +36,8 @@ public:
 	bool bad() const { return _bad; }
 	Socket() { memset(this, 0, sizeof(*this)); }
 	
-	char *get_packet_buffer() { return packet_buffer; }
-	char *get_outbound_buffer() { return outbound_buffer; }
+	char *get_inbound_buffer() { return inbound_packet_buffer; }
+	char *get_outbound_buffer() { return outbound_packet_buffer; }
 		
 	unsigned current_data_length_in() const { return _current_data_length_in; }
 	unsigned current_data_length_out() const { return _current_data_length_out; };

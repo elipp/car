@@ -25,7 +25,7 @@ int Socket::initialize() {
 Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 	_bad = true;
 	
-	memset(packet_buffer, 0x0, PACKET_SIZE_MAX);
+	memset(inbound_packet_buffer, 0x0, PACKET_SIZE_MAX);
 	_current_data_length_in = 0;
 	_current_data_length_out = 0;
 
@@ -60,7 +60,7 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 }
 
 int Socket::send_data(const struct sockaddr_in *recipient, size_t len) {
-	int sent_bytes = sendto(fd, (const char*)outbound_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
+	int sent_bytes = sendto(fd, (const char*)outbound_packet_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
 	_current_data_length_out = len;
 	return sent_bytes;
 }
@@ -71,9 +71,9 @@ int Socket::receive_data(struct sockaddr_in *from) {
 	memset(from, 0x0, from_length);
 	
 	_current_data_length_in = 
-		recvfrom(fd, packet_buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)from, &from_length);
+		recvfrom(fd, inbound_packet_buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)from, &from_length);
 
-	packet_buffer[_current_data_length_in] = '\0';
+	inbound_packet_buffer[_current_data_length_in] = '\0';
 	
 	return _current_data_length_in;
 }
@@ -85,7 +85,7 @@ void Socket::close() {
 
 void Socket::copy_from_packet_buffer(void *dst, size_t beg_offset, size_t end_offset) {
 	size_t size = end_offset-beg_offset;
-	memcpy(dst, packet_buffer + beg_offset, size); 
+	memcpy(dst, inbound_packet_buffer + beg_offset, size); 
 }
 
 void Socket::copy_to_outbound_buffer(void *src, size_t src_size, size_t dest_offset) {
@@ -93,12 +93,12 @@ void Socket::copy_to_outbound_buffer(void *src, size_t src_size, size_t dest_off
 		fprintf(stderr, "copy_to_outbound_buffer(): warning: size of data to be copied > PACKET_SIZE_MAX. Truncating.\n");
 		src_size = PACKET_SIZE_MAX - dest_offset - 1;
 	}
-	memcpy(outbound_buffer + dest_offset, src, src_size);
+	memcpy(outbound_packet_buffer + dest_offset, src, src_size);
 }
 
 char Socket::get_packet_buffer_char(int index) {
 	if (index > PACKET_SIZE_MAX) {
 		index = PACKET_SIZE_MAX-1;
 	}
-	return packet_buffer[index];
+	return inbound_packet_buffer[index];
 }

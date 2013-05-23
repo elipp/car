@@ -12,8 +12,9 @@ const unsigned short ID_SERVER = 0x0000;
 #define S_HANDSHAKE_OK (unsigned char) 0xE1
 #define S_POSITION_UPDATE (unsigned char) 0xE2
 #define S_PEER_LIST (unsigned char) 0xE3
-#define S_PING (unsigned char) 0xE4
-#define S_QUIT (unsigned char) 0xEF
+#define S_CLIENT_DISCONNECT (unsigned char) 0xE4
+#define S_PING (unsigned char) 0xE5
+#define S_SHUTDOWN (unsigned char) 0xEF
 
 #define C_HANDSHAKE (unsigned char) 0xF1
 #define C_KEYSTATE (unsigned char) 0xF2

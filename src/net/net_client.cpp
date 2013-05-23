@@ -6,7 +6,18 @@ Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Client> LocalClient::peers;
+bool LocalClient::_bad = false;
+int LocalClient::_listening = 0;
 
+
+void LocalClient::start_thread() {
+	if (!handshake()) {
+		_bad = true;
+		return;
+	}
+	listen();
+
+}
 
 int LocalClient::init(const std::string &name, const std::string &remote_ip, unsigned short int port) {
 	memset(&client, 0, sizeof(client));
@@ -28,11 +39,8 @@ int LocalClient::init(const std::string &name, const std::string &remote_ip, uns
 		fprintf(stderr, "LocalClient: socket init failed.\n");
 		return 0; 
 	}
-	if (!handshake()) {
-		return 0;
-	}
 
-	client_thread = std::thread(listen);
+	client_thread = std::thread(start_thread);
 
 	return 1;
 }
@@ -54,25 +62,27 @@ int LocalClient::handshake() {
 
 	fprintf(stderr, "Awaiting for reply...\n");
 	
-#define TIMEOUT 1
+#define TIMEOUT_MS 5000
+#define RETRY_GRANULARITY_MS 250
 
-	int seconds = 0;
+	float milliseconds_accumulator = 0;
 	int bytes = socket.receive_data(&from);
 
-	while(bytes <= 0) {
+	while(bytes <= 0 && _listening == 1) {
 		bytes = socket.receive_data(&from);
-		if (seconds > TIMEOUT) {
-			fprintf(stderr, "Handshake timed out (%d seconds)!\n", TIMEOUT);
+		if (milliseconds_accumulator > TIMEOUT_MS) {
+			fprintf(stderr, "Handshake timed out (%d seconds)!\n", TIMEOUT_MS/1000.0);
 			return 0;
 		}
-		Sleep(1000);
-		++seconds;
+		Sleep(RETRY_GRANULARITY_MS);
+		milliseconds_accumulator += RETRY_GRANULARITY_MS;
 	}
 	
 	int protocol_id;
 	socket.copy_from_packet_buffer(&protocol_id, PROTOCOL_ID_LIMITS);
 	if (protocol_id != PROTOCOL_ID) {
-		fprintf(stderr, "LocalClient: protocol id mismatch (received %d)\n", protocol_id);
+		fprintf(stderr, "LocalClient: handshake: protocol id mismatch (received %d)\n", protocol_id);
+		return 0;
 	}
 	
 	socket.copy_from_packet_buffer(&client.id, 12, 14);
@@ -96,7 +106,9 @@ void LocalClient::handle_current_packet() {
 	socket.copy_from_packet_buffer(&protocol_id, PROTOCOL_ID_LIMITS);
 	if (protocol_id != PROTOCOL_ID) {
 		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
+		return;
 	}
+
 	unsigned short sender_id;
 	socket.copy_from_packet_buffer(&sender_id, SENDER_ID_LIMITS);
 	if (sender_id != ID_SERVER) {
@@ -112,14 +124,15 @@ void LocalClient::handle_current_packet() {
 	if (cmd_arg_mask.ch[0] == S_PING) {
 		pong(seq_number);
 	}
+	else if (cmd_arg_mask.ch[0] == S_SHUTDOWN) {
+		fprintf(stderr, "Received S_SHUTDOWN from server.\n");
+	}
 	else if (cmd_arg_mask.ch[0] == S_PEER_LIST) {
 		fprintf(stderr, "Received peer list. Raw dump: \n");
-		buffer_print_raw(socket.get_packet_buffer(), socket.current_data_length_in());
+		buffer_print_raw(socket.get_inbound_buffer(), socket.current_data_length_in());
 	}
 
 }
-
-static int _listening = 0;
 
 void LocalClient::listen() {
 	_listening = 1;
@@ -143,6 +156,9 @@ void LocalClient::post_quit_message() {
 }
 
 void LocalClient::quit() {
+	fprintf(stderr, "Received S_SHUTDOWN from server. Stopping listen.\n");
+	post_quit_message();	// a couple of times to make it more reliab;e
+	post_quit_message();
 	post_quit_message();
 	socket.close();
 	WSACleanup();
@@ -154,4 +170,10 @@ int LocalClient::send_current_data(size_t size) {
 	int bytes = socket.send_data(&remote_sockaddr, size);
 	++client.seq_number;
 	return bytes;
+}
+
+void LocalClient::construct_peer_list() {
+	// if this was called, it means 
+	std::string peer_list(socket.get_inbound_buffer() + 12);
+
 }

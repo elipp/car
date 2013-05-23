@@ -42,13 +42,15 @@ int Server::init(unsigned short port) {
 	return 1;
 }
 
-void Server::post_quit_and_cleanup() {
+void Server::shutdown() {
 	// post quit messages to all clients
 	listening = 0;
+	broadcast_shutdown_message();
 	if (listen_thread.joinable()) { listen_thread.join(); }
 	socket.close();
 	WSACleanup();
 }
+
 
 void Server::handle_current_packet(struct sockaddr_in *from) {
 	int protocol_id;
@@ -60,6 +62,14 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 
 	unsigned short client_id;
 	socket.copy_from_packet_buffer(&client_id, SENDER_ID_LIMITS);
+	
+	if (client_id != 0xFF) {
+		id_client_map::iterator it = clients.find(client_id);
+		if (it == clients.end()) {
+			fprintf(stderr, "Server: warning: received packet from non-existing player-id %u. Ignoring.\n", client_id);
+			return;
+		}
+	}
 
 	unsigned int seq;
 	socket.copy_from_packet_buffer(&seq, PACKET_SEQ_NUMBER_LIMITS);
@@ -87,7 +97,7 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 	}
 
 	else if (cmdbyte_arg_mask.ch[0] == C_HANDSHAKE) {
-		std::string name_string(socket.get_packet_buffer() + 12);
+		std::string name_string(socket.get_inbound_buffer() + 12);
 		unsigned short new_id = add_client(from, name_string);
 		id_client_map::iterator newcl = get_client_by_id(new_id);
 		if(newcl != clients.end()) {
@@ -99,7 +109,7 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 		post_peer_list();
 	}
 	else if (cmdbyte_arg_mask.ch[0] == C_QUIT) {
-		clients.erase(client_id);
+		remove_client(clients.find(client_id));
 		fprintf(stderr, "Received C_QUIT from client %d\n", client_id);
 	}
 	else {
@@ -123,6 +133,17 @@ unsigned short Server::add_client(struct sockaddr_in *newclient_saddr, const std
 	fprintf(stderr, "Server: added client \"%s\" with id %d\n", newclient.name.c_str(), newclient.id);
 
 	return newclient.id;
+}
+
+id_client_map::iterator Server::remove_client(id_client_map::iterator &iter) {
+	id_client_map::iterator it;
+	if (iter != clients.end()) {
+		it = clients.erase(iter);
+		return it;
+	}
+	else {
+		fprintf(stderr, "Server: remove client: internal error: couldn't find client %u from the client_id map (this shouldn't be happening)!\n");
+	}
 }
 
 std::unordered_map<unsigned short, struct Client>::iterator Server::get_client_by_id(unsigned short id) {
@@ -158,8 +179,15 @@ void Server::ping_clients() {
 			send_data_to_client(c, 12);
 			c.ping_timer.init();
 			c.ping_timer.begin();
+			++iter;
 		}
-		++iter;
+		else if (c.ping_timer.get_s() > 5) {
+			fprintf(stderr, "client %u: unanswered S_PING requests for more than 5 seconds, kicking.\n", c.id);
+			iter = remove_client(iter);
+		}
+		else {
+			++iter;
+		}
 	}
 
 }
@@ -191,6 +219,22 @@ void Server::post_peer_list() {
 		protocol_update_seq_number(socket.get_outbound_buffer(), iter->second.seq_number);
 
 		send_data_to_client(iter->second, offset+12);
+		++iter;
+	}
+}
+
+void Server::broadcast_shutdown_message() {
+	command_arg_mask_union cmd_arg_mask;
+	cmd_arg_mask.ch[0] = S_SHUTDOWN;
+	cmd_arg_mask.ch[1] = 0x00;
+	protocol_make_header(socket.get_outbound_buffer(), ID_SERVER, 0, cmd_arg_mask.us);
+
+	id_client_map::iterator iter = clients.begin();
+	while (iter != clients.end()) {
+		struct Client &c = iter->second;
+		protocol_update_seq_number(socket.get_outbound_buffer(), c.seq_number);
+		send_data_to_client(c, 12);
+		fprintf(stderr, "Sending S_SHUTDOWN to remote %s\n", c.ip_string);
 		++iter;
 	}
 }

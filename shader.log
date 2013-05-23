@@ -1,0 +1,35 @@
+Fragment shader failed to compile with the following errors:
+ERROR: 0:32: error(#160) Cannot convert from: "3-component vector of vec3" to: "out 4-component vector of vec4"
+ERROR: error(#273) 1 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:14: error(#172) Too many arguments constructor
+ERROR: 0:14: error(#207) Non-matching types for const initializer: const
+ERROR: error(#273) 2 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:24: error(#234) no qualifiers allowed for function return: const
+ERROR: 0:24: error(#132) Syntax error: "00.0" parse error
+ERROR: error(#273) 2 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:24: error(#234) no qualifiers allowed for function return: const
+ERROR: 0:24: error(#132) Syntax error: "00.0" parse error
+ERROR: error(#273) 2 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:24: error(#234) no qualifiers allowed for function return: const
+ERROR: 0:24: error(#132) Syntax error: "00.0" parse error
+ERROR: error(#273) 2 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:19: error(#172) Too many arguments constructor
+ERROR: 0:19: error(#160) Cannot convert from: "const highp 3-component vector of vec3" to: "highp 4-component vector of vec4"
+ERROR: 0:36: error(#132) Syntax error: ")" parse error
+ERROR: error(#273) 3 compilation errors.  No code generated
+
+Fragment shader failed to compile with the following errors:
+ERROR: 0:19: error(#172) Too many arguments constructor
+ERROR: 0:19: error(#160) Cannot convert from: "const highp 3-component vector of vec3" to: "highp 4-component vector of vec4"
+ERROR: error(#273) 2 compilation errors.  No code generated
+
