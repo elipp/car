@@ -49,7 +49,7 @@ int LocalClient::init(const std::string &name, const std::string &remote_ip, uns
 	socket = Socket(50001, SOCK_DGRAM, false);
 
 	if (socket.bad()) { 
-		fprintf(stderr, "LocalClient: socket init failed.\n");
+		onScreenLog::print( "LocalClient: socket init failed.\n");
 		return 0; 
 	}
 
@@ -68,12 +68,12 @@ int LocalClient::handshake() {
 	strcpy_s(socket.get_outbound_buffer() + PTCL_HEADER_LENGTH, PACKET_SIZE_MAX-PTCL_HEADER_LENGTH, client.info.name.c_str());
 	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, command_arg_mask.us);
 	
-	fprintf(stderr, "LocalClient::sending handshake to remote...\n");
+	onScreenLog::print( "LocalClient::sending handshake to remote...\n");
 
 
 	struct sockaddr_in from;
 
-	fprintf(stderr, "Awaiting for reply...\n");
+	onScreenLog::print( "Awaiting for reply...\n");
 	
 #define TIMEOUT_MS 5000
 #define RETRY_GRANULARITY_MS 1000
@@ -81,14 +81,14 @@ int LocalClient::handshake() {
 	float milliseconds_accumulator = 0;
 	int bytes = 0;
 	
-	fprintf(stderr, "LocalClient::sending handshake to remote...\n");
+	onScreenLog::print( "LocalClient::sending handshake to remote...\n");
 	while(bytes <= 0 && _listening == 1) {
-		fprintf(stderr, "(re-)sending handshake to remote...\n");
+		onScreenLog::print( "(re-)sending handshake to remote...\n");
 		send_current_data(PTCL_HEADER_LENGTH + client.info.name.length());
 			Sleep(RETRY_GRANULARITY_MS/2);
 		bytes = socket.receive_data(&from);
 		if (milliseconds_accumulator > TIMEOUT_MS) {
-			fprintf(stderr, "Handshake timed out (%f seconds)!\n", TIMEOUT_MS/1000.0);
+			onScreenLog::print( "Handshake timed out (%f seconds)!\n", TIMEOUT_MS/1000.0);
 			return 0;
 		}
 		Sleep(RETRY_GRANULARITY_MS/2);
@@ -98,13 +98,13 @@ int LocalClient::handshake() {
 	int protocol_id;
 	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
 	if (protocol_id != PROTOCOL_ID) {
-		fprintf(stderr, "LocalClient: handshake: protocol id mismatch (received %d)\n", protocol_id);
+		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", protocol_id);
 		return 0;
 	}
 	
 	socket.copy_from_inbound_buffer(&client.info.id, PTCL_DATAFIELD_BYTERANGE(sizeof(unsigned short)));
-	fprintf(stderr, "Client: received player id %d from %s!\n", client.info.id, get_dot_notation_ipv4(&from).c_str());
-
+	onScreenLog::print( "Client: received player id %d from %s!\n", client.info.id, get_dot_notation_ipv4(&from).c_str());
+	
 	return 1;
 
 }
@@ -125,7 +125,7 @@ static inline std::vector<struct peer_info_t> process_peer_list_string(const cha
 	while (it != sub.end()) {
 		std::vector<std::string> tokens = split(*it, '/');
 		if (tokens.size() != 4) {
-			fprintf(stderr, "warning: process_peer_list_string: tokens.size() != 3 (%d): dump = \"%s\"\n", tokens.size(), it->c_str());
+			//onScreenLog::print( "warning: process_peer_list_string: tokens.size() != 3 (%d): dump = \"%s\"\n", tokens.size(), it->c_str());
 		}
 		else {
 			peers.push_back(struct peer_info_t(std::stoi(tokens[0]), tokens[1], tokens[2], std::stoi(tokens[3])));
@@ -139,14 +139,14 @@ void LocalClient::handle_current_packet() {
 	int protocol_id;
 	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
 	if (protocol_id != PROTOCOL_ID) {
-		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
+		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
 		return;
 	}
 
 	unsigned short sender_id;
 	socket.copy_from_inbound_buffer(&sender_id, PTCL_SENDER_ID_BYTERANGE);
 	if (sender_id != ID_SERVER) {
-		fprintf(stderr, "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
+		//onScreenLog::print( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
 	}
 	unsigned int seq_number;
 	socket.copy_from_inbound_buffer(&seq_number, PTCL_SEQ_NUMBER_BYTERANGE);
@@ -163,7 +163,7 @@ void LocalClient::handle_current_packet() {
 		update_positions();
 	}
 	else if (cmd == S_SHUTDOWN) {
-		fprintf(stderr, "Received S_SHUTDOWN from server.\n");
+		onScreenLog::print( "Received S_SHUTDOWN from server.\n");
 		// shutdown client
 	}
 	else if (cmd == S_PEER_LIST) {
@@ -174,10 +174,10 @@ void LocalClient::handle_current_packet() {
 		socket.copy_from_inbound_buffer(&id, PTCL_DATAFIELD_BYTERANGE(sizeof(id)));
 		auto it = peers.find(id);
 		if (it == peers.end()) {
-			fprintf(stderr, "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
+			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
 		}
 		else {
-			fprintf(stderr, "Received S_CLIENT_DISCONNECT with id attachment %u. Deleting.\n", id);
+			onScreenLog::print( "Client %u (%s) disconnected. Deleting.\n", id, it->second.info.name.c_str());
 			peers.erase(id);
 		}
 	}
@@ -195,12 +195,12 @@ void LocalClient::update_positions() {
 		socket.copy_from_inbound_buffer(&id, PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE, PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id));
 		auto it = peers.find(id);
 		if (it == peers.end()) {
-			fprintf(stderr, "update_positions: unknown peer id included in peer list (%u)\n", id);
+			//onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
 			socket.copy_from_inbound_buffer(&it->second.car, offset, offset + sizeof(struct Car));
-			//fprintf(stderr, "update_positions: copied car %u position data as \n", id);
+			//onScreenLog::print( "update_positions: copied car %u position data as \n", id);
 			//it->second.car.position().print();
 		}
 	}
@@ -219,7 +219,7 @@ void LocalClient::listen() {
 		int bytes = socket.receive_data(&from);
 		if (bytes >= 0) {
 			std::string	ip_str = get_dot_notation_ipv4(&from);
-			//fprintf(stderr, "Received %d bytes from %s\n", bytes, ip_str.c_str());
+			//onScreenLog::print( "Received %d bytes from %s\n", bytes, ip_str.c_str());
 			handle_current_packet();
 		}
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
@@ -228,7 +228,7 @@ void LocalClient::listen() {
 			keystate_timer.begin();
 		}
 	}
-	fprintf(stderr, "LocalClient::stopping listen.\n");
+	onScreenLog::print( "LocalClient::stopping listen.\n");
 }
 
 void LocalClient::post_keystate() {
@@ -240,6 +240,7 @@ void LocalClient::post_keystate() {
 }
 
 void LocalClient::post_quit_message() {
+	//onScreenLog::print( "posting quit message\n");
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_QUIT;
 	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
@@ -247,6 +248,7 @@ void LocalClient::post_quit_message() {
 }
 void LocalClient::update_keystate(const bool *keys) {
 	client.keystate = 0x0;
+
 	if (keys[VK_UP]) { client.keystate |= C_KEYSTATE_UP; }
 	if (keys[VK_DOWN]) { client.keystate |= C_KEYSTATE_DOWN; }
 	if (keys[VK_LEFT]) { client.keystate |= C_KEYSTATE_LEFT; }
@@ -256,14 +258,14 @@ void LocalClient::update_keystate(const bool *keys) {
 void LocalClient::quit() {
 	
 	_listening = 0;
-	if(client_thread.joinable()) { client_thread.join(); }
+	if (client_thread.joinable()) { client_thread.join(); }
 	post_quit_message();
 	socket.close();
 	WSACleanup();
 }
 
 int LocalClient::send_current_data(size_t size) {
-	//fprintf(stderr, "client: sending %u bytes of data to remote (dump:\n", size);
+	//onScreenLog::print( "client: sending %u bytes of data to remote (dump:\n", size);
 	//buffer_print_raw(socket.get_outbound_buffer(), socket.current_data_length_out());
 	int bytes = socket.send_data(&remote_sockaddr, size);
 	++client.seq_number;
@@ -275,15 +277,14 @@ void LocalClient::construct_peer_list() {
 	std::vector<struct peer_info_t> peer_list = process_peer_list_string(socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + 1);
 		
 	for (auto &it : peer_list) {
-		fprintf(stderr, "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());
+		//onScreenLog::print( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());
 		auto map_iter = peers.find(it.id);
 		if (map_iter == peers.end()) {
-			fprintf(stderr, "The above entry wasn't found in the peer list. Adding.\n");
 			peers.insert(std::pair<unsigned short, struct Peer>(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
 		}
 		else {
 			if (!(map_iter->second.info == it)) {
-				fprintf(stderr, "warning: peer was found in the peer list, but discrepancies were discovered.\n");
+				onScreenLog::print( "warning: peer was found in the peer list, but peer_info_t discrepancies were discovered.\n");
 			}
 		}
 	}

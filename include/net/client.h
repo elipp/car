@@ -5,6 +5,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <thread>
+#include <mutex>
 
 #include "net/protocol.h"
 #include "net/socket.h"
@@ -56,6 +57,11 @@ struct Client {
 };
 
 
+struct mutexed_peer_map {
+	std::unordered_map<unsigned short, struct Peer> map;
+	std::mutex mutex;
+};
+
 class LocalClient {
 	static std::thread client_thread;
 	static Socket socket;
@@ -79,7 +85,7 @@ class LocalClient {
 	static int send_current_data(size_t size); // use a wrapper like this in order to appropriately increment seq_numbers
 
 public:
-	static const std::unordered_map<unsigned short, struct Peer> &get_peers() { return peers; }
+	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }
 	static int init(const std::string &name, const std::string &remote_ip, unsigned short int port);
 	static void quit();
 	static void update_keystate(const bool * keys);

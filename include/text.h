@@ -41,10 +41,24 @@ struct glyph {
 #define OSL_NUM_LINES (OSL_BUFFER_SIZE / OSL_LINE_LEN)
 #define OSL_LINE_LEN_MINUS_ONE (OSL_LINE_LEN - 1)
 #define OSL_NUM_LINES_DISPLAYED 8
+#include <queue>
+#include <mutex>
 
 // one could consider glScissor for this :D
 
+static std::mutex print_queue_mutex;
+
+class PrintQueue {
+public:
+	std::mutex mutex;
+	std::queue<std::string> queue;
+	
+	void add(const std::string &s);
+	PrintQueue() {}
+};
+
 class onScreenLog {
+	static PrintQueue print_queue;
 	static float pos_x, pos_y;	// ze upper left corner
 	static mat4 modelview;
 	static GLuint VBOid;
@@ -56,14 +70,16 @@ class onScreenLog {
 	static void update_VBO(const char* buffer, unsigned length);
 	static bool _visible;
 	static void set_y_translation(float new_y);
-
+	
 public:
+	static void print_string(const std::string &s);
 	static void toggle_visibility() { _visible = !_visible; }
 	static void scroll(float ds);
 	static void print(const char* format, ...);
 	static void clear();
 	static void draw();
 	static int init();
+	static void dispatch_print_queue();
 private:
 	onScreenLog();
 };

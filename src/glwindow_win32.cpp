@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <signal.h>
+#include <mutex>
 
 #include "common.h"
 
@@ -25,6 +26,7 @@ bool fullscreen = false;
 bool active = TRUE;
 
 extern int initGL();
+
 
 static std::string *convertLF_to_CRLF(const char *buf);
 
@@ -292,13 +294,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	// clear log window
 	clearLogWindow(); */
 
-	if (!initGL())
-	{
-		//KillGLWindow();
-		MessageBox(NULL, "initGL() failed.", "ERRROR", MB_OK|MB_ICONEXCLAMATION);
-		KillGLWindow();
-		return FALSE;
-	}
+
 	SetForegroundWindow(hWnd);
 	SetFocus(hWnd);
 	return TRUE;

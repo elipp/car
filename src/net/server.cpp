@@ -238,6 +238,7 @@ void Server::ping_clients() {
 		}
 		else if (c.ping_timer.get_s() > PING_TIMEOUT_S) {
 			fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds, repinging.\n", c.info.id, PING_TIMEOUT_S);
+			ping_client(c);
 			iter = remove_client(iter);
 		}
 		else {
@@ -382,7 +383,7 @@ void Server::calculate_state() {
 		c.car.susp_angle_fwd = 7*car_acceleration;
 		c.car._position[0] += c.car.velocity*sin(c.car.direction-M_PI/2);
 		c.car._position[2] += c.car.velocity*cos(c.car.direction-M_PI/2);
-		//fprintf(stderr, "car %u: pos: ", c.info.id);
+		//onScreenLog::print( "car %u: pos: ", c.info.id);
 		//c.car.position().print();
 	}
 }

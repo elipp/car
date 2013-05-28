@@ -244,8 +244,8 @@ void ShaderProgram::construct_uniform_map() {
 	memset(uniform_name_buf, 0, UNIFORM_NAME_LEN_MAX);
 
 	for (GLuint i = 0; i < total; i++) {
-		GLsizei name_len;
-		GLint num;
+		GLsizei name_len = 0;
+		GLint num = 0;
 		GLenum type = GL_ZERO;
 		glGetActiveUniform(programHandle, i, sizeof(uniform_name_buf) - 1, &name_len, &num, &type, uniform_name_buf);
 		uniform_name_buf[name_len] = '\0';

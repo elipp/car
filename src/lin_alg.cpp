@@ -71,8 +71,18 @@ static float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 	return _mm_dp_ps(a, b, xyzw_dot_mask).m128_f32[0];
 }
 
-static float (*MM_DPPS_XYZ)(__m128 a, __m128 b) = MM_DPPS_XYZ_SSE;
-static float (*MM_DPPS_XYZW)(__m128 a, __m128 b) = MM_DPPS_XYZW_SSE;
+static float MM_DPPS_XYZ(__m128 a, __m128 b) {
+	const __m128 mul = _mm_mul_ps(a, b);
+	return mul.m128_f32[0]+mul.m128_f32[1]+mul.m128_f32[2];
+}
+
+static float MM_DPPS_XYZW(__m128 a, __m128 b) {
+	const __m128 mul = _mm_mul_ps(a, b);
+	return mul.m128_f32[0]+mul.m128_f32[1]+mul.m128_f32[2] + mul.m128_f32[3];
+}
+
+//static float (*MM_DPPS_XYZ)(__m128 a, __m128 b) = MM_DPPS_XYZ_SSE;
+//static float (*MM_DPPS_XYZW)(__m128 a, __m128 b) = MM_DPPS_XYZW_SSE;
 
 
 const char* checkCPUCapabilities() {
@@ -98,6 +108,7 @@ const char* checkCPUCapabilities() {
 	if (!SSE_BIT_ENABLED) {
 		return "ERROR: SSE not supported by host processor!";
 	}
+	/*
 	else if (!SSE3_BIT_ENABLED) {
 		MM_DPPS_XYZ = MM_DPPS_XYZ_SSE;
 		MM_DPPS_XYZW = MM_DPPS_XYZW_SSE;
@@ -114,7 +125,8 @@ const char* checkCPUCapabilities() {
 		MM_DPPS_XYZW = MM_DPPS_XYZW_SSE41;
 		return "NOTE: lin_alg: Using SSE4.1 for dot product computation (_mm_dp_ps, optimal).\n";
 	}
-	
+	*/
+	return "Using SSE1 for dot product computation.\n";
 }
 
 vec4::vec4(float _x, float _y, float _z, float _w) {

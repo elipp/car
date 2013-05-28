@@ -10,22 +10,31 @@ static GLuint text_shared_IBOid;
 
 static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 
+PrintQueue onScreenLog::print_queue;
 float onScreenLog::pos_x = 2.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT;
 mat4 onScreenLog::modelview = mat4::identity();
 GLuint onScreenLog::VBOid = 0;
 float char_spacing_vert = 11.0;
 float char_spacing_horiz = 7.0;
 unsigned onScreenLog::line_length = OSL_LINE_LEN;
-unsigned onScreenLog::num_lines_displayed = OSL_BUFFER_SIZE / OSL_LINE_LEN;
+unsigned onScreenLog::num_lines_displayed = 30;
 unsigned onScreenLog::current_index = 0;
 unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 
-template<class T>
-std::string to_string(T const& t) {
-	std::ostringstream os;
-	os << t;
-	return os.str();
+void PrintQueue::add(const std::string &s) {
+	mutex.lock();
+	queue.push(s);
+	mutex.unlock();
+}
+
+void onScreenLog::dispatch_print_queue() {
+	print_queue.mutex.lock();
+	while(!print_queue.queue.empty()) {
+		onScreenLog::print_string(print_queue.queue.front());
+		print_queue.queue.pop();
+	}
+	print_queue.mutex.unlock();
 }
 
 static inline GLuint texcoord_index_from_char(char c){ return c == '\0' ? BLANK_GLYPH : (GLuint)c - 0x20; }
@@ -106,6 +115,8 @@ int onScreenLog::init() {
 	return 1;
 }
 
+
+
 void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	
 	glyph *glyphs = new glyph[length];	
@@ -146,32 +157,37 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	
 	current_index += length;
 
-	if ((y_adjustment+pos_y) - modelview(3,1) > WINDOW_HEIGHT) {}
-	fprintf(stderr, "(y_adj + pos_y) - modelview(3,1)= %f\n", y_adjustment + pos_y - modelview(3,1));
+	float d = (y_adjustment + pos_y + char_spacing_vert) - WINDOW_HEIGHT;
+	if (d > modelview(3,1)) { 
+		set_y_translation(-d);
+	}
+	//fprintf(stderr, "(y_adj + pos_y) - modelview(3,1)= %f, modelview(3,1) = %f \n", y_adjustment + pos_y - modelview(3,1), modelview(3,1));
 
 	delete [] glyphs;
 
 }
 
 void onScreenLog::print(const char* fmt, ...) {
-	static char buffer[OSL_BUFFER_SIZE];
+	char buffer[OSL_BUFFER_SIZE];
 	va_list args;
 	va_start(args, fmt);
 	SYSTEMTIME st;
     GetSystemTime(&st);
 	std::size_t timestamp_len = 0; //sprintf(buffer, "%02d:%02d:%02d.%03d > ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-	std::size_t msg_len = vsprintf(buffer + timestamp_len, fmt, args);
+	std::size_t msg_len = vsprintf_s(buffer + timestamp_len, OSL_BUFFER_SIZE, fmt, args);
 	std::size_t total_len = timestamp_len + msg_len;
 	buffer[total_len] = '\0';
 	va_end(args);
 
-//	fprintf(stderr, "%s\n", buffer);
+	print_queue.add(buffer);
 
-	if (current_index + total_len < OSL_BUFFER_SIZE) {	
-		update_VBO(buffer, total_len);
-	}
+	//release_GL_context();
 	// else fail silently X:D:D:Dd a nice, fast solution would be to 
 	// just start filling at the beginning of the VBO and use glScissor :P
+}
+
+void onScreenLog::print_string(const std::string &s) {
+	update_VBO(s.c_str(), s.length());
 }
 
 void onScreenLog::scroll(float ds) {
@@ -194,7 +210,8 @@ void onScreenLog::draw() {
 	if (!_visible) { return; }
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDisable(GL_DEPTH_TEST);
-
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(0, 0, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert);
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
 	
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
@@ -211,7 +228,7 @@ void onScreenLog::draw() {
 	
 	// ranged drawing will be implemented later
 	glDrawElements(GL_TRIANGLES, 6*current_index, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
-
+	glDisable(GL_SCISSOR_TEST);
 }	
 
 void onScreenLog::clear() {

@@ -517,13 +517,15 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	if(AllocConsole()) {
+	/*if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
 		SetConsoleTitle("debug output");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}
+	}*/
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	
+	if (!initGL()) { return 1; }
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -581,8 +583,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					drawCars(LocalClient::get_peers());
 					
 					onScreenLog::draw();
-
 					window_swapbuffers();
+					onScreenLog::dispatch_print_queue();
+
 					long us_per_frame = timer.get_us();
 					std::string fps_str = get_fps(us_per_frame);
 
