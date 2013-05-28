@@ -77,6 +77,10 @@ static float (*MM_DPPS_XYZW)(__m128 a, __m128 b) = MM_DPPS_XYZW_SSE;
 
 const char* checkCPUCapabilities() {
 
+	typedef struct _cpuid_t {
+		int eax, ebx, ecx, edx;
+	} cpuid_t;
+
 	cpuid_t c;
 	memset(&c, 0, sizeof(c));
 #ifdef _WIN32

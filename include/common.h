@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
+#include <sstream>
 
 #include "lin_alg.h"
 #include "glwindow_win32.h"
@@ -18,6 +20,8 @@
 #define M_PI 3.14159265359
 #endif
 
+extern bool keys[];
+
 static const float PI_PER_TWO = M_PI/2;
 
 static const float PI_PER_180 = (M_PI/180.0);
@@ -25,6 +29,8 @@ static const float _180_PER_PI = (180.0/M_PI);
 
 inline float RADIANS(float angle_in_degrees) { return angle_in_degrees*PI_PER_180; }
 inline float DEGREES(float angle_in_radians) { return angle_in_radians*_180_PER_PI; }
+
+std::vector<std::string> split(const std::string &s, char delim);
 
 class Car {
 public:
@@ -39,9 +45,12 @@ public:
 	float F_centripetal;
 
 	vec4 position() const { return vec4(_position[0], _position[1], _position[2], 1.0); }
+	
 	Car() { memset(this, 0, sizeof(*this)); }
 }; 
 
+
+float f_wheel_angle(float x);
 
 #define GOTO_OFFSET(origin, iter, offset) \
 	do { \

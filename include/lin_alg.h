@@ -49,10 +49,6 @@ std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 
 enum { MAT_ZERO = 0x0, MAT_IDENTITY = 0x1 };
 
-typedef struct _cpuid_t {
-	int eax, ebx, ecx, edx;
-} cpuid_t;
-
 const char* checkCPUCapabilities();
 
 // forward declarations 
@@ -99,6 +95,8 @@ public:
 	void normalize();
 	vec4 normalized() const;
 	void zero();
+	
+	void print() { fprintf(stderr, "(%4.2f, %4.2f, %4.2f)\n", data.m128_f32[0], data.m128_f32[1], data.m128_f32[2]); }
 	
 	friend std::ostream &operator<< (std::ostream& out, const vec4 &v);
 

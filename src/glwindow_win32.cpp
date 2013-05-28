@@ -11,6 +11,8 @@
 #include <cassert>
 #include <signal.h>
 
+#include "common.h"
+
 
 static HGLRC hRC = NULL;
 static HDC hDC	  = NULL;
@@ -25,8 +27,6 @@ bool active = TRUE;
 extern int initGL();
 
 static std::string *convertLF_to_CRLF(const char *buf);
-
-bool keys[256] = { false };
 
 void window_swapbuffers() {
 	SwapBuffers(hDC);

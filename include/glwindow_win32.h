@@ -12,8 +12,8 @@
 typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
 extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
-static const float WINDOW_WIDTH = 1680;
-static const float WINDOW_HEIGHT = 1050;
+static const float WINDOW_WIDTH = 1280;
+static const float WINDOW_HEIGHT = 960;
 static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
 static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
 

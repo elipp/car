@@ -11,8 +11,8 @@
 
 #include "glwindow_win32.h"
 
-#include "net/net_server.h"
-#include "net/net_client.h"
+#include "net/server.h"
+#include "net/client.h"
 
 #include "lin_alg.h"
 #include "common.h"
@@ -32,12 +32,12 @@ static const double GAMMA = 6.67;
 
 float c_vel_fwd = 0, c_vel_side = 0;
 
-struct mesh {
+struct meshinfo {
 	GLuint VBOid;
 	GLuint facecount;
 };
 
-struct mesh chassis, wheel, plane;
+struct meshinfo chassis, wheel, plane;
 
 GLuint IBOid, FBOid, FBO_textureId;
 
@@ -63,24 +63,6 @@ GLushort * indices;
 #define M_PI 3.1415926535
 #endif
 
-static const float FW_ANGLE_LIMIT = M_PI/6; // rad
-static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
-// f(x) = -(1/(x+1/sqrt(30))^2) + 30
-// f(x) = 1/(-x + 1/sqrt(30))^2 - 30
-
-float f_wheel_angle(float x) {
-	float t;
-	if (x >= 0) {
-		t = x+SQRT_FW_ANGLE_LIMIT_RECIP;
-		t *= t;
-		return -(1/t) + FW_ANGLE_LIMIT;
-	}
-	else {
-		t = -x+SQRT_FW_ANGLE_LIMIT_RECIP;
-		t *= t;
-		return (1/t) - FW_ANGLE_LIMIT;
-	}
-}
 
 void rotatex(float mod) {
 	qy += mod;
@@ -112,15 +94,16 @@ void control()
 
 	static const float accel_modifier = 0.012;
 	static const float brake_modifier = 0.010;
-
+	static float dx, dy;
+	dx = 0; dy = 0;
 	if(mouseLocked) {
-		unsigned int buttonmask;
 		
 		GetCursorPos(cursorPos);
 		SetCursorPos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
-		float dx = (HALF_WINDOW_WIDTH - cursorPos->x);
-		float dy = -(HALF_WINDOW_HEIGHT - cursorPos->y);
+		dx = (HALF_WINDOW_WIDTH - cursorPos->x);
+		dy = -(HALF_WINDOW_HEIGHT - cursorPos->y);
 
+	}/*
 		static float local_car_acceleration = 0.0;
 		static float local_car_prev_velocity;
 		local_car_prev_velocity = local_car.velocity;
@@ -192,7 +175,7 @@ void control()
 	local_car.susp_angle_fwd = 7*local_car_acceleration;
 	local_car._position[0] += local_car.velocity*sin(local_car.direction-M_PI/2);
 	local_car._position[2] += local_car.velocity*cos(local_car.direction-M_PI/2);
-	
+	*/
 
 	if (keys['W']) {
 		c_vel_fwd += fwd_modifier;
@@ -227,7 +210,7 @@ void control()
 		}
 
 
-	}
+	
 	// these are active regardless of mouse_locked status
 	if (keys[VK_PRIOR]) {
 		onScreenLog::scroll(12.0);
@@ -424,7 +407,9 @@ void drawPlane() {
 }
 
 
-void drawCar(const Car &car) {
+void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
+	for (auto &iter : peers) {
+		const struct Car &car =  iter.second.car;
 	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 	glUseProgram(regular_shader->getProgramHandle());	
@@ -445,12 +430,9 @@ void drawCar(const Car &car) {
 	viewq.normalize();
 	view = viewq.toRotationMatrix();
 	view = view*mat4::translate(view_position);
-
-	static float direction = 0.0;	// in the xz-plane
-
+	
 	// no need to reconstruct iterator every time
 
-	static const vec4 chassis_color(0.8, 0.3, 0.5, 1.0);
 	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
 	mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.direction, 0.0, 1.0, 0.0);
@@ -460,7 +442,7 @@ void drawCar(const Car &car) {
 
 	regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	regular_shader->update_uniform_vec4("paint_color", chassis_color.rawData());
+	regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color].rawData());
 	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
 	
 	// the car doesn't have a texture as of yet :P laterz
@@ -481,15 +463,12 @@ void drawCar(const Car &car) {
 	
 	regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
 	
-	static float wheel_angle = 0.0;
-	wheel_angle -= 1.05*car.velocity;
-
 	// front wheels
 	static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
 	mw = modelview;
 	mw *= front_left_wheel_translation;
 	mw *= mat4::rotate(M_PI - car.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(-wheel_angle, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(-car.wheel_rot, 0.0, 0.0, 1.0);
 
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
@@ -499,7 +478,7 @@ void drawCar(const Car &car) {
 	mw = modelview;
 	mw *= front_right_wheel_translation;
 	mw *= mat4::rotate(-car.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
 
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
@@ -509,7 +488,7 @@ void drawCar(const Car &car) {
 	static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
 	mw = modelview;
 	mw *= back_left_wheel_translation;
-	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
 	mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
 
 	
@@ -520,10 +499,11 @@ void drawCar(const Car &car) {
 
 	mw = modelview;
 	mw *= back_right_wheel_translation;
-	mw *= mat4::rotate(wheel_angle, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
 	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+}
 }
 
 
@@ -544,8 +524,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	}
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
-	
-
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -600,7 +578,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					control();
 					update_c_pos();
 					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					drawCar(local_car);
+					drawCars(LocalClient::get_peers());
 					
 					onScreenLog::draw();
 

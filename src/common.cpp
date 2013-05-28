@@ -1,9 +1,42 @@
 #include "common.h"
 
+bool keys[256] = { false };
 
-/**
- * NOTE: THESE TWO FUNCTIONS ALSO RESET THE INTERNAL POINTERS TO THE 0-offset position.
- */
+static std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
+
+static const float FW_ANGLE_LIMIT = M_PI/6; // rad
+static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
+// f(x) = -(1/(x+1/sqrt(30))^2) + 30
+// f(x) = 1/(-x + 1/sqrt(30))^2 - 30
+
+float f_wheel_angle(float x) {
+	float t;
+	if (x >= 0) {
+		t = x+SQRT_FW_ANGLE_LIMIT_RECIP;
+		t *= t;
+		return -(1/t) + FW_ANGLE_LIMIT;
+	}
+	else {
+		t = -x+SQRT_FW_ANGLE_LIMIT_RECIP;
+		t *= t;
+		return (1/t) - FW_ANGLE_LIMIT;
+	}
+}
+
+
 
 size_t getfilesize(FILE *file)
 {
