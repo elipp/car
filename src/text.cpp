@@ -38,39 +38,24 @@ void onScreenLog::dispatch_print_queue() {
 }
 
 static inline GLuint texcoord_index_from_char(char c){ return c == '\0' ? BLANK_GLYPH : (GLuint)c - 0x20; }
+
+static const struct xy glyph_base[4] = { 
+		{0.0, 0.0}, {0.0, 12.0}, {6.0, 12.0}, {6.0, 0.0} 
+};
+
+static struct xy get_glyph_xy(int index, float x, float y) {
+	struct xy _xy = { (x) + glyph_base[(index)].x, (y) + glyph_base[(index)].y };
+	return _xy;
+}
+
 static inline glyph glyph_from_char(float x, float y, char c) { 
 	glyph g;
 
-	int j = 0;
-	const GLuint tindex = texcoord_index_from_char(c);
+	const unsigned tindex = texcoord_index_from_char(c);
 
-	// behold the mighty unrolled loop
-
-	g.vertices[0] = vertex2(x + ((j>>1)&1)*6.0, 
-			  	y + (((j+1)>>1)&1)*12.0,
-			  	glyph_texcoords[tindex][2*j], 
-			  	glyph_texcoords[tindex][2*j+1]);
-	
-
-	j = 1;
-	g.vertices[1] = vertex2(x + ((j>>1)&1)*6.0, 
-			  	y + (((j+1)>>1)&1)*12.0,
-			  	glyph_texcoords[tindex][2*j], 
-			  	glyph_texcoords[tindex][2*j+1]);
-
-	j = 2;
-	g.vertices[2] = vertex2(x + ((j>>1)&1)*6.0, 
-			  	y + (((j+1)>>1)&1)*12.0,
-			  	glyph_texcoords[tindex][2*j], 
-			  	glyph_texcoords[tindex][2*j+1]);
-
-
-	j = 3;
-	g.vertices[3] = vertex2(x + ((j>>1)&1)*6.0, 
-				y + (((j+1)>>1)&1)*12.0,
-			  	glyph_texcoords[tindex][2*j], 
-				glyph_texcoords[tindex][2*j+1]);
-
+	for (unsigned i = 0; i < 4; ++i) {
+		g.vertices[i] = vertex2(get_glyph_xy(i, x, y), glyph_texcoords[tindex][i]);
+	}
 	return g;
 
 }
@@ -146,7 +131,6 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	
 		glyphs[i] = glyph_from_char(pos_x + x_adjustment, pos_y + y_adjustment, c);
 		
-		//fprintf(stderr, "glyph: %f %f %f %f\n",glyphs[i].vertices[0].vx, glyphs[i].vertices[0].vy, glyphs[i].vertices[0].u, glyphs[i].vertices[0].v);
 		x_adjustment += char_spacing_horiz;
 	}
 	

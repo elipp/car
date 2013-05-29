@@ -22,10 +22,14 @@ extern ShaderProgram *text_shader;
 
 #define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
 
+struct xy { 
+	float x; float y;
+};
+
 struct vertex2 {		
 	float x, y;
 	float u, v;
-	vertex2(float _x, float _y, float _u, float _v) : x(_x), y(_y), u(_u), v(_v) {}
+	vertex2(const struct xy pos, const struct uv tc) : x(pos.x), y(pos.y), u(tc.u), v(tc.v) {}
 	vertex2() {}
 };
 
