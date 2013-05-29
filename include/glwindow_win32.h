@@ -6,7 +6,7 @@
 #include <wingdi.h>
 #include <mutex>
 
-#include <gl_core_4_2.h>
+#include <gl_core_3_2.h>
 
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
@@ -19,7 +19,7 @@ static const float WINDOW_HEIGHT = 960;
 static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
 static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
 
-void window_swapbuffers();
+extern void window_swapbuffers();
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK WndProc_child(HWND, UINT, WPARAM, LPARAM);

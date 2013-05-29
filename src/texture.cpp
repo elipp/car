@@ -132,7 +132,8 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 			glEnable(GL_TEXTURE_2D);
 			glGenTextures(1, &textureId);
 			glBindTexture( GL_TEXTURE_2D, textureId);
-			glTexStorage2D(GL_TEXTURE_2D, 4, internalfmt, width, height);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, texSubfmt, GL_FLOAT,(const GLvoid*) &buffer[0]);
+			//glTexStorage2D(GL_TEXTURE_2D, 4, internalfmt, width, height); // this is superior to glTexImage2D. only available in GL4 though
 			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, texSubfmt, GL_UNSIGNED_BYTE, (const GLvoid*)&buffer[0]);
 			glGenerateMipmap(GL_TEXTURE_2D);	// requires glew
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

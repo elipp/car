@@ -102,8 +102,9 @@ int LocalClient::handshake() {
 		return 0;
 	}
 	
-	socket.copy_from_inbound_buffer(&client.info.id, PTCL_DATAFIELD_BYTERANGE(sizeof(unsigned short)));
-	onScreenLog::print( "Client: received player id %d from %s!\n", client.info.id, get_dot_notation_ipv4(&from).c_str());
+	socket.copy_from_inbound_buffer(&client.info.id, PTCL_DATAFIELD_BYTERANGE(sizeof(client.info.id)));
+	client.info.name = socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + sizeof(client.info.id);
+	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
 	return 1;
 
@@ -177,7 +178,7 @@ void LocalClient::handle_current_packet() {
 			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
 		}
 		else {
-			onScreenLog::print( "Client %u (%s) disconnected. Deleting.\n", id, it->second.info.name.c_str());
+			onScreenLog::print( "Client %s (id %u) disconnected. Deleting.\n", it->second.info.name.c_str(), id);
 			peers.erase(id);
 		}
 	}
@@ -281,6 +282,7 @@ void LocalClient::construct_peer_list() {
 		auto map_iter = peers.find(it.id);
 		if (map_iter == peers.end()) {
 			peers.insert(std::pair<unsigned short, struct Peer>(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
+			onScreenLog::print("Client %s (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
 		}
 		else {
 			if (!(map_iter->second.info == it)) {
@@ -288,5 +290,6 @@ void LocalClient::construct_peer_list() {
 			}
 		}
 	}
-	
+
+
 }

@@ -123,6 +123,16 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 
 	else if (cmd == C_HANDSHAKE) {
 		std::string name_string(socket.get_inbound_buffer() + PTCL_HEADER_LENGTH);
+		
+		int needs_renaming = 0;
+		for (auto &name_iter : clients) {
+			if (name_iter.second.info.name == name_string) { 
+				fprintf(stderr, "Client with name %s already found. Renaming.\n", name_string.c_str());
+				needs_renaming = 1; break; 
+			}
+		}
+		if (needs_renaming) { name_string = name_string + "(1)"; }
+		
 		unsigned short new_id = add_client(from, name_string);
 		auto newcl_iter = clients.find(new_id);
 		if(newcl_iter != clients.end()) {
@@ -144,26 +154,39 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 
 }
 
+void Server::post_client_connect(const struct Client &c) {
+	command_arg_mask_union cmd_arg_mask;
+	cmd_arg_mask.ch[0] = S_CLIENT_CONNECT;
+	cmd_arg_mask.ch[1] = 0x00;
+	protocol_make_header(socket.get_outbound_buffer(), ID_SERVER, 0, cmd_arg_mask.us);
+	char buffer[128];
+	int bytes= sprintf_s(buffer, 128, "%u/%s/%s/%u", c.info.id, c.info.name.c_str(), c.info.ip_string.c_str(), c.info.color);
+	buffer[bytes-1] = '\0';
+	socket.copy_to_outbound_buffer(buffer, bytes, PTCL_HEADER_LENGTH);
+	send_data_to_all(PTCL_HEADER_LENGTH + bytes);
+}
+
 unsigned short Server::add_client(struct sockaddr_in *newclient_saddr, const std::string &name) {
 	++num_clients;
 	static uint8_t color = 0;
-	
+
 	struct Client newclient;
 	newclient.address = *newclient_saddr;
 	newclient.info.id = num_clients;
 	newclient.info.name = name;
 	newclient.info.color = color;
-	
+
 	color = color > 7 ? 0 : (color+1);
-	
+
 	newclient.info.ip_string = get_dot_notation_ipv4(newclient_saddr);
-	
+
 	clients.insert(std::pair<unsigned short, struct Client>(newclient.info.id, newclient));
 
 	fprintf(stderr, "Server: added client \"%s\" with id %d\n", newclient.info.name.c_str(), newclient.info.id);
 
 	return newclient.info.id;
 }
+
 
 void Server::post_client_disconnect(unsigned short id) {
 	command_arg_mask_union cmd_arg_mask;
@@ -204,8 +227,14 @@ void Server::handshake(struct Client *client) {
 	cmd_arg_mask.ch[1] = client->info.color;
 	
 	protocol_make_header(socket.get_outbound_buffer(), client->info.id, client->seq_number, cmd_arg_mask.us);
-	socket.copy_to_outbound_buffer(&client->info.id, sizeof(client->info.id), PTCL_HEADER_LENGTH);
-	int bytes = send_data_to_client(*client, PTCL_HEADER_LENGTH + sizeof(client->info.id));
+	unsigned total_size = PTCL_HEADER_LENGTH;
+	
+	socket.copy_to_outbound_buffer(&client->info.id, sizeof(client->info.id), total_size);
+	total_size += sizeof(client->info.id);
+	
+	socket.copy_to_outbound_buffer(client->info.name.c_str(), client->info.name.length(), total_size);
+	total_size += client->info.name.length();
+	int bytes = send_data_to_client(*client, total_size);
 }
 
 int Server::send_data_to_client(struct Client &client, size_t data_size) {

@@ -91,9 +91,9 @@ ShaderProgram::ShaderProgram(const std::string &name_base) {
 		}
 	}
 
-	glBindAttribLocation(programHandle, 0, "Position_VS_in");
-	glBindAttribLocation(programHandle, 1, "Normal_VS_in");
-	glBindAttribLocation(programHandle, 2, "TexCoord_VS_in");
+	glBindAttribLocation(programHandle, ATTRIB_POSITION, "Position_VS_in");
+	glBindAttribLocation(programHandle, ATTRIB_NORMAL, "Normal_VS_in");
+	glBindAttribLocation(programHandle, ATTRIB_TEXCOORD, "TexCoord_VS_in");
 
 	glLinkProgram(programHandle);
 	glUseProgram(programHandle);

@@ -303,10 +303,9 @@ int initGL(void)
 	text_texId = TextureBank::get_id_by_name("textures/dina_all.png");
 	
 	regular_shader = new ShaderProgram("shaders/regular"); 
-	normal_plot_shader = new ShaderProgram("shaders/normalplot");
 	text_shader = new ShaderProgram("shaders/text_shader");
 
-	if (regular_shader->is_bad() || normal_plot_shader->is_bad() || text_shader->is_bad()) { 
+	if (regular_shader->is_bad() || text_shader->is_bad()) { 
 		onScreenLog::print( "Error: shader error (fatal).\n");
 		return 0; 
 	}
@@ -321,23 +320,13 @@ int initGL(void)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(GLushort)(0xFFFF), indices, GL_STATIC_DRAW);
 
 	delete [] indices;	
-
-	glPatchParameteri(GL_PATCH_VERTICES, 3);
-
-	//GLuint programHandle = regular_shader->getProgramHandle();
-
-	//glBindFragDataLocation(programHandle, 0, "out_frag_color");
+	
 	regular_shader->construct_uniform_map();
-	normal_plot_shader->construct_uniform_map();
 	text_shader->construct_uniform_map();
-
-
-	//GLuint fragloc = glGetFragDataLocation( programHandle, "out_frag_color"); uniform_assert_warn(fragloc);
-
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-
+	
+	glEnableVertexAttribArray(ATTRIB_POSITION);
+	glEnableVertexAttribArray(ATTRIB_NORMAL);
+	glEnableVertexAttribArray(ATTRIB_TEXCOORD);
 
 	view = mat4::identity();
 
@@ -348,9 +337,9 @@ int initGL(void)
 		
 	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
 	
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 
@@ -389,23 +378,6 @@ static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
 
 }
 
-void drawPlane() {
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glUseProgram(regular_shader->getProgramHandle());
-
-	static const mat4 modelview = mat4::identity();//mat4::scale(100.0, 100.0, 100.0);
-	regular_shader->update_uniform_mat4("ModelView", modelview.rawData());
-	
-	regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
-	glBindBuffer(GL_ARRAY_BUFFER, plane.VBOid);
-	
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
-
-	glDrawElements(GL_TRIANGLES, plane.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
-}
-
 
 void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	for (auto &iter : peers) {
@@ -423,9 +395,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);  // is still in full matafaking effizzect :D 
 	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);	 
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 
 	viewq.normalize();
 	view = viewq.toRotationMatrix();
@@ -457,9 +429,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 	glBindBuffer(GL_ARRAY_BUFFER, wheel.VBOid);
 	
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 	
 	regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
 	
@@ -542,8 +514,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	bool esc = false;
 	
-	onScreenLog::print("moro, ma oon melkein vittupaa!!!!\nkyrpa!!\n");
-
 	_timer timer;
 	
 	while(!done)

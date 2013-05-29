@@ -13,6 +13,22 @@
 #define SHADER_NONE (GLuint)-1
 #define SHADER_SUCCESS GL_TRUE
 
+enum {
+	ATTRIB_POSITION = 0,
+	ATTRIB_NORMAL = 1,
+	ATTRIB_TEXCOORD = 2
+};
+
+#ifndef GL_TESS_EVALUATION_SHADER
+#define GL_TESS_EVALUATION_SHADER 0x0
+#endif
+
+#ifndef GL_TESS_CONTROL_SHADER
+#define GL_TESS_CONTROL_SHADER 0x0
+#endif
+
+
+
 typedef enum { 
 		VertexShader = 0, 
 		TessellationControlShader = 1, 

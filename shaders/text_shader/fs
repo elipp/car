@@ -1,10 +1,10 @@
-#version 410 core
+#version 150 core
 
-layout (location=0) in vec2 TexCoord_FS_in;
+in vec2 TexCoord_FS_in;
 
 uniform sampler2D texture1;
 
-layout(location = 0) out vec4 out_fragcolor;
+out vec4 out_fragcolor;
 
 void main(void) {
 

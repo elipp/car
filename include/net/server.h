@@ -24,6 +24,7 @@ class Server {
 	static int send_data_to_client(struct Client &client, size_t data_size);
 	static void send_data_to_all(size_t size);
 	static void post_peer_list();
+	static void post_client_connect(const struct Client &newclient);
 	static void post_client_disconnect(unsigned short id);
 
 	static void listen();

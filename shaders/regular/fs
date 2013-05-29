@@ -1,10 +1,10 @@
-#version 410 core
+#version 150 core
 
-layout (location = 0) in vec3 WorldPos_FS_in;
-layout (location = 1) in vec3 Normal_FS_in;
-layout (location = 2) in vec2 TexCoord_FS_in; 
+in vec3 WorldPos_FS_in;
+in vec3 Normal_FS_in;
+in vec2 TexCoord_FS_in; 
 
-layout(location = 0) out vec4 out_frag_color;
+out vec4 out_frag_color;
 
 uniform mat4 ModelView;
 uniform sampler2D texture_color;

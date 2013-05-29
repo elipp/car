@@ -145,8 +145,6 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	if (d > modelview(3,1)) { 
 		set_y_translation(-d);
 	}
-	//fprintf(stderr, "(y_adj + pos_y) - modelview(3,1)= %f, modelview(3,1) = %f \n", y_adjustment + pos_y - modelview(3,1), modelview(3,1));
-
 	delete [] glyphs;
 
 }
@@ -198,8 +196,8 @@ void onScreenLog::draw() {
 	glScissor(0, 0, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert);
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
 	
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
 	glUseProgram(text_shader->getProgramHandle());
 
 	glActiveTexture(GL_TEXTURE0);
