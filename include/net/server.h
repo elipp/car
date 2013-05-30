@@ -11,6 +11,8 @@ typedef std::unordered_map<unsigned short, struct Client> id_client_map;
 typedef std::pair<unsigned short, struct Client> id_client_pair;
 
 class Server {
+	static std::thread ping_thread;
+	static std::thread position_thread;
 	static std::thread listen_thread;
 	static id_client_map clients;
 	static unsigned num_clients;
@@ -21,8 +23,11 @@ class Server {
 	static void calculate_state();
 	static void broadcast_state();
 	static void handle_current_packet(struct sockaddr_in *from);
+	static int send_data_to_client(struct Client &client, const char* buffer, size_t data_size);
 	static int send_data_to_client(struct Client &client, size_t data_size);
+	static void increment_client_seq_number(struct Client &client);
 	static void send_data_to_all(size_t size);
+	static void send_data_to_all(char* data, size_t size);
 	static void post_peer_list();
 	static void post_client_connect(const struct Client &newclient);
 	static void post_client_disconnect(unsigned short id);

@@ -14,6 +14,10 @@
 
 #include "common.h"
 
+bool WM_KEYDOWN_KEYS[256] = { false };
+bool WM_CHAR_KEYS[256] = { false };
+
+bool mouse_locked = false;
 
 static HGLRC hRC = NULL;
 static HDC hDC	  = NULL;
@@ -22,10 +26,23 @@ static HINSTANCE hInstance;
 
 static HWND hWnd_child = NULL;
 
+const float WINDOW_WIDTH = 1280;
+const float WINDOW_HEIGHT = 960;
+const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
+const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
+
 bool fullscreen = false;
 bool active = TRUE;
 
 extern int initGL();
+
+void set_cursor_relative_pos(int x, int y) {
+    POINT pt;
+    pt.x = x;
+    pt.y = y;
+    ClientToScreen(hWnd, &pt);
+    SetCursorPos(pt.x, pt.y);
+}
 
 
 static std::string *convertLF_to_CRLF(const char *buf);
@@ -36,53 +53,65 @@ void window_swapbuffers() {
 
 LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	#define BIT_SET(var,pos) ((var) & (1<<(pos)))
 	switch(uMsg)
 	{
 	case WM_ACTIVATE:
-		if(!HIWORD(wParam))
-		{
-			active=TRUE;
+		if(!HIWORD(wParam)) { active=TRUE; }
+		else { 
+			active = FALSE; 
+			mouse_locked = false;
 		}
-
-		else 
-		{
-			active=FALSE;
-		}
-		return 0;
+		break;
 
 	case WM_SYSCOMMAND:
 		switch(wParam)
 		{
-		case SC_SCREENSAVE:
-		case SC_MONITORPOWER:
-			return 0;
+			case SC_SCREENSAVE:
+			case SC_MONITORPOWER:
+				return 0;
 		}
 		break;
 
 	case WM_CLOSE:
-		{
+		KillGLWindow();
 		PostQuitMessage(0);
-		return 0;
-		}
+		break;
 
+	case WM_CHAR:
+		if (onScreenLog::input_field.active()) {
+			onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
+		}
+		break;
+		
 	case WM_KEYDOWN:
-		{
-			keys[wParam]=TRUE;
-			return 0;
+		if (onScreenLog::input_field.active()) {
+			if (wParam == VK_RETURN) {
+				onScreenLog::input_field.submit_and_parse();
+				onScreenLog::input_field.set_active(false);
+			}
+			else {
+				// handle arrow keys, backspace etc
+			}
 		}
-	case WM_KEYUP:
-		{
-			keys[wParam]=FALSE;
-			return 0;
+		else if (wParam == VK_RETURN) {
+			onScreenLog::input_field.set_active(true);
 		}
-	case WM_SIZE:
-		{
-			ResizeGLScene(LOWORD(lParam), HIWORD(lParam));
-		}
-	;
-	}
+		
+		WM_KEYDOWN_KEYS[wParam]=TRUE;
+		break;
 
-	/* the rest shall be passed to defwindowproc. (default window procedure) */
+	case WM_KEYUP:
+		WM_KEYDOWN_KEYS[wParam]=FALSE;
+		break;
+
+	case WM_SIZE:
+		ResizeGLScene(LOWORD(lParam), HIWORD(lParam));
+		break;
+	
+	default:
+		break;
+	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 

@@ -29,7 +29,7 @@ struct peer_info_t {
 
 struct Peer {
 	peer_info_t info;
-	struct Car car;
+	Car car;
 	Peer(unsigned short _id, const std::string &_name, const std::string &_ip_string, uint8_t _color) {
 		info = peer_info_t(_id, _name, _ip_string, _color);
 		memset(&car, 0x0, sizeof(car));
@@ -63,11 +63,13 @@ struct mutexed_peer_map {
 };
 
 class LocalClient {
-	static std::thread client_thread;
+	static std::thread keystate_thread;
+	static std::thread listen_thread;
 	static Socket socket;
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
 	static std::unordered_map<unsigned short, struct Peer> peers;
+	static int _connected;	// "connected" :P
 	
 	static int _listening;
 
@@ -81,8 +83,9 @@ class LocalClient {
 	static void post_quit_message();
 	static void post_keystate();
 	static void update_positions();
-	
-	static int send_current_data(size_t size); // use a wrapper like this in order to appropriately increment seq_numbers
+	static void keystate_loop();
+	static int send_data_to_server(size_t size);
+	static int send_data_to_server(const char* buffer, size_t size); 
 
 public:
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }

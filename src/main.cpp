@@ -26,9 +26,6 @@ static GLint PMODE = GL_FILL;	// polygon mode toggle
 static LPPOINT cursorPos = new POINT;	/* holds cursor position */
 
 extern bool active;
-extern bool keys[];
-
-static const double GAMMA = 6.67;
 
 float c_vel_fwd = 0, c_vel_side = 0;
 
@@ -44,8 +41,6 @@ GLuint IBOid, FBOid, FBO_textureId;
 bool mouseLocked = false;
 
 GLfloat running = 0.0;
-
-static bool print_test = true;
 
 static ShaderProgram *regular_shader = NULL;
 static ShaderProgram *normal_plot_shader = NULL;
@@ -98,134 +93,51 @@ void control()
 	static const float brake_modifier = 0.010;
 	static float dx, dy;
 	dx = 0; dy = 0;
-	if(mouseLocked) {
-		
-		GetCursorPos(cursorPos);
+	
+	if (mouse_locked) {
+		GetCursorPos(cursorPos);	// these are screen coordinates, ie. absolute coordinates. it's fine though
 		SetCursorPos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
 		dx = (HALF_WINDOW_WIDTH - cursorPos->x);
 		dy = -(HALF_WINDOW_HEIGHT - cursorPos->y);
-
-	}/*
-		static float local_car_acceleration = 0.0;
-		static float local_car_prev_velocity;
-		local_car_prev_velocity = local_car.velocity;
-
-		if (keys[VK_UP]) {
-			local_car.velocity += accel_modifier;
-		}
-		else {
-			local_car.susp_angle_roll *= 0.90;
-			local_car.front_wheel_tmpx *= 0.50;
-		}
-		
-		if (keys[VK_DOWN]) {
-			if (local_car.velocity > 0.01) {
-				local_car.direction -= 3*local_car.F_centripetal*local_car.velocity*0.20;
-				local_car.velocity *= 0.99;
-			}
-			local_car.velocity -= brake_modifier;
-
-		}
-		else {
-				local_car.susp_angle_roll *= 0.90;
-				local_car.front_wheel_tmpx *= 0.50;
-		}
-		local_car.velocity *= 0.95;	// regardless of keystate
-
-		if (keys[VK_LEFT]) {
-			if (local_car.front_wheel_tmpx < 15.0) {
-				local_car.front_wheel_tmpx += 0.5;
-			}
-			local_car.F_centripetal = -1.0;
-			local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
-			local_car.susp_angle_roll = fabs(local_car.front_wheel_angle*local_car.velocity*0.8);
-			if (local_car.velocity > 0) {
-				local_car.direction -= turning_modifier_forward*local_car.F_centripetal*local_car.velocity;
-			}
-			else {
-				local_car.direction -= turning_modifier_reverse*local_car.F_centripetal*local_car.velocity;
-			}
-
-		} 
-		if (keys[VK_RIGHT]) {
-			if (local_car.front_wheel_tmpx > -15.0) {
-				local_car.front_wheel_tmpx -= 0.5;
-			}
-			local_car.F_centripetal = 1.0;
-			local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
-			local_car.susp_angle_roll = -fabs(local_car.front_wheel_angle*local_car.velocity*0.8);
-			if (local_car.velocity > 0) {
-				local_car.direction -= turning_modifier_forward*local_car.F_centripetal*local_car.velocity;
-			}
-			else {
-				local_car.direction -= turning_modifier_reverse*local_car.F_centripetal*local_car.velocity;
-			}
-
-		} 
-
-		local_car_prev_velocity = 0.5*(local_car.velocity+local_car_prev_velocity);
-		local_car_acceleration = 0.2*(local_car.velocity - local_car_prev_velocity) + 0.8*local_car_acceleration;
-
-	if (!keys[VK_LEFT] && !keys[VK_RIGHT]){
-		local_car.front_wheel_tmpx *= 0.30;
-		local_car.front_wheel_angle = f_wheel_angle(local_car.front_wheel_tmpx);
-		local_car.susp_angle_roll *= 0.50;
-		local_car.susp_angle_fwd *= 0.50;
-		local_car.F_centripetal = 0.0;
 	}
 	
-	local_car.susp_angle_fwd = 7*local_car_acceleration;
-	local_car._position[0] += local_car.velocity*sin(local_car.direction-M_PI/2);
-	local_car._position[2] += local_car.velocity*cos(local_car.direction-M_PI/2);
-	*/
+	if (WM_KEYDOWN_KEYS['W']) { c_vel_fwd += fwd_modifier; }
+	if (WM_KEYDOWN_KEYS['S']) { c_vel_fwd -= fwd_modifier; }	
+	c_vel_fwd *= 0.96;
 
-	if (keys['W']) {
-		c_vel_fwd += fwd_modifier;
-	}
-	if (keys['S']) {
-		c_vel_fwd -= fwd_modifier;
-	}	
-	
-	c_vel_fwd *= 0.97;
-
-	if (keys['A']) {
-		c_vel_side -= side_modifier;
-	}
-	if (keys['D']) {
-		c_vel_side += side_modifier;
-	}
+	if (WM_KEYDOWN_KEYS['A']) { c_vel_side -= side_modifier; }
+	if (WM_KEYDOWN_KEYS['D']) { c_vel_side += side_modifier; }
 	c_vel_side *= 0.95;
-		if (keys['N']) {
-			keys['N'] = false;
-			print_test = !print_test;
-		}
 
-		if (keys['P']) {
-			PMODE = (PMODE == GL_FILL ? GL_LINE : GL_FILL);
-			keys['P'] = false;
-		}
+	if (WM_KEYDOWN_KEYS['N']) {
+		WM_KEYDOWN_KEYS['N'] = false;
+	}
 
-		if (dy != 0) {
-			rotatey(mouse_modifier*dy);
-		}
-		if (dx != 0) {
-			rotatex(mouse_modifier*dx);
-		}
+	if (WM_KEYDOWN_KEYS['P']) {
+		PMODE = (PMODE == GL_FILL ? GL_LINE : GL_FILL);
+		WM_KEYDOWN_KEYS['P'] = false;
+	}
+
+	if (dy != 0) {
+		rotatey(mouse_modifier*dy);
+	}
+	if (dx != 0) {
+		rotatex(mouse_modifier*dx);
+	}
 
 
-	
 	// these are active regardless of mouse_locked status
-	if (keys[VK_PRIOR]) {
+	if (WM_KEYDOWN_KEYS[VK_PRIOR]) {
 		onScreenLog::scroll(12.0);
-		keys[VK_PRIOR] = false;
+		WM_KEYDOWN_KEYS[VK_PRIOR] = false;
 	}
-	if (keys[VK_NEXT]) {
+	if (WM_KEYDOWN_KEYS[VK_NEXT]) {
 		onScreenLog::scroll(-12.0);	
-		keys[VK_NEXT] = false;
+		WM_KEYDOWN_KEYS[VK_NEXT] = false;
 	}
-	if (keys['L']) {
+	if (WM_CHAR_KEYS['L']) {
 			onScreenLog::toggle_visibility();
-			keys['L'] = false;
+			WM_KEYDOWN_KEYS['L'] = false;
 	}
 		
 
@@ -346,37 +258,6 @@ int initGL(void)
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 
-	// fbo generation for shadow mapping stuff.
-
-	glGenFramebuffers(1, &FBOid);
-	glBindFramebuffer(GL_FRAMEBUFFER, FBOid);
-
-	glGenTextures(1, &FBO_textureId);
-	glBindTexture(GL_TEXTURE_2D, FBO_textureId);
-
-static int SHADOW_MAP_WIDTH = 1*WINDOW_WIDTH;
-static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );	// these two are related to artifact mitigation
-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-
-	glFramebufferTexture2D (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, FBO_textureId, 0);
-
-	glDrawBuffer(GL_NONE);	// this, too, has something to do with only including the depth component 
-	glReadBuffer(GL_NONE);
-
-	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		onScreenLog::print( "error: Shadow-map FBO initialization failed!\n");
-		return 0;
-	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
 	return 1;
 
 }
@@ -384,7 +265,7 @@ static int SHADOW_MAP_HEIGHT = 1*WINDOW_HEIGHT;
 
 void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	for (auto &iter : peers) {
-		const struct Car &car =  iter.second.car;
+		const Car &car =  iter.second.car;
 	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 	glUseProgram(regular_shader->getProgramHandle());	
@@ -492,19 +373,22 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	if(AllocConsole()) {
+	/*if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
 		SetConsoleTitle("debug output");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}
-	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
-	
+	}*/
+	if(!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
 	
+	wglSwapIntervalEXT(1);
+
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
-
+	
+	onScreenLog::print("%s\n", cpustr.c_str());
+	
 	MSG msg;
 	BOOL done=FALSE;
 
@@ -520,24 +404,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	LocalClient::init("Jarmo2", remote_ip, (unsigned short)50000);
 	onScreenLog::print("Connecting to remote ip %s.\n", remote_ip.c_str());
-
-	wglSwapIntervalEXT(1);
-
-	onScreenLog::print("%s\n", cpustr.c_str());
-	//ShowCursor(FALSE);
-	
-
-	bool esc = false;
 	
 	_timer timer;
 	
 	while(!done)
 	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
 		{
 			if(msg.message == WM_QUIT)
 			{
-				fprintf(stderr, "Sending quit message (C_QUIT) to server.\n");
+				onScreenLog::print("Sending quit message (C_QUIT) to server.\n");
 				LocalClient::quit();
 				
 				done=TRUE;
@@ -547,45 +423,33 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				DispatchMessage(&msg);
 			}
 		}
-		else {
-			if (active)
-			{
-				if(keys[VK_ESCAPE])
-				{
-					if (!esc) {
-						mouseLocked = !mouseLocked;
-						ShowCursor(mouseLocked ? FALSE : TRUE);
-						esc = true;
-					}
-					//done=TRUE;
-				}
-				else{
-					esc=false;
+		
+		if (WM_KEYDOWN_KEYS[VK_ESCAPE])
+		{
+			ShowCursor(mouse_locked);
+			mouse_locked = !mouse_locked;
 
-					control();
-					update_c_pos();
-					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					drawCars(LocalClient::get_peers());
-					
-
-					onScreenLog::draw();
-					window_swapbuffers();
-					onScreenLog::dispatch_print_queue();
-
-					long us_per_frame = timer.get_us();
-					
-					if (print_test) {
-						onScreenLog::print("%u FPS, ALSO focukgin overlong string niggerz,m DLDLldldd D:LD;d;d;d;d;d;;d;d :D:D:D:D:D::D:D:DD:::::::\n", us_per_frame);
-					}
-					timer.begin();
-				}
+			if (!mouse_locked) { 
+				set_cursor_relative_pos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
 			}
+			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
+		control();
+		update_c_pos();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		drawCars(LocalClient::get_peers());
+		onScreenLog::draw();
+		window_swapbuffers();
 
+		onScreenLog::dispatch_print_queue();
+		//long us_per_frame = timer.get_us();
+	
+		//timer.begin();
+			
+		
 	}
 
-	KillGLWindow();
-	glDeleteBuffers(1, &IBOid);
+
 	return (msg.wParam);
 }
 

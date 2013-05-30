@@ -14,7 +14,9 @@ const vec4 colors[8] = {
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
 
-std::thread LocalClient::client_thread;
+std::thread LocalClient::keystate_thread;
+std::thread LocalClient::listen_thread;
+int LocalClient::_connected = 0;
 Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
@@ -22,16 +24,6 @@ std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
 bool LocalClient::_bad = false;
 int LocalClient::_listening = 0;
 
-
-void LocalClient::start_thread() {
-	_listening = 1;
-	if (!handshake()) {
-		_bad = true;
-		return;
-	}
-	listen();
-
-}
 
 int LocalClient::init(const std::string &name, const std::string &remote_ip, unsigned short int port) {
 
@@ -46,16 +38,36 @@ int LocalClient::init(const std::string &name, const std::string &remote_ip, uns
 	remote_sockaddr.sin_addr.S_un.S_addr = inet_addr(remote_ip.c_str());
 	Socket::initialize();
 
-	socket = Socket(50001, SOCK_DGRAM, false);
+	socket = Socket(50001, SOCK_DGRAM, true);
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
 		return 0; 
 	}
 
-	client_thread = std::thread(start_thread);
+	if (!handshake()) { return 0; }
+
+	listen_thread = std::thread(listen);	
+	keystate_thread = std::thread(keystate_loop);
 
 	return 1;
+}
+
+void LocalClient::keystate_loop() {
+
+	#define KEYSTATE_GRANULARITY_MS 25
+	static _timer keystate_timer;
+	keystate_timer.begin();
+	while (_listening) {
+		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
+			update_keystate(WM_KEYDOWN_KEYS);
+			post_keystate();
+			keystate_timer.begin();
+			long wait = KEYSTATE_GRANULARITY_MS - keystate_timer.get_ms();
+			Sleep(wait);
+		}
+	}
+
 }
 
 int LocalClient::handshake() {
@@ -67,34 +79,34 @@ int LocalClient::handshake() {
 
 	strcpy_s(socket.get_outbound_buffer() + PTCL_HEADER_LENGTH, PACKET_SIZE_MAX-PTCL_HEADER_LENGTH, client.info.name.c_str());
 	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, command_arg_mask.us);
-	
-	onScreenLog::print( "LocalClient::sending handshake to remote...\n");
+		
+	send_data_to_server(PTCL_HEADER_LENGTH + client.info.name.length());
 
-
-	struct sockaddr_in from;
-
-	onScreenLog::print( "Awaiting for reply...\n");
-	
-#define TIMEOUT_MS 5000
 #define RETRY_GRANULARITY_MS 1000
-
-	float milliseconds_accumulator = 0;
-	int bytes = 0;
+#define NUM_RETRIES 5
+		
+	onScreenLog::print( "LocalClient::sending handshake to remote.\n");
 	
-	onScreenLog::print( "LocalClient::sending handshake to remote...\n");
-	while(bytes <= 0 && _listening == 1) {
-		onScreenLog::print( "(re-)sending handshake to remote...\n");
-		send_current_data(PTCL_HEADER_LENGTH + client.info.name.length());
-			Sleep(RETRY_GRANULARITY_MS/2);
-		bytes = socket.receive_data(&from);
-		if (milliseconds_accumulator > TIMEOUT_MS) {
-			onScreenLog::print( "Handshake timed out (%f seconds)!\n", TIMEOUT_MS/1000.0);
-			return 0;
+	int received_data = 0;
+	for (int i = 0; i < NUM_RETRIES; ++i) {
+
+		if (socket.wait_for_incoming_data(RETRY_GRANULARITY_MS) > 0) { 
+			received_data = 1;
+			break;
 		}
-		Sleep(RETRY_GRANULARITY_MS/2);
-		milliseconds_accumulator += RETRY_GRANULARITY_MS;
+		onScreenLog::print("Re-sending handshake to remote...\n");
+		send_data_to_server(PTCL_HEADER_LENGTH + client.info.name.length());
+	}
+
+	if (!received_data) {
+		onScreenLog::print("Handshake timed out.\n");
+		_listening = 0;
+		return 0;
 	}
 	
+	struct sockaddr_in from;
+	int bytes = socket.receive_data(&from);	// now we know we actually have received data in the socket
+
 	int protocol_id;
 	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
 	if (protocol_id != PROTOCOL_ID) {
@@ -106,6 +118,8 @@ int LocalClient::handshake() {
 	client.info.name = socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + sizeof(client.info.id);
 	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
+	_listening = 1;
+
 	return 1;
 
 }
@@ -116,7 +130,7 @@ void LocalClient::pong(unsigned seq_number) {
 	cmd_arg_mask.ch[1] = 0x00;
 	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
 	socket.copy_to_outbound_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
-	send_current_data(PTCL_HEADER_LENGTH + sizeof(seq_number));
+	send_data_to_server(PTCL_HEADER_LENGTH + sizeof(seq_number));
 }
 
 static inline std::vector<struct peer_info_t> process_peer_list_string(const char* buffer) {
@@ -165,7 +179,7 @@ void LocalClient::handle_current_packet() {
 	}
 	else if (cmd == S_SHUTDOWN) {
 		onScreenLog::print( "Received S_SHUTDOWN from server.\n");
-		// shutdown client
+		// shut down.
 	}
 	else if (cmd == S_PEER_LIST) {
 		construct_peer_list();
@@ -178,7 +192,7 @@ void LocalClient::handle_current_packet() {
 			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
 		}
 		else {
-			onScreenLog::print( "Client %s (id %u) disconnected. Deleting.\n", it->second.info.name.c_str(), id);
+			onScreenLog::print( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
 			peers.erase(id);
 		}
 	}
@@ -209,35 +223,28 @@ void LocalClient::update_positions() {
 }
 
 void LocalClient::listen() {
-	_listening = 1;
+	
 	struct sockaddr_in from;
-
-#define KEYSTATE_GRANULARITY_MS 25
-	_timer keystate_timer;
-	keystate_timer.begin();
-
+	
 	while (_listening) {
 		int bytes = socket.receive_data(&from);
 		if (bytes >= 0) {
-			std::string	ip_str = get_dot_notation_ipv4(&from);
+			//std::string	ip_str = get_dot_notation_ipv4(&from);
 			//onScreenLog::print( "Received %d bytes from %s\n", bytes, ip_str.c_str());
 			handle_current_packet();
 		}
-		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
-			update_keystate(keys);
-			post_keystate();
-			keystate_timer.begin();
-		}
+
 	}
 	onScreenLog::print( "LocalClient::stopping listen.\n");
 }
 
 void LocalClient::post_keystate() {
+	static char keystate_buffer[PACKET_SIZE_MAX];
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_KEYSTATE;
 	cmd_arg_mask.ch[1] = client.keystate;
-	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
-	send_current_data(PTCL_HEADER_LENGTH);
+	protocol_make_header(keystate_buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	send_data_to_server(keystate_buffer, PTCL_HEADER_LENGTH);
 }
 
 void LocalClient::post_quit_message() {
@@ -245,7 +252,7 @@ void LocalClient::post_quit_message() {
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_QUIT;
 	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
-	int bytes = send_current_data(PTCL_HEADER_LENGTH);
+	int bytes = send_data_to_server(PTCL_HEADER_LENGTH);
 }
 void LocalClient::update_keystate(const bool *keys) {
 	client.keystate = 0x0;
@@ -259,16 +266,22 @@ void LocalClient::update_keystate(const bool *keys) {
 void LocalClient::quit() {
 	
 	_listening = 0;
-	if (client_thread.joinable()) { client_thread.join(); }
+	if (listen_thread.joinable()) { listen_thread.join(); }
+	if (keystate_thread.joinable()) { keystate_thread.join(); }
 	post_quit_message();
 	socket.close();
 	WSACleanup();
 }
 
-int LocalClient::send_current_data(size_t size) {
-	//onScreenLog::print( "client: sending %u bytes of data to remote (dump:\n", size);
-	//buffer_print_raw(socket.get_outbound_buffer(), socket.current_data_length_out());
+int LocalClient::send_data_to_server(size_t size) {
 	int bytes = socket.send_data(&remote_sockaddr, size);
+	++client.seq_number;
+	return bytes;
+}
+
+int LocalClient::send_data_to_server(const char* buffer, size_t size) {
+
+	int bytes = socket.send_data(&remote_sockaddr, buffer, size);
 	++client.seq_number;
 	return bytes;
 }

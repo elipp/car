@@ -20,7 +20,6 @@
 #define M_PI 3.14159265359
 #endif
 
-extern bool keys[];
 
 static const float PI_PER_TWO = M_PI/2;
 

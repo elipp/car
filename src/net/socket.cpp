@@ -63,10 +63,33 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 }
 
+int Socket::wait_for_incoming_data(int milliseconds) {
+	
+	fd_set read_fds, write_fds, except_fds;
+	FD_ZERO(&read_fds);
+	FD_ZERO(&write_fds);
+	FD_ZERO(&except_fds);
+	FD_SET(fd, &read_fds);
+
+	// Set timeout to 1.0 seconds
+	struct timeval timeout;
+
+	timeout.tv_sec = milliseconds/1000;
+	int modulo = milliseconds%1000;
+	timeout.tv_usec = modulo*1000;
+	
+	return select(fd + 1, &read_fds, &write_fds, &except_fds, &timeout);
+	
+}
+
 int Socket::send_data(const struct sockaddr_in *recipient, size_t len) {
 	int sent_bytes = sendto(fd, (const char*)outbound_packet_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
 	_current_data_length_out = len;
 	return sent_bytes;
+}
+
+int Socket::send_data(const struct sockaddr_in *recipient, const void* buffer, size_t len) {
+	return sendto(fd, (const char*)buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
 }
 
 int Socket::receive_data(struct sockaddr_in *from) {

@@ -8,18 +8,23 @@
 
 #include <gl_core_3_2.h>
 
+extern bool WM_KEYDOWN_KEYS[];
+extern bool WM_CHAR_KEYS[];
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
 extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
-static const float WINDOW_WIDTH = 1280;
-static const float WINDOW_HEIGHT = 960;
-static const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
-static const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
+extern const float WINDOW_WIDTH;
+extern const float WINDOW_HEIGHT;
+extern const float HALF_WINDOW_WIDTH;
+extern const float HALF_WINDOW_HEIGHT;
+
+extern void set_cursor_relative_pos(int x, int y);
 
 extern void window_swapbuffers();
+extern bool mouse_locked;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK WndProc_child(HWND, UINT, WPARAM, LPARAM);
@@ -27,7 +32,5 @@ LRESULT CALLBACK WndProc_child(HWND, UINT, WPARAM, LPARAM);
 BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag);
 void KillGLWindow(void);
 GLvoid ResizeGLScene(GLsizei width, GLsizei height);
-
-static void clearLogWindow();
 
 #endif

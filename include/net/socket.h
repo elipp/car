@@ -30,8 +30,11 @@ public:
 	void copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset);
 
 	Socket(unsigned short port, int TYPE, bool blocking);
-
+	
 	int send_data(const struct sockaddr_in *recipient, size_t len);
+	int send_data(const struct sockaddr_in *recipient, const void* buffer, size_t len);
+
+	int wait_for_incoming_data(int milliseconds);
 	int receive_data(struct sockaddr_in *from);
 	char get_packet_buffer_char(int index);
 	void close();

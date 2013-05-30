@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <unordered_map>
+#include <mutex>
 
 #include "glwindow_win32.h"
 #include "lin_alg.h"
@@ -18,7 +19,7 @@ extern GLuint text_texId;
 extern GLuint text_shared_IBOid;
 
 extern ShaderProgram *text_shader;
-
+extern GLuint generate_empty_VBO(size_t size, GLint FLAG);
 
 #define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
 
@@ -37,32 +38,44 @@ struct glyph {
 	vertex2 vertices[4];
 };
 
-// void track(T var, const std::string &id, float pos_x, float pos_y);
-// void untrack(T var);
 
 #define OSL_BUFFER_SIZE 8096	// only the GLushort-based index buffer poses a limit to this
-#define OSL_LINE_LEN 64
-#define OSL_NUM_LINES (OSL_BUFFER_SIZE / OSL_LINE_LEN)
-#define OSL_LINE_LEN_MINUS_ONE (OSL_LINE_LEN - 1)
-#define OSL_NUM_LINES_DISPLAYED 8
-
-#include <queue>
-#include <mutex>
-
-
-static std::mutex print_queue_mutex;
-
-class PrintQueue {
-public:
-	std::mutex mutex;
-	std::string queue;
-	
-	void add(const std::string &s);
-	PrintQueue() { 	queue.reserve(OSL_BUFFER_SIZE); queue.clear();	}
-};
+#define OSL_LINE_LEN 96
 
 class onScreenLog {
-	static PrintQueue print_queue;	// nice and high-level, but should perhaps just opt for a stringbuffer or something like that instead
+public:	
+#define INPUT_FIELD_BUFFER_SIZE 256
+	static class InputField {
+		int cursor_pos;
+		std::string input_buffer;
+		bool _active;
+	public:
+		GLuint VBOid;
+		bool active() const { return _active; }
+		void set_active(bool is_active) { _active = is_active; }
+		void insert_char_to_cursor_pos(char c);
+		void move_cursor(int amount);
+		void draw() const;
+		void clear();
+		void delete_char_before_cursor_pos();
+		void update_VBO();
+		void submit_and_parse();	// also does a clear
+		InputField() { 
+			cursor_pos = 0; input_buffer.reserve(INPUT_FIELD_BUFFER_SIZE); input_buffer.clear(); 
+			VBOid = 0;
+		}
+	
+	} input_field;
+private:
+	static class PrintQueue {
+	public:
+		std::mutex mutex;
+		std::string queue;	// "queue" :D
+	
+		void add(const std::string &s);
+		PrintQueue() { 	queue.reserve(OSL_BUFFER_SIZE); queue.clear();	}
+	} print_queue;
+
 	static float pos_x, pos_y;	// ze upper left corner
 	static mat4 modelview;
 	static GLuint VBOid;
@@ -70,7 +83,7 @@ class onScreenLog {
 	static unsigned num_lines_displayed;
 	static unsigned current_index;
 	static unsigned current_line_num;
-	static void generate_VBO();
+	static unsigned num_characters_drawn;
 	static void update_VBO(const char* buffer, unsigned length);
 	static bool _visible;
 	static bool _autoscroll;
