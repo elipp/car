@@ -21,6 +21,9 @@ extern GLuint text_shared_IBOid;
 extern ShaderProgram *text_shader;
 extern GLuint generate_empty_VBO(size_t size, GLint FLAG);
 
+extern float char_spacing_vert;
+extern float char_spacing_horiz;
+
 #define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
 
 struct xy { 

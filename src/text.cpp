@@ -13,18 +13,22 @@ static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 onScreenLog::InputField onScreenLog::input_field;
 onScreenLog::PrintQueue onScreenLog::print_queue;
 
-float onScreenLog::pos_x = 2.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT;
+
+
+float onScreenLog::pos_x = 4.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview = mat4::identity();
 GLuint onScreenLog::VBOid = 0;
 float char_spacing_vert = 11.0;
 float char_spacing_horiz = 7.0;
 unsigned onScreenLog::line_length = OSL_LINE_LEN;
-unsigned onScreenLog::num_lines_displayed = 30;
+unsigned onScreenLog::num_lines_displayed = 32;
 unsigned onScreenLog::current_index = 0;
 unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 bool onScreenLog::_autoscroll = true;
 unsigned onScreenLog::num_characters_drawn = 0;
+
+static float log_bottom_margin = char_spacing_vert*1.55;
 
 static inline GLuint texcoord_index_from_char(char c){ return c == '\0' ? BLANK_GLYPH : (GLuint)c - 0x20; }
 
@@ -110,9 +114,9 @@ void onScreenLog::InputField::update_VBO() {
 	int i = 0;
 	
 	float x_adjustment = 0;
-
+	static const int y_const = WINDOW_HEIGHT - char_spacing_vert - 4;
 	for (i = 0; i < input_buffer.length(); ++i) {
-		static const int y_const = WINDOW_HEIGHT - char_spacing_vert;
+
 		glyphs[i] = glyph_from_char(pos_x + x_adjustment, y_const, input_buffer[i]);
 		x_adjustment += char_spacing_horiz;
 	}
@@ -135,7 +139,7 @@ if (!_active) { return; }
 	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
 	glUseProgram(text_shader->getProgramHandle());
 
-	static const vec4 input_field_text_color(0.6, 0.6, 0.8, 1.0);
+	static const vec4 input_field_text_color(0.93, 0.93, 0.36, 1.0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
@@ -245,7 +249,7 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	}
 
 	if (_autoscroll) {
-		float d = (y_adjustment + pos_y + char_spacing_vert) - WINDOW_HEIGHT;
+		float d = (y_adjustment + pos_y + log_bottom_margin) - WINDOW_HEIGHT;
 		if (d > modelview(3,1)) { 
 			set_y_translation(-d);
 		}
@@ -277,7 +281,8 @@ void onScreenLog::print_string(const std::string &s) {
 }
 
 void onScreenLog::scroll(float ds) {
-	float bottom_scroll_displacement = (current_line_num + 1)*char_spacing_vert + pos_y - WINDOW_HEIGHT;
+	float y_adjustment = current_line_num * char_spacing_vert;
+	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y - WINDOW_HEIGHT;
 	
 	modelview(3, 1) += ds;
 	
@@ -302,7 +307,7 @@ void onScreenLog::draw() {
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(0, 0, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert);
+	glScissor(0, 1.5*char_spacing_vert, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert);
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
 	
 	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
@@ -313,7 +318,7 @@ void onScreenLog::draw() {
 	glBindTexture(GL_TEXTURE_2D, text_texId);
 	text_shader->update_uniform_1i("texture1", 0);
 	
-	static const vec4 log_text_color(1.0, 1.0, 1.0, 1.0);
+	static const vec4 log_text_color(0.85, 0.85, 0.85, 1.0);
 	text_shader->update_uniform_vec4("text_color", log_text_color.rawData());
 	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)modelview.rawData());
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());

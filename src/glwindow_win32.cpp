@@ -96,9 +96,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (wParam == VK_RETURN) {
 			onScreenLog::input_field.set_active(true);
+		} else {
+			WM_KEYDOWN_KEYS[wParam]=TRUE;
 		}
-		
-		WM_KEYDOWN_KEYS[wParam]=TRUE;
 		break;
 
 	case WM_KEYUP:

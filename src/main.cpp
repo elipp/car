@@ -128,11 +128,11 @@ void control()
 
 	// these are active regardless of mouse_locked status
 	if (WM_KEYDOWN_KEYS[VK_PRIOR]) {
-		onScreenLog::scroll(12.0);
+		onScreenLog::scroll(char_spacing_vert);
 		WM_KEYDOWN_KEYS[VK_PRIOR] = false;
 	}
 	if (WM_KEYDOWN_KEYS[VK_NEXT]) {
-		onScreenLog::scroll(-12.0);	
+		onScreenLog::scroll(-char_spacing_vert);	
 		WM_KEYDOWN_KEYS[VK_NEXT] = false;
 	}
 	if (WM_CHAR_KEYS['L']) {
