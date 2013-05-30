@@ -41,28 +41,28 @@ struct glyph {
 // void untrack(T var);
 
 #define OSL_BUFFER_SIZE 8096	// only the GLushort-based index buffer poses a limit to this
-#define OSL_LINE_LEN 128
+#define OSL_LINE_LEN 64
 #define OSL_NUM_LINES (OSL_BUFFER_SIZE / OSL_LINE_LEN)
 #define OSL_LINE_LEN_MINUS_ONE (OSL_LINE_LEN - 1)
 #define OSL_NUM_LINES_DISPLAYED 8
+
 #include <queue>
 #include <mutex>
 
-// one could consider glScissor for this :D
 
 static std::mutex print_queue_mutex;
 
 class PrintQueue {
 public:
 	std::mutex mutex;
-	std::queue<std::string> queue;
+	std::string queue;
 	
 	void add(const std::string &s);
-	PrintQueue() {}
+	PrintQueue() { 	queue.reserve(OSL_BUFFER_SIZE); queue.clear();	}
 };
 
 class onScreenLog {
-	static PrintQueue print_queue;
+	static PrintQueue print_queue;	// nice and high-level, but should perhaps just opt for a stringbuffer or something like that instead
 	static float pos_x, pos_y;	// ze upper left corner
 	static mat4 modelview;
 	static GLuint VBOid;
@@ -73,11 +73,13 @@ class onScreenLog {
 	static void generate_VBO();
 	static void update_VBO(const char* buffer, unsigned length);
 	static bool _visible;
+	static bool _autoscroll;
 	static void set_y_translation(float new_y);
 	
 public:
 	static void print_string(const std::string &s);
 	static void toggle_visibility() { _visible = !_visible; }
+	static void toggle_autoscroll() { _autoscroll = !_autoscroll; }
 	static void scroll(float ds);
 	static void print(const char* format, ...);
 	static void clear();
@@ -85,7 +87,7 @@ public:
 	static int init();
 	static void dispatch_print_queue();
 private:
-	onScreenLog();
+	onScreenLog() {};
 };
 
 

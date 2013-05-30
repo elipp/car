@@ -21,19 +21,18 @@ unsigned onScreenLog::num_lines_displayed = 30;
 unsigned onScreenLog::current_index = 0;
 unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
+bool onScreenLog::_autoscroll = true;
 
 void PrintQueue::add(const std::string &s) {
 	mutex.lock();
-	queue.push(s);
+	queue.append(s);
 	mutex.unlock();
 }
 
 void onScreenLog::dispatch_print_queue() {
 	print_queue.mutex.lock();
-	while(!print_queue.queue.empty()) {
-		onScreenLog::print_string(print_queue.queue.front());
-		print_queue.queue.pop();
-	}
+	onScreenLog::print_string(print_queue.queue);
+	print_queue.queue.clear();
 	print_queue.mutex.unlock();
 }
 
@@ -82,7 +81,6 @@ static GLushort *generateSharedTextIndices() {
 
 }
 
-
 void text_generate_shared_IBO() {
 	GLushort *indices = generateSharedTextIndices();
 	glGenBuffers(1, &text_shared_IBOid);
@@ -106,27 +104,26 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	
 	glyph *glyphs = new glyph[length];	
 
-	unsigned i = 0;
+	int i = 0;
 	static float x_adjustment = 0, y_adjustment = 0;
-	static unsigned line_beg_index = 0;
+	static int line_beg_index = 0;
 
 	for (i = 0; i < length; ++i) {
 
 		char c = buffer[i];
 
 		if (c == '\n') {
-			y_adjustment += char_spacing_vert;
-			x_adjustment = -char_spacing_horiz;	// workaround, is incremented at the bottom of the lewp
-			
-			line_beg_index = i;
 			++current_line_num;
+			y_adjustment = current_line_num*char_spacing_vert;
+			x_adjustment = -char_spacing_horiz;	// workaround, is incremented at the bottom of the lewp
+			line_beg_index = (current_index+i);
 		}
 
-		else if (i % OSL_LINE_LEN == OSL_LINE_LEN_MINUS_ONE) {
-			y_adjustment += char_spacing_vert;
-			x_adjustment = 0;
-			line_beg_index = i;
+		else if (((current_index+i)-line_beg_index) >= OSL_LINE_LEN) {
 			++current_line_num;
+			y_adjustment = current_line_num*char_spacing_vert;
+			x_adjustment = 0;
+			line_beg_index = (current_index+i);
 		}
 	
 		glyphs[i] = glyph_from_char(pos_x + x_adjustment, pos_y + y_adjustment, c);
@@ -135,15 +132,30 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	}
 	
 	unsigned prev_current_index = current_index;
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), length*sizeof(glyph), (const GLvoid*)glyphs);
-	
 	current_index += length;
+	
+	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
+	if (current_index > OSL_BUFFER_SIZE) {
 
-	float d = (y_adjustment + pos_y + char_spacing_vert) - WINDOW_HEIGHT;
-	if (d > modelview(3,1)) { 
-		set_y_translation(-d);
+		// the excessive part will be flushed to the beginning of the VBO :P
+		unsigned excess = current_index - OSL_BUFFER_SIZE + 1;
+		unsigned fitting = length - excess;
+		fprintf(stderr, 
+		"onScreenLog: current_index > OSL_BUFFER_SIZE (%u > %u).\n length = %u. calling glBufferSubdata with fitting = %u, excess = %u\n", 
+		current_index, OSL_BUFFER_SIZE, length, fitting, excess);
+		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), fitting*sizeof(glyph), (const GLvoid*)glyphs);
+		glBufferSubData(GL_ARRAY_BUFFER, 0*sizeof(glyph), excess*sizeof(glyph), (const GLvoid*)(glyphs + fitting));
+		current_index = excess;
+	}
+	else {
+		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), length*(sizeof(glyph)), (const GLvoid*)glyphs);
+	}
+
+	if (_autoscroll) {
+		float d = (y_adjustment + pos_y + char_spacing_vert) - WINDOW_HEIGHT;
+		if (d > modelview(3,1)) { 
+			set_y_translation(-d);
+		}
 	}
 	delete [] glyphs;
 
@@ -163,9 +175,6 @@ void onScreenLog::print(const char* fmt, ...) {
 
 	print_queue.add(buffer);
 
-	//release_GL_context();
-	// else fail silently X:D:D:Dd a nice, fast solution would be to 
-	// just start filling at the beginning of the VBO and use glScissor :P
 }
 
 void onScreenLog::print_string(const std::string &s) {
@@ -173,7 +182,19 @@ void onScreenLog::print_string(const std::string &s) {
 }
 
 void onScreenLog::scroll(float ds) {
+	float bottom_scroll_displacement = (current_line_num + 1)*char_spacing_vert + pos_y - WINDOW_HEIGHT;
+	
 	modelview(3, 1) += ds;
+	
+	if (bottom_scroll_displacement + modelview(3,1) >= 0) {
+		_autoscroll = false;
+
+	}
+	else {		
+		set_y_translation(-bottom_scroll_displacement);
+		_autoscroll = true;
+	}
+
 }
 
 void onScreenLog::generate_VBO() {
@@ -208,8 +229,7 @@ void onScreenLog::draw() {
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);	// uses a shared index buffer.
 	
-	// ranged drawing will be implemented later
-	glDrawElements(GL_TRIANGLES, 6*current_index, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDrawElements(GL_TRIANGLES, 6*OSL_BUFFER_SIZE, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 	glDisable(GL_SCISSOR_TEST);
 }	
 

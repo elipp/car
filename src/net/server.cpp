@@ -109,7 +109,7 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 			unsigned int embedded_pong_seq_number;
 			socket.copy_from_inbound_buffer(&embedded_pong_seq_number, PTCL_DATAFIELD_BYTERANGE(sizeof(embedded_pong_seq_number)));
 			if (embedded_pong_seq_number == c.active_ping_seq_number) {
-				fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
+				//fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
 				c.active_ping_seq_number = 0;
 			}
 			else {
@@ -123,7 +123,7 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 
 	else if (cmd == C_HANDSHAKE) {
 		std::string name_string(socket.get_inbound_buffer() + PTCL_HEADER_LENGTH);
-		
+		static unsigned rename = 0;
 		int needs_renaming = 0;
 		for (auto &name_iter : clients) {
 			if (name_iter.second.info.name == name_string) { 
@@ -131,8 +131,8 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 				needs_renaming = 1; break; 
 			}
 		}
-		if (needs_renaming) { name_string = name_string + "(1)"; }
-		
+		if (needs_renaming) { name_string = name_string + "(" + std::to_string(rename) + ")"; }
+		++rename;
 		unsigned short new_id = add_client(from, name_string);
 		auto newcl_iter = clients.find(new_id);
 		if(newcl_iter != clients.end()) {
@@ -239,17 +239,20 @@ void Server::handshake(struct Client *client) {
 
 int Server::send_data_to_client(struct Client &client, size_t data_size) {
 	// use this wrapper in order to appropriately increment seq numberz
+	if (data_size > PACKET_SIZE_MAX) {
+		fprintf(stderr, "send_data_to_client: WARNING! data_size > PACKET_SIZE_MAX. Truncating -> errors inbound.\n");
+		data_size = PACKET_SIZE_MAX;
+	}
 	int bytes = socket.send_data(&client.address, data_size);
 	++client.seq_number;
 	return bytes;
 }
 
 void Server::ping_client(struct Client &c) {
-		fprintf(stderr, "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
+		//fprintf(stderr, "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
 		c.active_ping_seq_number = c.seq_number;
 		protocol_update_seq_number(socket.get_outbound_buffer(), c.seq_number);
 		send_data_to_client(c, PTCL_HEADER_LENGTH);
-		c.ping_timer.begin();
 }
 
 void Server::ping_clients() {
@@ -258,17 +261,28 @@ void Server::ping_clients() {
 	protocol_make_header(socket.get_outbound_buffer(), ID_SERVER, 0, cmd_arg_mask.us);
 	id_client_map::iterator iter = clients.begin();
 	while (iter != clients.end()) {
-		#define PING_TIMEOUT_S 5
+		
 		struct Client &c = iter->second;
+		unsigned seconds_passed = c.ping_timer.get_s();
+
 		// this is assuming 100% packet transmittance, which for UDP is... well.. pretty tight
 		if (c.active_ping_seq_number == 0) { // no ping request active, make a new one :P
 			ping_client(c);
+			c.ping_timer.begin();
 			++iter;
 		}
-		else if (c.ping_timer.get_s() > PING_TIMEOUT_S) {
-			fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds, repinging.\n", c.info.id, PING_TIMEOUT_S);
-			ping_client(c);
-			iter = remove_client(iter);
+		#define PING_SOFT_TIMEOUT_S 1
+		#define PING_HARD_TIMEOUT_S 5
+		else if (seconds_passed > PING_SOFT_TIMEOUT_S) {
+				if (seconds_passed > PING_HARD_TIMEOUT_S) {
+					fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_S);
+					iter = remove_client(iter);
+				}
+				else {
+					fprintf(stderr, "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_S);
+					ping_client(c);
+				}
+		
 		}
 		else {
 			++iter;

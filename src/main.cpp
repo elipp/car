@@ -45,6 +45,8 @@ bool mouseLocked = false;
 
 GLfloat running = 0.0;
 
+static bool print_test = true;
+
 static ShaderProgram *regular_shader = NULL;
 static ShaderProgram *normal_plot_shader = NULL;
 
@@ -195,6 +197,7 @@ void control()
 	c_vel_side *= 0.95;
 		if (keys['N']) {
 			keys['N'] = false;
+			print_test = !print_test;
 		}
 
 		if (keys['P']) {
@@ -489,12 +492,12 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	/*if(AllocConsole()) {
+	if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
 		SetConsoleTitle("debug output");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}*/
+	}
 	if(!CreateGLWindow("opengl framework stolen from NeHe", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	
 	if (!initGL()) { return 1; }
@@ -505,12 +508,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MSG msg;
 	BOOL done=FALSE;
 
-	LocalClient::init("Jarmo2", "127.0.0.1", (unsigned short)50000);
+	std::ifstream ip_file("REMOTE_IP");
+	std::string remote_ip;
+
+	if (!ip_file.is_open()) {
+		remote_ip = "127.0.0.1";
+	}
+	else {
+		std::getline(ip_file, remote_ip);
+	}
+
+	LocalClient::init("Jarmo2", remote_ip, (unsigned short)50000);
+	onScreenLog::print("Connecting to remote ip %s.\n", remote_ip.c_str());
 
 	wglSwapIntervalEXT(1);
 
 	onScreenLog::print("%s\n", cpustr.c_str());
 	//ShowCursor(FALSE);
+	
 
 	bool esc = false;
 	
@@ -552,14 +567,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 					drawCars(LocalClient::get_peers());
 					
+
 					onScreenLog::draw();
 					window_swapbuffers();
 					onScreenLog::dispatch_print_queue();
 
 					long us_per_frame = timer.get_us();
-					std::string fps_str = get_fps(us_per_frame);
-
-
+					
+					if (print_test) {
+						onScreenLog::print("%u FPS, ALSO focukgin overlong string niggerz,m DLDLldldd D:LD;d;d;d;d;d;;d;d :D:D:D:D:D::D:D:DD:::::::\n", us_per_frame);
+					}
 					timer.begin();
 				}
 			}
