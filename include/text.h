@@ -51,11 +51,12 @@ public:
 	static class InputField {
 		int cursor_pos;
 		std::string input_buffer;
-		bool _active;
+		bool _enabled;
 	public:
 		GLuint VBOid;
-		bool active() const { return _active; }
-		void set_active(bool is_active) { _active = is_active; }
+		bool enabled() const { return _enabled; }
+		void enable();
+		void disable();
 		void insert_char_to_cursor_pos(char c);
 		void move_cursor(int amount);
 		void draw() const;
@@ -95,7 +96,6 @@ private:
 public:
 	static void print_string(const std::string &s);
 	static void toggle_visibility() { _visible = !_visible; }
-	static void toggle_autoscroll() { _autoscroll = !_autoscroll; }
 	static void scroll(float ds);
 	static void print(const char* format, ...);
 	static void clear();

@@ -64,7 +64,7 @@ void LocalClient::keystate_loop() {
 			post_keystate();
 			keystate_timer.begin();
 			long wait = KEYSTATE_GRANULARITY_MS - keystate_timer.get_ms();
-			Sleep(wait);
+			if (wait > 1) { Sleep(wait); }
 		}
 	}
 
@@ -125,6 +125,7 @@ int LocalClient::handshake() {
 }
 
 void LocalClient::pong(unsigned seq_number) {
+	//onScreenLog::print("Received S_PING from remote (seq_number = %u)\n", seq_number);
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_PONG;
 	cmd_arg_mask.ch[1] = 0x00;

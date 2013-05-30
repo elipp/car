@@ -403,7 +403,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	LocalClient::init("Jarmo2", remote_ip, (unsigned short)50000);
-	onScreenLog::print("Connecting to remote ip %s.\n", remote_ip.c_str());
 	
 	_timer timer;
 	

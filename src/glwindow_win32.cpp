@@ -79,23 +79,25 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_CHAR:
-		if (onScreenLog::input_field.active()) {
+		if (onScreenLog::input_field.enabled()) {
 			onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
 		}
 		break;
 		
 	case WM_KEYDOWN:
-		if (onScreenLog::input_field.active()) {
+		if (onScreenLog::input_field.enabled()) {
 			if (wParam == VK_RETURN) {
 				onScreenLog::input_field.submit_and_parse();
-				onScreenLog::input_field.set_active(false);
+				onScreenLog::input_field.disable();
 			}
 			else {
-				// handle arrow keys, backspace etc
+				if (wParam == VK_ESCAPE) {
+					onScreenLog::input_field.disable();
+				}
 			}
 		}
 		else if (wParam == VK_RETURN) {
-			onScreenLog::input_field.set_active(true);
+			onScreenLog::input_field.enable();
 		} else {
 			WM_KEYDOWN_KEYS[wParam]=TRUE;
 		}

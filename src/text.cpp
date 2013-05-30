@@ -13,7 +13,7 @@ static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 onScreenLog::InputField onScreenLog::input_field;
 onScreenLog::PrintQueue onScreenLog::print_queue;
 
-
+#define CURSOR_GLYPH 0x7F	// is really DEL though
 
 float onScreenLog::pos_x = 4.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview = mat4::identity();
@@ -27,6 +27,8 @@ unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 bool onScreenLog::_autoscroll = true;
 unsigned onScreenLog::num_characters_drawn = 0;
+
+static const int textfield_y_pos = WINDOW_HEIGHT - char_spacing_vert - 4;
 
 static float log_bottom_margin = char_spacing_vert*1.55;
 
@@ -92,8 +94,8 @@ void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
 		else {
 			input_buffer.insert(input_buffer.begin() + cursor_pos, c); // that's f...ing ridiculous though :D
 			move_cursor(1);
-			update_VBO();
 		}
+		update_VBO();
 	}
 }
 
@@ -109,27 +111,28 @@ void onScreenLog::InputField::move_cursor(int amount) {
 }
 
 void onScreenLog::InputField::update_VBO() {
-	glyph *glyphs = new glyph[input_buffer.length()];	
+	static glyph glyphs[INPUT_FIELD_BUFFER_SIZE];
 
 	int i = 0;
 	
 	float x_adjustment = 0;
-	static const int y_const = WINDOW_HEIGHT - char_spacing_vert - 4;
-	for (i = 0; i < input_buffer.length(); ++i) {
 
-		glyphs[i] = glyph_from_char(pos_x + x_adjustment, y_const, input_buffer[i]);
+	for (i = 1; i < input_buffer.length()+1; ++i) {
+
+		glyphs[i] = glyph_from_char(pos_x + x_adjustment, textfield_y_pos, input_buffer[i-1]);
 		x_adjustment += char_spacing_horiz;
 	}
+
+	glyphs[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, input_buffer.length()*sizeof(glyph), (const GLvoid*)glyphs);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(glyph), (const GLvoid*)glyphs);
 
-	delete [] glyphs;
 }
 
 
 void onScreenLog::InputField::draw() const {
-if (!_active) { return; }
+if (!_enabled) { return; }
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDisable(GL_DEPTH_TEST);
 	
@@ -152,13 +155,26 @@ if (!_active) { return; }
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);	// uses a shared index buffer.
 	
-	glDrawElements(GL_TRIANGLES, 6*input_buffer.length(), GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDrawElements(GL_TRIANGLES, 6*(input_buffer.length()+1), GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 }
 
 void onScreenLog::InputField::clear() {
 	input_buffer.clear();
 	cursor_pos = 0;
+}
 
+void onScreenLog::InputField::enable() {
+	if (_enabled == false) {
+		clear();
+		update_VBO();
+	}
+	_enabled=true;
+}
+void onScreenLog::InputField::disable() {
+	if (_enabled == true) {
+		clear();
+	}
+	_enabled = false;
 }
 
 void onScreenLog::InputField::submit_and_parse() {
@@ -327,7 +343,7 @@ void onScreenLog::draw() {
 	glDrawElements(GL_TRIANGLES, 6*num_characters_drawn, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 	glDisable(GL_SCISSOR_TEST);
 
-	if (input_field.active()) {
+	if (input_field.enabled()) {
 		input_field.draw();
 	}
 }	

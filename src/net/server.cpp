@@ -169,6 +169,8 @@ unsigned short Server::add_client(struct sockaddr_in *newclient_saddr, const std
 	newclient.info.id = num_clients;
 	newclient.info.name = name;
 	newclient.info.color = color;
+	newclient.active_ping_seq_number = 0;
+	newclient.seq_number = 0;
 
 	color = color > 7 ? 0 : (color+1);
 
@@ -273,7 +275,7 @@ static char ping_buffer[PACKET_SIZE_MAX];
 void Server::ping_client(struct Client &c) {
 	//fprintf(stderr, "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
 	c.active_ping_seq_number = c.seq_number;
-	protocol_update_seq_number(socket.get_outbound_buffer(), c.seq_number);
+	protocol_update_seq_number(ping_buffer, c.seq_number);
 	send_data_to_client(c, ping_buffer, PTCL_HEADER_LENGTH);
 }
 
@@ -282,17 +284,21 @@ void Server::ping_clients() {
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = S_PING;
 	protocol_make_header(ping_buffer, ID_SERVER, 0, cmd_arg_mask.us);
-	
-#define PING_GRANULARITY_MS 1000
-	static _timer ping_timer;
-	ping_timer.begin();
-	while (listening) {
 
+#define PING_SOFT_TIMEOUT_MS 1000
+#define PING_HARD_TIMEOUT_MS 5000
+#define PING_GRANULARITY_MS 1000
+
+	static _timer ping_timer;
+
+	while (listening) {
+		ping_timer.begin();
+		if (clients.size() < 1) { Sleep(250); }
 		id_client_map::iterator iter = clients.begin();
 		while (iter != clients.end()) {
 
 			struct Client &c = iter->second;
-			unsigned seconds_passed = c.ping_timer.get_s();
+			unsigned milliseconds_passed = c.ping_timer.get_ms();
 
 		// this is assuming 100% packet transmittance, which for UDP is... well.. pretty tight
 			if (c.active_ping_seq_number == 0) { // no ping request active, make a new one :P
@@ -300,16 +306,16 @@ void Server::ping_clients() {
 				c.ping_timer.begin();
 				++iter;
 			}
-#define PING_SOFT_TIMEOUT_S 1
-#define PING_HARD_TIMEOUT_S 5
-			else if (seconds_passed > PING_SOFT_TIMEOUT_S) {
-				if (seconds_passed > PING_HARD_TIMEOUT_S) {
-					fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_S);
+
+			else if (milliseconds_passed > PING_SOFT_TIMEOUT_MS) {
+				if (milliseconds_passed > PING_HARD_TIMEOUT_MS) {
+					fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_MS);
 					iter = remove_client(iter);
 				}
 				else {
-					fprintf(stderr, "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_S);
+					fprintf(stderr, "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_MS);
 					ping_client(c);
+					++iter;
 				}
 
 			}
@@ -318,8 +324,8 @@ void Server::ping_clients() {
 			}
 	
 		}
-		long wait = 1000 - ping_timer.get_ms();
-		Sleep(wait);
+		long wait = PING_GRANULARITY_MS - ping_timer.get_ms();
+		if (wait > 1) { Sleep(wait); }
 	}
 
 }

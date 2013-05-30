@@ -11,6 +11,7 @@
  Actual glyph size = 6.0x12.0.
 */
 #define CURSOR_GLYPH_INDEX (14*6 + 11) // the cursor glyph is located at line 7, index 11
+
 struct uv { float u; float v; };
 
 static const struct uv glyph_texcoords[][4] = {
