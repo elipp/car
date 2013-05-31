@@ -83,21 +83,22 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 
 	std::string ip = get_dot_notation_ipv4(from);
 	//fprintf(stderr, "Received packet with size %u from %s (id = %u). Seq_number = %u\n", socket.current_data_length_in(), ip.c_str(), client_id, seq);
-
+	
+	auto client_iter = clients.find(client_id);
+	
 	if (cmd == C_KEYSTATE) {
-		auto it = clients.find(client_id);
-		if (it != clients.end()) {
+
+		if (client_iter != clients.end()) {
 			//if (seq > it->second.seq_number) {
-			it->second.keystate = cmdbyte_arg_mask.ch[1];
+			client_iter->second.keystate = cmdbyte_arg_mask.ch[1];
 			//}
 		}
 		else {
-			fprintf(stderr, "received keystate from unknown client %u, ignoring\n", it->second.info.id);
+			fprintf(stderr, "received keystate from unknown client %u, ignoring\n", client_iter->second.info.id);
 		}
 	}
 
 	else if (cmd == C_PONG) {
-		auto client_iter = clients.find(client_id);
 		if (client_iter != clients.end()) {
 			struct Client &c = client_iter->second;
 			unsigned int embedded_pong_seq_number;
@@ -137,8 +138,12 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 		}
 		post_peer_list();
 	}
+	else if (cmd == C_CHAT_MESSAGE) {
+		fprintf(stderr, "C_CHAT_MESSAGE: %s: %s\n", client_iter->second.info.name.c_str(), socket.get_inbound_buffer() + PTCL_HEADER_LENGTH);
+		distribute_chat_message(socket.get_inbound_buffer() + PTCL_HEADER_LENGTH, client_id);
+	}
 	else if (cmd == C_QUIT) {
-		remove_client(clients.find(client_id));
+		remove_client(client_iter);
 		post_client_disconnect(client_id);
 		fprintf(stderr, "Received C_QUIT from client %d\n", client_id);
 	}
@@ -146,6 +151,19 @@ void Server::handle_current_packet(struct sockaddr_in *from) {
 		fprintf(stderr, "received unrecognized cmdbyte %u with arg %u\n", cmdbyte_arg_mask.ch[0], cmdbyte_arg_mask.ch[1]);
 	}
 
+}
+
+void Server::distribute_chat_message(const std::string &msg, const unsigned short sender_id) {
+	// using the listen thread, so use socket buffer
+	command_arg_mask_union cmd_arg_mask;
+	cmd_arg_mask.ch[0] = S_CLIENT_CHAT_MESSAGE;
+	cmd_arg_mask.ch[1] = msg.length();
+	size_t total_size = PTCL_HEADER_LENGTH;
+	protocol_make_header(socket.get_outbound_buffer(), ID_SERVER, 0, cmd_arg_mask.us);
+	
+	total_size += socket.copy_to_outbound_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
+	total_size += socket.copy_to_outbound_buffer(msg.c_str(), msg.length(), total_size);
+	send_data_to_all(total_size);
 }
 
 void Server::post_client_connect(const struct Client &c) {

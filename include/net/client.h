@@ -86,8 +86,10 @@ class LocalClient {
 	static void keystate_loop();
 	static int send_data_to_server(size_t size);
 	static int send_data_to_server(const char* buffer, size_t size); 
+	static void send_chat_message(const std::string &msg);
 
 public:
+	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }
 	static int init(const std::string &name, const std::string &remote_ip, unsigned short int port);
 	static void quit();

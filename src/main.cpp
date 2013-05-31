@@ -408,7 +408,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	while(!done)
 	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
 		{
 			if(msg.message == WM_QUIT)
 			{
@@ -441,6 +441,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		window_swapbuffers();
 
 		onScreenLog::dispatch_print_queue();
+		onScreenLog::input_field.refresh();
+
 		//long us_per_frame = timer.get_us();
 	
 		//timer.begin();

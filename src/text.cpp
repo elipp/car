@@ -1,5 +1,7 @@
 #include "text.h"
 
+#include "net/client.h"
+
 mat4 text_Projection = mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
 mat4 text_ModelView = mat4::identity();
 GLuint text_texId;
@@ -14,6 +16,7 @@ onScreenLog::InputField onScreenLog::input_field;
 onScreenLog::PrintQueue onScreenLog::print_queue;
 
 #define CURSOR_GLYPH 0x7F	// is really DEL though
+#define RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
 
 float onScreenLog::pos_x = 4.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview = mat4::identity();
@@ -95,23 +98,32 @@ void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
 			input_buffer.insert(input_buffer.begin() + cursor_pos, c); // that's f...ing ridiculous though :D
 			move_cursor(1);
 		}
+	}
+	_changed = true;
+}
+
+void onScreenLog::InputField::refresh() {
+	if (_enabled && _changed) {
 		update_VBO();
+		_changed = false;
 	}
 }
 
 void onScreenLog::InputField::delete_char_before_cursor_pos() {
+	if (cursor_pos < 1) { return; }
 	input_buffer.erase(input_buffer.begin() + (cursor_pos-1));
 	move_cursor(-1);
+	_changed = true;
 }
 
 void onScreenLog::InputField::move_cursor(int amount) {
 	cursor_pos += amount;
 	cursor_pos = max(cursor_pos, 0);
 	cursor_pos = min(cursor_pos, input_buffer.length());
+	_changed = true;
 }
 
 void onScreenLog::InputField::update_VBO() {
-	static glyph glyphs[INPUT_FIELD_BUFFER_SIZE];
 
 	int i = 0;
 	
@@ -119,14 +131,14 @@ void onScreenLog::InputField::update_VBO() {
 
 	for (i = 1; i < input_buffer.length()+1; ++i) {
 
-		glyphs[i] = glyph_from_char(pos_x + x_adjustment, textfield_y_pos, input_buffer[i-1]);
+		glyph_buffer[i] = glyph_from_char(pos_x + x_adjustment, textfield_y_pos, input_buffer[i-1]);
 		x_adjustment += char_spacing_horiz;
 	}
 
-	glyphs[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
+	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(glyph), (const GLvoid*)glyphs);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(glyph), (const GLvoid*)&glyph_buffer[0]);
 
 }
 
@@ -141,8 +153,8 @@ if (!_enabled) { return; }
 	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
 	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
 	glUseProgram(text_shader->getProgramHandle());
-
-	static const vec4 input_field_text_color(0.93, 0.93, 0.36, 1.0);
+	
+	static const vec4 input_field_text_color(RGB(243, 248, 111), 1.0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
@@ -161,12 +173,14 @@ if (!_enabled) { return; }
 void onScreenLog::InputField::clear() {
 	input_buffer.clear();
 	cursor_pos = 0;
+	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
+	update_VBO();
 }
 
 void onScreenLog::InputField::enable() {
 	if (_enabled == false) {
 		clear();
-		update_VBO();
+		refresh();
 	}
 	_enabled=true;
 }
@@ -178,11 +192,15 @@ void onScreenLog::InputField::disable() {
 }
 
 void onScreenLog::InputField::submit_and_parse() {
-	onScreenLog::print("parse: commands not yet implemented, biatch! (got \"%s\")\n", input_buffer.c_str());
+	LocalClient::parse_user_input(input_buffer);
 	clear();
 }
 
 void onScreenLog::PrintQueue::add(const std::string &s) {
+	int excess = queue.length() + s.length() - OSL_BUFFER_SIZE;
+	if (excess > 0) {
+		dispatch_print_queue();		
+	}
 	mutex.lock();
 	queue.append(s);
 	mutex.unlock();
@@ -334,7 +352,7 @@ void onScreenLog::draw() {
 	glBindTexture(GL_TEXTURE_2D, text_texId);
 	text_shader->update_uniform_1i("texture1", 0);
 	
-	static const vec4 log_text_color(0.85, 0.85, 0.85, 1.0);
+	static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
 	text_shader->update_uniform_vec4("text_color", log_text_color.rawData());
 	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)modelview.rawData());
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());

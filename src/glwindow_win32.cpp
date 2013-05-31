@@ -90,11 +90,16 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				onScreenLog::input_field.submit_and_parse();
 				onScreenLog::input_field.disable();
 			}
-			else {
-				if (wParam == VK_ESCAPE) {
-					onScreenLog::input_field.disable();
-				}
+			else if (wParam == VK_ESCAPE) {
+				onScreenLog::input_field.disable();
 			}
+			else if (wParam == VK_LEFT) {
+				onScreenLog::input_field.move_cursor(-1);
+			}
+			else if (wParam == VK_RIGHT) {
+				onScreenLog::input_field.move_cursor(1);
+			}
+			
 		}
 		else if (wParam == VK_RETURN) {
 			onScreenLog::input_field.enable();

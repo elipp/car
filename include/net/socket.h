@@ -27,7 +27,7 @@ public:
 #endif
 	
 	void copy_from_inbound_buffer(void *dst, size_t beg_offset, size_t end_offset);
-	void copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset);
+	size_t copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset);
 
 	Socket(unsigned short port, int TYPE, bool blocking);
 	

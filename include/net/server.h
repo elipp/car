@@ -28,16 +28,22 @@ class Server {
 	static void increment_client_seq_number(struct Client &client);
 	static void send_data_to_all(size_t size);
 	static void send_data_to_all(char* data, size_t size);
+
+	static void distribute_chat_message(const std::string &msg, const unsigned short sender_id);
+
 	static void post_peer_list();
 	static void post_client_connect(const struct Client &newclient);
 	static void post_client_disconnect(unsigned short id);
 
 	static void listen();
 	static void handshake(struct Client *client);
+
 	static unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
 	static id_client_map::iterator remove_client(id_client_map::iterator &iter);
+
 	static void broadcast_shutdown_message();
 public:
+
 	static int init(unsigned short port);
 	static void shutdown();
 private:

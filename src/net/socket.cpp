@@ -117,12 +117,13 @@ void Socket::copy_from_inbound_buffer(void *dst, size_t beg_offset, size_t end_o
 	memcpy(dst, inbound_packet_buffer + beg_offset, size); 
 }
 
-void Socket::copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset) {
+size_t Socket::copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset) {
 	if (dest_offset + src_size > PACKET_SIZE_MAX) {
 		fprintf(stderr, "copy_to_outbound_buffer(): warning: size of data to be copied > PACKET_SIZE_MAX. Truncating.\n");
 		src_size = PACKET_SIZE_MAX - dest_offset - 1;
 	}
 	memcpy(outbound_packet_buffer + dest_offset, src, src_size);
+	return src_size;
 }
 
 char Socket::get_packet_buffer_char(int index) {

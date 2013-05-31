@@ -2,6 +2,8 @@
 #include "net/protocol.h"
 #include "lin_alg.h"
 
+#include <string>
+
 
 const vec4 colors[8] = {
 	vec4(1.0, 0.2, 0.2, 1.0),
@@ -13,6 +15,30 @@ const vec4 colors[8] = {
 	vec4(1.0, 1.0, 1.0, 1.0),
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
+
+static void stub (const std::vector<std::string> &args) {
+	onScreenLog::print("called stub function with args ");
+	for (auto &it : args) {
+		onScreenLog::print("%s ", it.c_str());
+	}
+	onScreenLog::print("\n");
+};
+
+typedef void (*client_funcptr)(const std::vector<std::string> &);
+
+// those c++11 initializer lists aren't supported yet in msvc
+static const std::unordered_map<std::string, const client_funcptr> create_func_map() {
+	std::unordered_map<std::string, const client_funcptr> funcs;
+
+	funcs.insert(std::pair<std::string, const client_funcptr>("/connect", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/nick", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/quit", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/help", stub));
+
+	return funcs;
+}
+
+static const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
 
 std::thread LocalClient::keystate_thread;
 std::thread LocalClient::listen_thread;
@@ -151,6 +177,21 @@ static inline std::vector<struct peer_info_t> process_peer_list_string(const cha
 	return peers;	
 }
 
+
+
+void LocalClient::send_chat_message(const std::string &msg) {
+	// this is not called from the _listen thread, so it will need a separate buffer
+	static char chat_msg_buffer[PACKET_SIZE_MAX];
+	command_arg_mask_union cmd_arg_mask;
+	cmd_arg_mask.ch[0] = C_CHAT_MESSAGE;
+	uint8_t message_len = min(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
+	cmd_arg_mask.ch[1] = message_len;
+	protocol_make_header(chat_msg_buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	memcpy(chat_msg_buffer + PTCL_HEADER_LENGTH, msg.c_str(), message_len);
+	size_t total_size = PTCL_HEADER_LENGTH + message_len;
+	send_data_to_server(chat_msg_buffer, total_size);
+}
+
 void LocalClient::handle_current_packet() {
 	int protocol_id;
 	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
@@ -171,12 +212,23 @@ void LocalClient::handle_current_packet() {
 	socket.copy_from_inbound_buffer(&cmd_arg_mask.us, PTCL_CMD_ARG_BYTERANGE);
 
 	const unsigned char cmd = cmd_arg_mask.ch[0];
-
-	if (cmd == S_PING) {
+	if (cmd == S_POSITION_UPDATE) {
+		update_positions();
+	}
+	else if (cmd == S_PING) {
 		pong(seq_number);
 	}
-	else if (cmd == S_POSITION_UPDATE) {
-		update_positions();
+	else if (cmd == S_CLIENT_CHAT_MESSAGE) {
+		// the sender id is embedded into the datafield (bytes 12-14) of the packet
+		unsigned short sender_id = 0;
+		socket.copy_from_inbound_buffer(&sender_id, PTCL_DATAFIELD_BYTERANGE(sizeof(sender_id)));
+		auto it = peers.find(sender_id);
+		if (it != peers.end()) {
+			onScreenLog::print("%s: %s\n", it->second.info.name.c_str(), socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + sizeof(sender_id));
+		}
+		else {
+			onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
+		}
 	}
 	else if (cmd == S_SHUTDOWN) {
 		onScreenLog::print( "Received S_SHUTDOWN from server.\n");
@@ -264,6 +316,26 @@ void LocalClient::update_keystate(const bool *keys) {
 	if (keys[VK_DOWN]) { client.keystate |= C_KEYSTATE_DOWN; }
 	if (keys[VK_LEFT]) { client.keystate |= C_KEYSTATE_LEFT; }
 	if (keys[VK_RIGHT]) { client.keystate |= C_KEYSTATE_RIGHT; }
+}
+
+void LocalClient::parse_user_input(const std::string s) {
+	if (s.length() <= 0) { return; }
+	if (s[0] != '/') {
+		// - we're dealing with a chat message
+		send_chat_message(s);
+	}
+	else {
+		std::vector<std::string> input = split(s, ' ');
+		if (input.size() <= 0) { return; }
+		auto it = funcs.find(input[0]);
+		if (it != funcs.end()) { 
+			it->second(input);
+		}
+		else {
+			onScreenLog::print("%s: command not found. See /help for a list of available commands.\n", input[0].c_str());
+		}
+		
+	}
 }
 
 void LocalClient::quit() {

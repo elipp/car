@@ -49,20 +49,29 @@ class onScreenLog {
 public:	
 #define INPUT_FIELD_BUFFER_SIZE 256
 	static class InputField {
-		int cursor_pos;
 		std::string input_buffer;
+		glyph glyph_buffer[INPUT_FIELD_BUFFER_SIZE];
+		int cursor_pos;
+
 		bool _enabled;
+		void update_VBO();
+		bool _changed;
 	public:
 		GLuint VBOid;
 		bool enabled() const { return _enabled; }
+		
 		void enable();
 		void disable();
+		
+		void refresh();
+
 		void insert_char_to_cursor_pos(char c);
+		void delete_char_before_cursor_pos();
 		void move_cursor(int amount);
+
 		void draw() const;
 		void clear();
-		void delete_char_before_cursor_pos();
-		void update_VBO();
+
 		void submit_and_parse();	// also does a clear
 		InputField() { 
 			cursor_pos = 0; input_buffer.reserve(INPUT_FIELD_BUFFER_SIZE); input_buffer.clear(); 

@@ -17,6 +17,7 @@ const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 #define S_CLIENT_CONNECT (unsigned char) 0xE4
 #define S_CLIENT_DISCONNECT (unsigned char) 0xE5
 #define S_PING (unsigned char) 0xE6
+#define S_CLIENT_CHAT_MESSAGE (unsigned char) 0xE7
 #define S_SHUTDOWN (unsigned char) 0xEF
 
 #define C_HANDSHAKE (unsigned char) 0xF1
