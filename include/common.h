@@ -33,17 +33,27 @@ std::vector<std::string> split(const std::string &s, char delim);
 
 class Car {
 public:
-	float _position[3];
-	float direction;
-	float wheel_rot;
-	float velocity;
-	float susp_angle_roll;
-	float susp_angle_fwd;
-	float front_wheel_angle;
-	float front_wheel_tmpx;
-	float F_centripetal;
+	union {
+		struct {
+			float _position[3];
+			float direction;
+			float wheel_rot;
+			float susp_angle_roll;
+			float susp_angle_fwd;
+			float front_wheel_angle;
+		} data_symbolic;
 
-	vec4 position() const { return vec4(_position[0], _position[1], _position[2], 1.0); }
+		float data_serial[8];
+	};
+
+	// these are used to compute other variables at the server-side, no need to pass them around
+	struct {
+		float front_wheel_tmpx;
+		float F_centripetal;
+		float velocity;
+	} data_internal;
+
+	vec4 position() const { return vec4(data_symbolic._position[0], data_symbolic._position[1], data_symbolic._position[2], 1.0); }
 	
 	Car() { memset(this, 0, sizeof(*this)); }
 }; 

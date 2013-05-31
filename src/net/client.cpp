@@ -205,6 +205,8 @@ void LocalClient::update_positions() {
 	socket.copy_from_inbound_buffer(&cmd_arg_mask, PTCL_CMD_ARG_BYTERANGE);
 	unsigned num_clients = cmd_arg_mask.ch[1];
 
+	static const size_t serial_data_size = sizeof(Car().data_serial);
+	static const size_t PTCL_POS_DATA_SIZE = sizeof(unsigned short) + serial_data_size;
 
 	for (unsigned i = 0; i < num_clients; ++i) {
 		unsigned short id;
@@ -215,7 +217,7 @@ void LocalClient::update_positions() {
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
-			socket.copy_from_inbound_buffer(&it->second.car, offset, offset + sizeof(struct Car));
+			socket.copy_from_inbound_buffer(&it->second.car.data_serial, offset, offset + serial_data_size);
 			//onScreenLog::print( "update_positions: copied car %u position data as \n", id);
 			//it->second.car.position().print();
 		}

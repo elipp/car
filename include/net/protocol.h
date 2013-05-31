@@ -9,7 +9,6 @@ const int PROTOCOL_ID = 0xABACABAD;	// can't use a #define here; memcpy.
 const unsigned short ID_SERVER = 0x0000; 
 const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 
-extern const size_t PTCL_POS_DATA_SIZE;
 // command bytes
 
 #define S_HANDSHAKE_OK (unsigned char) 0xE1

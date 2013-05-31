@@ -6,8 +6,6 @@
 
 static size_t accum_offset = 0;
 
-const size_t PTCL_POS_DATA_SIZE = sizeof(unsigned short) + sizeof(struct Car);
-
 static void accum_reset() { accum_offset = 0; }
 
 static inline void accum_write(char *buffer, const void *data, size_t size) {

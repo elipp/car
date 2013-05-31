@@ -371,8 +371,8 @@ void Server::broadcast_state() {
 		memcpy(broadcast_buffer + total_size, &c.info.id, sizeof(c.info.id));
 		total_size += sizeof(c.info.id);
 
-		memcpy(broadcast_buffer + total_size, &c.car, sizeof(c.car));
-		total_size += sizeof(c.car);
+		memcpy(broadcast_buffer + total_size, &c.car.data_serial, sizeof(c.car.data_serial));
+		total_size += sizeof(c.car.data_serial);
 	}
 
 	send_data_to_all(broadcast_buffer, total_size);
@@ -392,77 +392,77 @@ static inline void calculate_state_client(struct Client &c) {
 	float car_acceleration = 0.0;
 
 	float car_prev_velocity;
-	car_prev_velocity = c.car.velocity;
+	car_prev_velocity = c.car.data_internal.velocity;
 
 	if (c.keystate & C_KEYSTATE_UP) {
-		c.car.velocity += accel_modifier;
+		c.car.data_internal.velocity += accel_modifier;
 	}
 	else {
-		c.car.susp_angle_roll *= 0.90;
-		c.car.front_wheel_tmpx *= 0.50;
+		c.car.data_symbolic.susp_angle_roll *= 0.90;
+		c.car.data_internal.front_wheel_tmpx *= 0.50;
 	}
 
-	c.car.wheel_rot -= 1.05*c.car.velocity;
+	c.car.data_symbolic.wheel_rot -= 1.05*c.car.data_internal.velocity;
 
 	if (c.keystate & C_KEYSTATE_DOWN) {
-		if (c.car.velocity > 0.01) {
-			c.car.direction -= 3*c.car.F_centripetal*c.car.velocity*0.20;
-			c.car.velocity *= 0.99;
+		if (c.car.data_internal.velocity > 0.01) {
+			c.car.data_symbolic.direction -= 3*c.car.data_internal.F_centripetal*c.car.data_internal.velocity*0.20;
+			c.car.data_internal.velocity *= 0.99;
 		}
-		c.car.velocity -= brake_modifier;
+		c.car.data_internal.velocity -= brake_modifier;
 
 	}
 	else {
-		c.car.susp_angle_roll *= 0.90;
-		c.car.front_wheel_tmpx *= 0.50;
+		c.car.data_symbolic.susp_angle_roll *= 0.90;
+		c.car.data_internal.front_wheel_tmpx *= 0.50;
 	}	
-	c.car.velocity *= 0.95;	// regardless of keystate
+	c.car.data_internal.velocity *= 0.95;	// regardless of keystate
 
 	if (c.keystate & C_KEYSTATE_LEFT) {
-		if (c.car.front_wheel_tmpx < 15.0) {
-			c.car.front_wheel_tmpx += 0.5;
+		if (c.car.data_internal.front_wheel_tmpx < 15.0) {
+			c.car.data_internal.front_wheel_tmpx += 0.5;
 		}
-		c.car.F_centripetal = -1.0;
-		c.car.front_wheel_angle = f_wheel_angle(c.car.front_wheel_tmpx);
-		c.car.susp_angle_roll = fabs(c.car.front_wheel_angle*c.car.velocity*0.8);
-		if (c.car.velocity > 0) {
-			c.car.direction -= turning_modifier_forward*c.car.F_centripetal*c.car.velocity;
+		c.car.data_internal.F_centripetal = -1.0;
+		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
+		c.car.data_symbolic.susp_angle_roll = fabs(c.car.data_symbolic.front_wheel_angle*c.car.data_internal.velocity*0.8);
+		if (c.car.data_internal.velocity > 0) {
+			c.car.data_symbolic.direction -= turning_modifier_forward*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
 		}
 		else {
-			c.car.direction -= turning_modifier_reverse*c.car.F_centripetal*c.car.velocity;
+			c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
 		}
 
 	} 
 	if (c.keystate & C_KEYSTATE_RIGHT) {
-		if (c.car.front_wheel_tmpx > -15.0) {
-			c.car.front_wheel_tmpx -= 0.5;
+		if (c.car.data_internal.front_wheel_tmpx > -15.0) {
+			c.car.data_internal.front_wheel_tmpx -= 0.5;
 		}
-		c.car.F_centripetal = 1.0;
-		c.car.front_wheel_angle = f_wheel_angle(c.car.front_wheel_tmpx);
-		c.car.susp_angle_roll = -fabs(c.car.front_wheel_angle*c.car.velocity*0.8);
-		if (c.car.velocity > 0) {
-			c.car.direction -= turning_modifier_forward*c.car.F_centripetal*c.car.velocity;
+		c.car.data_internal.F_centripetal = 1.0;
+		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
+		c.car.data_symbolic.susp_angle_roll = -fabs(c.car.data_symbolic.front_wheel_angle*c.car.data_internal.velocity*0.8);
+		if (c.car.data_internal.velocity > 0) {
+			c.car.data_symbolic.direction -= turning_modifier_forward*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
 		}
 		else {
-			c.car.direction -= turning_modifier_reverse*c.car.F_centripetal*c.car.velocity;
+			c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
 		}
 
 	} 
 
-	car_prev_velocity = 0.5*(c.car.velocity+car_prev_velocity);
-	car_acceleration = 0.2*(c.car.velocity - car_prev_velocity) + 0.8*car_acceleration;
+	car_prev_velocity = 0.5*(c.car.data_internal.velocity+car_prev_velocity);
+	car_acceleration = 0.2*(c.car.data_internal.velocity - car_prev_velocity) + 0.8*car_acceleration;
 
 	if (!(c.keystate & C_KEYSTATE_LEFT) && !(c.keystate & C_KEYSTATE_RIGHT)){
-		c.car.front_wheel_tmpx *= 0.30;
-		c.car.front_wheel_angle = f_wheel_angle(c.car.front_wheel_tmpx);
-		c.car.susp_angle_roll *= 0.50;
-		c.car.susp_angle_fwd *= 0.50;
-		c.car.F_centripetal = 0.0;
+		c.car.data_internal.front_wheel_tmpx *= 0.30;
+		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
+		c.car.data_symbolic.susp_angle_roll *= 0.50;
+		c.car.data_symbolic.susp_angle_fwd *= 0.50;
+		c.car.data_internal.F_centripetal = 0.0;
 	}
 
-	c.car.susp_angle_fwd = 7*car_acceleration;
-	c.car._position[0] += c.car.velocity*sin(c.car.direction-M_PI/2);
-	c.car._position[2] += c.car.velocity*cos(c.car.direction-M_PI/2);
+	c.car.data_symbolic.susp_angle_fwd = 7*car_acceleration;
+	c.car.data_symbolic._position[0] += c.car.data_internal.velocity*sin(c.car.data_symbolic.direction-M_PI/2);
+	c.car.data_symbolic._position[2] += c.car.data_internal.velocity*cos(c.car.data_symbolic.direction-M_PI/2);
 }
 
 void Server::calculate_state() {

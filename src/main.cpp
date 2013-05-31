@@ -291,9 +291,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
-	mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.direction, 0.0, 1.0, 0.0);
-	mat4 mw = modelview*mat4::rotate(car.susp_angle_roll, 1.0, 0.0, 0.0);
-	mw *= mat4::rotate(car.susp_angle_fwd, 0.0, 0.0, 1.0);
+	mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.data_symbolic.direction, 0.0, 1.0, 0.0);
+	mat4 mw = modelview*mat4::rotate(car.data_symbolic.susp_angle_roll, 1.0, 0.0, 0.0);
+	mw *= mat4::rotate(car.data_symbolic.susp_angle_fwd, 0.0, 0.0, 1.0);
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
 	regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
@@ -323,8 +323,8 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
 	mw = modelview;
 	mw *= front_left_wheel_translation;
-	mw *= mat4::rotate(M_PI - car.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(-car.wheel_rot, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(M_PI - car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
+	mw *= mat4::rotate(-car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
@@ -333,8 +333,8 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
 	mw = modelview;
 	mw *= front_right_wheel_translation;
-	mw *= mat4::rotate(-car.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(-car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
+	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
@@ -344,7 +344,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
 	mw = modelview;
 	mw *= back_left_wheel_translation;
-	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 	mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
 
 	
@@ -355,7 +355,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 	mw = modelview;
 	mw *= back_right_wheel_translation;
-	mw *= mat4::rotate(car.wheel_rot, 0.0, 0.0, 1.0);
+	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 
 	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
 	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
