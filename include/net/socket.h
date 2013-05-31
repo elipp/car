@@ -7,45 +7,28 @@
 
 #define PACKET_SIZE_MAX 256
 
+#define _OUT
+
 class Socket {
 
 	int fd;
 	struct sockaddr_in my_addr;
-
-	char inbound_packet_buffer[PACKET_SIZE_MAX];
-	char outbound_packet_buffer[PACKET_SIZE_MAX];
-
 	bool _bad;
-	
-	unsigned _current_data_length_in;
-	unsigned _current_data_length_out;
-
 public:
 #ifdef _WIN32
 	static int initialized();
 	static int initialize();	// winsock requires WSAStartup and all that stuff
 #endif
 	
-	void copy_from_inbound_buffer(void *dst, size_t beg_offset, size_t end_offset);
-	size_t copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset);
-
 	Socket(unsigned short port, int TYPE, bool blocking);
-	
-	int send_data(const struct sockaddr_in *recipient, size_t len);
-	int send_data(const struct sockaddr_in *recipient, const void* buffer, size_t len);
-
+	int send_data(const struct sockaddr_in *recipient, const char* buffer, size_t len);
 	int wait_for_incoming_data(int milliseconds);
-	int receive_data(struct sockaddr_in *from);
+	int receive_data(char *output_buffer, struct sockaddr_in _OUT *from);
 	char get_packet_buffer_char(int index);
 	void close();
 	bool bad() const { return _bad; }
 	Socket() { memset(this, 0, sizeof(*this)); }
-	
-	char *get_inbound_buffer() { return inbound_packet_buffer; }
-	char *get_outbound_buffer() { return outbound_packet_buffer; }
-		
-	unsigned current_data_length_in() const { return _current_data_length_in; }
-	unsigned current_data_length_out() const { return _current_data_length_out; };
+
 };
 
 #endif

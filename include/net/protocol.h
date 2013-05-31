@@ -44,11 +44,10 @@ typedef union {
 
 #define PTCL_HEADER_LENGTH 12
 
-#define PTCL_ID_BYTERANGE  0, 4
-#define PTCL_SENDER_ID_BYTERANGE 4, 6
-#define PTCL_SEQ_NUMBER_BYTERANGE 6, 10
-#define PTCL_CMD_ARG_BYTERANGE 10, 12
-#define PTCL_DATAFIELD_BYTERANGE(SIZE) PTCL_HEADER_LENGTH, (PTCL_HEADER_LENGTH + (SIZE))
+#define PTCL_ID_FIELD  (sizeof(int)), 0
+#define PTCL_SENDER_ID_FIELD (sizeof(unsigned short)), 4
+#define PTCL_SEQ_NUMBER_FIELD (sizeof(int)), 6
+#define PTCL_CMD_ARG_FIELD (sizeof(command_arg_mask_union().us)), 10
 
 
 

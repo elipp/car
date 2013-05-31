@@ -16,75 +16,135 @@ const vec4 colors[8] = {
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
 
-static void stub (const std::vector<std::string> &args) {
+static int stub (const std::vector<std::string> &args) {
 	onScreenLog::print("called stub function with args ");
 	for (auto &it : args) {
 		onScreenLog::print("%s ", it.c_str());
 	}
 	onScreenLog::print("\n");
+	return 1;
 };
-
-typedef void (*client_funcptr)(const std::vector<std::string> &);
+typedef int (*client_funcptr)(const std::vector<std::string> &);
 
 // those c++11 initializer lists aren't supported yet in msvc
+
+static const std::unordered_map<std::string, const client_funcptr> create_func_map();
+
+static const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
+
+static int help (const std::vector<std::string> &args) {
+	onScreenLog::print("List of available commands:\n");
+	for (auto &it : funcs) {
+		onScreenLog::print(" %s\n", it.first.c_str());
+	}
+	return 1;
+}
+static int connect(const std::vector<std::string> &args) {
+	// if properly formatted, we should find ip_port_string at position 1
+	if (LocalClient::connected()) {
+		onScreenLog::print("/connect: already connected, lolz!\n");
+		return 0;
+	}
+	if (args.size() == 1) {
+		// use default
+		return LocalClient::connect("127.0.0.1:50000");
+	}
+
+	else if (args.size() != 2) {
+		return 0;
+	}
+	else {
+		return LocalClient::connect(args[1]);
+	}
+}
+
+static int set_nick(const std::vector<std::string> &args) {
+	if (args.size() <= 1) {
+		return 0;
+	}
+	else {
+		LocalClient::set_nick(args[1]);
+	}
+	return 1;
+}
+
 static const std::unordered_map<std::string, const client_funcptr> create_func_map() {
 	std::unordered_map<std::string, const client_funcptr> funcs;
 
-	funcs.insert(std::pair<std::string, const client_funcptr>("/connect", stub));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/nick", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/connect", connect));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/disconnect", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/nick", set_nick));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/quit", stub));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/help", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/help", help));
 
 	return funcs;
 }
 
-static const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
 
-std::thread LocalClient::keystate_thread;
-std::thread LocalClient::listen_thread;
-int LocalClient::_connected = 0;
+LocalClient::Listen LocalClient::Listener;
+LocalClient::Keystate LocalClient::KeystateManager;
+
 Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
-bool LocalClient::_bad = false;
-int LocalClient::_listening = 0;
+int LocalClient::_connected = 0;
 
+unsigned short LocalClient::port = 50001;
 
-int LocalClient::init(const std::string &name, const std::string &remote_ip, unsigned short int port) {
+int LocalClient::connect(const std::string &ip_port_string) {
 
-	client.info.name = name;
 	client.info.ip_string = "127.0.0.1";
 	client.info.id = ID_CLIENT_UNASSIGNED;	// not assigned
 	
+	std::vector<std::string> tokens = split(ip_port_string, ':');
+
+	if (tokens.size() != 2) {
+		onScreenLog::print("connect: Error: badly formatted ip_port_string (%s)!\n", ip_port_string.c_str());
+		return 0;
+	}
+
+	std::string remote_ip = tokens[0];
+	unsigned short remote_port = std::stoi(tokens[1]);
+
 	client.seq_number = 0;
 
 	remote_sockaddr.sin_family = AF_INET;
-	remote_sockaddr.sin_port = htons(port);
+	remote_sockaddr.sin_port = htons(remote_port);
 	remote_sockaddr.sin_addr.S_un.S_addr = inet_addr(remote_ip.c_str());
 	Socket::initialize();
 
-	socket = Socket(50001, SOCK_DGRAM, true);
+	socket = Socket(port, SOCK_DGRAM, true);
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
 		return 0; 
 	}
 
-	if (!handshake()) { return 0; }
-
-	listen_thread = std::thread(listen);	
-	keystate_thread = std::thread(keystate_loop);
+	if (!Listener.handshake()) { return 0; }
+	_connected = 1;
+	Listener.start();
+	KeystateManager.start();
 
 	return 1;
 }
 
-void LocalClient::keystate_loop() {
+void LocalClient::disconnect() {
+	_connected = 0;
+	onScreenLog::print("disconnect(): stub!\n");
+}
+
+
+void LocalClient::keystate_task() {
+	KeystateManager.keystate_loop();
+}
+
+void LocalClient::Keystate::keystate_loop() {
 
 	#define KEYSTATE_GRANULARITY_MS 25
 	static _timer keystate_timer;
 	keystate_timer.begin();
-	while (_listening) {
+	while (thread.running()) {
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
 			update_keystate(WM_KEYDOWN_KEYS);
 			post_keystate();
@@ -96,17 +156,17 @@ void LocalClient::keystate_loop() {
 
 }
 
-int LocalClient::handshake() {
+int LocalClient::Listen::handshake() {
 
 	command_arg_mask_union command_arg_mask;
 
 	command_arg_mask.ch[0] = C_HANDSHAKE;
 	command_arg_mask.ch[1] = 0xFF;
 
-	strcpy_s(socket.get_outbound_buffer() + PTCL_HEADER_LENGTH, PACKET_SIZE_MAX-PTCL_HEADER_LENGTH, client.info.name.c_str());
-	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, command_arg_mask.us);
-		
-	send_data_to_server(PTCL_HEADER_LENGTH + client.info.name.length());
+	protocol_make_header(thread.buffer, client.info.id, client.seq_number, command_arg_mask.us);
+	thread.copy_to_buffer(client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
+
+	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 
 #define RETRY_GRANULARITY_MS 1000
 #define NUM_RETRIES 5
@@ -121,43 +181,40 @@ int LocalClient::handshake() {
 			break;
 		}
 		onScreenLog::print("Re-sending handshake to remote...\n");
-		send_data_to_server(PTCL_HEADER_LENGTH + client.info.name.length());
+		send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 	}
 
 	if (!received_data) {
 		onScreenLog::print("Handshake timed out.\n");
-		_listening = 0;
 		return 0;
 	}
 	
 	struct sockaddr_in from;
-	int bytes = socket.receive_data(&from);	// now we know we actually have received data in the socket
+	int bytes = socket.receive_data(thread.buffer, &from);
 
 	int protocol_id;
-	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
+	thread.copy_from_buffer(&protocol_id, PTCL_ID_FIELD);
 	if (protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", protocol_id);
 		return 0;
 	}
 	
-	socket.copy_from_inbound_buffer(&client.info.id, PTCL_DATAFIELD_BYTERANGE(sizeof(client.info.id)));
-	client.info.name = socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + sizeof(client.info.id);
+	thread.copy_from_buffer(&client.info.id, sizeof(client.info.id), PTCL_HEADER_LENGTH);
+	client.info.name = std::string(thread.buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
 	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
-	_listening = 1;
-
 	return 1;
 
 }
 
-void LocalClient::pong(unsigned seq_number) {
+void LocalClient::Listen::pong(unsigned seq_number) {
 	//onScreenLog::print("Received S_PING from remote (seq_number = %u)\n", seq_number);
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_PONG;
 	cmd_arg_mask.ch[1] = 0x00;
-	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
-	socket.copy_to_outbound_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
-	send_data_to_server(PTCL_HEADER_LENGTH + sizeof(seq_number));
+	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	thread.copy_to_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
+	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + sizeof(seq_number));
 }
 
 static inline std::vector<struct peer_info_t> process_peer_list_string(const char* buffer) {
@@ -178,9 +235,7 @@ static inline std::vector<struct peer_info_t> process_peer_list_string(const cha
 }
 
 
-
 void LocalClient::send_chat_message(const std::string &msg) {
-	// this is not called from the _listen thread, so it will need a separate buffer
 	static char chat_msg_buffer[PACKET_SIZE_MAX];
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_CHAT_MESSAGE;
@@ -192,24 +247,24 @@ void LocalClient::send_chat_message(const std::string &msg) {
 	send_data_to_server(chat_msg_buffer, total_size);
 }
 
-void LocalClient::handle_current_packet() {
+void LocalClient::Listen::handle_current_packet() {
 	int protocol_id;
-	socket.copy_from_inbound_buffer(&protocol_id, PTCL_ID_BYTERANGE);
+	thread.copy_from_buffer(&protocol_id, PTCL_ID_FIELD);
 	if (protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
 		return;
 	}
 
 	unsigned short sender_id;
-	socket.copy_from_inbound_buffer(&sender_id, PTCL_SENDER_ID_BYTERANGE);
+	thread.copy_from_buffer(&sender_id, PTCL_SENDER_ID_FIELD);
 	if (sender_id != ID_SERVER) {
 		//onScreenLog::print( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
 	}
 	unsigned int seq_number;
-	socket.copy_from_inbound_buffer(&seq_number, PTCL_SEQ_NUMBER_BYTERANGE);
+	thread.copy_from_buffer(&seq_number, PTCL_SEQ_NUMBER_FIELD);
 
 	command_arg_mask_union cmd_arg_mask;
-	socket.copy_from_inbound_buffer(&cmd_arg_mask.us, PTCL_CMD_ARG_BYTERANGE);
+	thread.copy_from_buffer(&cmd_arg_mask.us, PTCL_CMD_ARG_FIELD);
 
 	const unsigned char cmd = cmd_arg_mask.ch[0];
 	if (cmd == S_POSITION_UPDATE) {
@@ -221,10 +276,11 @@ void LocalClient::handle_current_packet() {
 	else if (cmd == S_CLIENT_CHAT_MESSAGE) {
 		// the sender id is embedded into the datafield (bytes 12-14) of the packet
 		unsigned short sender_id = 0;
-		socket.copy_from_inbound_buffer(&sender_id, PTCL_DATAFIELD_BYTERANGE(sizeof(sender_id)));
+		thread.copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
 		auto it = peers.find(sender_id);
 		if (it != peers.end()) {
-			onScreenLog::print("%s: %s\n", it->second.info.name.c_str(), socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + sizeof(sender_id));
+			std::string chatmsg(thread.buffer + PTCL_HEADER_LENGTH + sizeof(sender_id));
+			onScreenLog::print("<%s> %s: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
 		}
 		else {
 			onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
@@ -239,7 +295,7 @@ void LocalClient::handle_current_packet() {
 	}
 	else if (cmd == S_CLIENT_DISCONNECT) {
 		unsigned short id;
-		socket.copy_from_inbound_buffer(&id, PTCL_DATAFIELD_BYTERANGE(sizeof(id)));
+		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 		auto it = peers.find(id);
 		if (it == peers.end()) {
 			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
@@ -252,24 +308,26 @@ void LocalClient::handle_current_packet() {
 
 }
 
-void LocalClient::update_positions() {
+void LocalClient::Listen::update_positions() {
 	command_arg_mask_union cmd_arg_mask;
-	socket.copy_from_inbound_buffer(&cmd_arg_mask, PTCL_CMD_ARG_BYTERANGE);
+	thread.copy_from_buffer(&cmd_arg_mask, PTCL_CMD_ARG_FIELD);
 	unsigned num_clients = cmd_arg_mask.ch[1];
 
 	static const size_t serial_data_size = sizeof(Car().data_serial);
 	static const size_t PTCL_POS_DATA_SIZE = sizeof(unsigned short) + serial_data_size;
 
+	size_t total_size = PTCL_HEADER_LENGTH;
+
 	for (unsigned i = 0; i < num_clients; ++i) {
 		unsigned short id;
-		socket.copy_from_inbound_buffer(&id, PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE, PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id));
+		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE);
 		auto it = peers.find(id);
 		if (it == peers.end()) {
 			//onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
-			socket.copy_from_inbound_buffer(&it->second.car.data_serial, offset, offset + serial_data_size);
+			thread.copy_from_buffer(&it->second.car.data_serial, serial_data_size, offset);
 			//onScreenLog::print( "update_positions: copied car %u position data as \n", id);
 			//it->second.car.position().print();
 		}
@@ -277,12 +335,16 @@ void LocalClient::update_positions() {
 	
 }
 
-void LocalClient::listen() {
+void LocalClient::listen_task() {
+	Listener.listen();
+}
+
+void LocalClient::Listen::listen() {
 	
 	struct sockaddr_in from;
 	
-	while (_listening) {
-		int bytes = socket.receive_data(&from);
+	while (thread.running()) {
+		int bytes = socket.receive_data(thread.buffer, &from);
 		if (bytes >= 0) {
 			//std::string	ip_str = get_dot_notation_ipv4(&from);
 			//onScreenLog::print( "Received %d bytes from %s\n", bytes, ip_str.c_str());
@@ -290,32 +352,33 @@ void LocalClient::listen() {
 		}
 
 	}
+	post_quit_message();
 	onScreenLog::print( "LocalClient::stopping listen.\n");
 }
 
-void LocalClient::post_keystate() {
-	static char keystate_buffer[PACKET_SIZE_MAX];
+void LocalClient::Keystate::post_keystate() {
 	command_arg_mask_union cmd_arg_mask;
 	cmd_arg_mask.ch[0] = C_KEYSTATE;
 	cmd_arg_mask.ch[1] = client.keystate;
-	protocol_make_header(keystate_buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
-	send_data_to_server(keystate_buffer, PTCL_HEADER_LENGTH);
+	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
 }
 
-void LocalClient::post_quit_message() {
-	//onScreenLog::print( "posting quit message\n");
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = C_QUIT;
-	protocol_make_header(socket.get_outbound_buffer(), client.info.id, client.seq_number, cmd_arg_mask.us);
-	int bytes = send_data_to_server(PTCL_HEADER_LENGTH);
-}
-void LocalClient::update_keystate(const bool *keys) {
+void LocalClient::Keystate::update_keystate(const bool *keys) {
 	client.keystate = 0x0;
 
 	if (keys[VK_UP]) { client.keystate |= C_KEYSTATE_UP; }
 	if (keys[VK_DOWN]) { client.keystate |= C_KEYSTATE_DOWN; }
 	if (keys[VK_LEFT]) { client.keystate |= C_KEYSTATE_LEFT; }
 	if (keys[VK_RIGHT]) { client.keystate |= C_KEYSTATE_RIGHT; }
+}
+
+void LocalClient::Listen::post_quit_message() {
+	//onScreenLog::print( "posting quit message\n");
+	command_arg_mask_union cmd_arg_mask;
+	cmd_arg_mask.ch[0] = C_QUIT;
+	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
 }
 
 void LocalClient::parse_user_input(const std::string s) {
@@ -339,19 +402,10 @@ void LocalClient::parse_user_input(const std::string s) {
 }
 
 void LocalClient::quit() {
-	
-	_listening = 0;
-	if (listen_thread.joinable()) { listen_thread.join(); }
-	if (keystate_thread.joinable()) { keystate_thread.join(); }
-	post_quit_message();
+	KeystateManager.stop();
+	Listener.stop();
 	socket.close();
 	WSACleanup();
-}
-
-int LocalClient::send_data_to_server(size_t size) {
-	int bytes = socket.send_data(&remote_sockaddr, size);
-	++client.seq_number;
-	return bytes;
 }
 
 int LocalClient::send_data_to_server(const char* buffer, size_t size) {
@@ -360,10 +414,18 @@ int LocalClient::send_data_to_server(const char* buffer, size_t size) {
 	++client.seq_number;
 	return bytes;
 }
+void LocalClient::set_nick(const std::string &nick) {
+	if (!_connected) {
+		client.info.name = nick;
+		onScreenLog::print("Name set to %s.\n", nick.c_str());
+	} else {
+		onScreenLog::print("set_nick: cannot change name while connected to server.\n");
+	}
+}
 
-void LocalClient::construct_peer_list() {
+void LocalClient::Listen::construct_peer_list() {
 					
-	std::vector<struct peer_info_t> peer_list = process_peer_list_string(socket.get_inbound_buffer() + PTCL_HEADER_LENGTH + 1);
+	std::vector<struct peer_info_t> peer_list = process_peer_list_string(thread.buffer + PTCL_HEADER_LENGTH + 1);
 		
 	for (auto &it : peer_list) {
 		//onScreenLog::print( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());

@@ -10,6 +10,15 @@ ShaderProgram *text_shader = NULL;
 
 static GLuint text_shared_IBOid;
 
+std::string get_timestamp() {
+
+	char buffer[128];
+	SYSTEMTIME st;
+    GetSystemTime(&st);
+	sprintf(buffer, "%02d:%02d", st.wHour, st.wMinute);
+	return std::string(buffer);
+}
+
 static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 
 onScreenLog::InputField onScreenLog::input_field;
@@ -93,12 +102,14 @@ void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
 		if (c == VK_RETURN) { return; }
 		else if (c == VK_BACK) {
 			delete_char_before_cursor_pos();
+
 		}
 		else {
 			input_buffer.insert(input_buffer.begin() + cursor_pos, c); // that's f...ing ridiculous though :D
 			move_cursor(1);
 		}
 	}
+	refresh();
 	_changed = true;
 }
 

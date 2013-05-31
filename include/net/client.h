@@ -9,6 +9,8 @@
 
 #include "net/protocol.h"
 #include "net/socket.h"
+#include "net/taskthread.h"
+
 #include "common.h"
 
 extern const vec4 colors[];
@@ -63,38 +65,61 @@ struct mutexed_peer_map {
 };
 
 class LocalClient {
-	static std::thread keystate_thread;
-	static std::thread listen_thread;
+
 	static Socket socket;
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
-	static std::unordered_map<unsigned short, struct Peer> peers;
-	static int _connected;	// "connected" :P
 	
-	static int _listening;
+	static std::unordered_map<unsigned short, struct Peer> peers;
+	
+	static unsigned short port;
+	static int _connected;
 
-	static void start_thread();	// thread wrapper function
-	static bool _bad;
-	static void handle_current_packet();
-	static void pong(unsigned remote_seq_number);
-	static void listen();
-	static int handshake();
-	static void construct_peer_list();
-	static void post_quit_message();
-	static void post_keystate();
-	static void update_positions();
-	static void keystate_loop();
-	static int send_data_to_server(size_t size);
+	static class Listen {
+		NetTaskThread thread;
+		void handle_current_packet();
+		void pong(unsigned remote_seq_number);
+
+
+		void construct_peer_list();
+		void post_quit_message();
+		void post_keystate();
+		void update_positions();
+	public:
+		void listen();
+		Listen() : thread(listen_task) {}
+		int handshake();
+		void start() { thread.start(); }
+		void stop() { thread.stop(); }
+
+	} Listener;
+	static void listen_task();
+
+	static class Keystate {
+		NetTaskThread thread;
+		void update_keystate(const bool * keys);
+		void post_keystate();
+	public:
+		void keystate_loop();
+		Keystate() : thread(keystate_task) { }
+		void start() { thread.start(); }
+		void stop() { thread.stop(); }
+
+	} KeystateManager;
+	static void keystate_task();
+
 	static int send_data_to_server(const char* buffer, size_t size); 
 	static void send_chat_message(const std::string &msg);
-
+	
+	
 public:
+	static int connected() { return _connected; }
+	static int connect(const std::string &ip_and_port_string);
+	static void disconnect();
+	static void set_nick(const std::string &nick);
 	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }
-	static int init(const std::string &name, const std::string &remote_ip, unsigned short int port);
 	static void quit();
-	static void update_keystate(const bool * keys);
-
 private:
 	LocalClient() {}
 };

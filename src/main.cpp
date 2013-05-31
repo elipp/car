@@ -373,12 +373,12 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	/*if(AllocConsole()) {
+	//if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
-		freopen("CONOUT$", "wt", stderr);
-		SetConsoleTitle("debug output");
-		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}*/
+	//	freopen("CONOUT$", "wt", stderr);
+	//	SetConsoleTitle("debug output");
+		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+	//}
 	if(!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
 	
@@ -392,18 +392,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MSG msg;
 	BOOL done=FALSE;
 
-	std::ifstream ip_file("REMOTE_IP");
-	std::string remote_ip;
+	LocalClient::set_nick("Player");
+	LocalClient::connect("127.0.0.1:50000");//for debugging purpozez
 
-	if (!ip_file.is_open()) {
-		remote_ip = "127.0.0.1";
-	}
-	else {
-		std::getline(ip_file, remote_ip);
-	}
-
-	LocalClient::init("Jarmo2", remote_ip, (unsigned short)50000);
-	
 	_timer timer;
 	
 	while(!done)

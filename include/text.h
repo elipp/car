@@ -26,6 +26,8 @@ extern float char_spacing_horiz;
 
 #define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
 
+extern std::string get_timestamp();
+
 struct xy { 
 	float x; float y;
 };

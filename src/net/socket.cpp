@@ -26,11 +26,6 @@ int Socket::initialize() {
 
 Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 	_bad = true;
-	
-	memset(inbound_packet_buffer, 0x0, PACKET_SIZE_MAX);
-	memset(outbound_packet_buffer, 0x0, PACKET_SIZE_MAX);
-	_current_data_length_in = 0;
-	_current_data_length_out = 0;
 
 	fd = socket(AF_INET, TYPE, 0);
 	if (fd <= 0) {
@@ -82,26 +77,20 @@ int Socket::wait_for_incoming_data(int milliseconds) {
 	
 }
 
-int Socket::send_data(const struct sockaddr_in *recipient, size_t len) {
-	int sent_bytes = sendto(fd, (const char*)outbound_packet_buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
-	_current_data_length_out = len;
-	return sent_bytes;
+
+int Socket::send_data(const struct sockaddr_in *recipient, const char* buffer, size_t len) {
+	int bytes = sendto(fd, (const char*)buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
+	return bytes;
 }
 
-int Socket::send_data(const struct sockaddr_in *recipient, const void* buffer, size_t len) {
-	return sendto(fd, (const char*)buffer, len, 0, (struct sockaddr*)recipient, sizeof(struct sockaddr));
-}
-
-int Socket::receive_data(struct sockaddr_in *from) {
+int Socket::receive_data(char *buffer, struct sockaddr_in _OUT *out_from) {
+	
 	int from_length = sizeof(struct sockaddr_in);
+	memset(out_from, 0x0, from_length);	// probably not necessary
 	
-	memset(from, 0x0, from_length);
-	
-	int bytes = 
-		recvfrom(fd, inbound_packet_buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)from, &from_length);
+	int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
 
-	_current_data_length_in = bytes > 0 ? bytes : 0;
-	inbound_packet_buffer[_current_data_length_in] = '\0';
+	buffer[max(bytes, 0)] = '\0';
 	
 	return bytes;
 }
@@ -111,24 +100,3 @@ void Socket::close() {
 	closesocket(fd);
 }
 
-
-void Socket::copy_from_inbound_buffer(void *dst, size_t beg_offset, size_t end_offset) {
-	size_t size = end_offset-beg_offset;
-	memcpy(dst, inbound_packet_buffer + beg_offset, size); 
-}
-
-size_t Socket::copy_to_outbound_buffer(const void *src, size_t src_size, size_t dest_offset) {
-	if (dest_offset + src_size > PACKET_SIZE_MAX) {
-		fprintf(stderr, "copy_to_outbound_buffer(): warning: size of data to be copied > PACKET_SIZE_MAX. Truncating.\n");
-		src_size = PACKET_SIZE_MAX - dest_offset - 1;
-	}
-	memcpy(outbound_packet_buffer + dest_offset, src, src_size);
-	return src_size;
-}
-
-char Socket::get_packet_buffer_char(int index) {
-	if (index > PACKET_SIZE_MAX) {
-		index = PACKET_SIZE_MAX-1;
-	}
-	return inbound_packet_buffer[index];
-}
