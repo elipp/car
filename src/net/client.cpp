@@ -94,6 +94,7 @@ struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
 int LocalClient::_connected = 0;
 bool LocalClient::_failure = false;
+bool LocalClient::_received_shutdown = false;
 
 unsigned short LocalClient::port = 50001;
 
@@ -109,7 +110,7 @@ void LocalClient::connect() {
 		// kind of stupid though :P A sleeping parent thread for the client net code
 		Sleep(500);
 	}
-	
+		
 	onScreenLog::print("Stopping keystate manager thread ... \n");
 	KeystateManager.stop();
 	onScreenLog::print("done.\n");
@@ -158,9 +159,9 @@ int LocalClient::start(const std::string &ip_port_string) {
 void LocalClient::stop() {
 
 	_connected = 0;	// this causes the sleeping parent thread to break out of the sleep loop and stop its two child threads (listen + keystate)
-	_failure = false;
 	parent.stop();
 	socket.close();
+	_received_shutdown = false;
 }
 
 void LocalClient::keystate_task() {
@@ -329,7 +330,8 @@ void LocalClient::Listen::handle_current_packet() {
 	}
 	else if (cmd == S_SHUTDOWN) {
 		onScreenLog::print( "Received S_SHUTDOWN from server. Stopping.\n");
-		LocalClient::stop();
+		_received_shutdown = true;
+		//LocalClient::stop();
 	}
 	else if (cmd == S_PEER_LIST) {
 		construct_peer_list();

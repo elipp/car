@@ -77,6 +77,7 @@ class LocalClient {
 	static unsigned short port;
 	static int _connected;
 	static bool _failure;
+	static bool _received_shutdown;
 
 	static class Listen {
 		NetTaskThread thread;
@@ -120,6 +121,8 @@ public:
 	static int connected() { return _connected; }
 	static void connect();
 	static void disconnect();
+
+	static bool received_shutdown() { return _received_shutdown; }
 
 	static int start(const std::string &ip_port_string);
 	static void stop();

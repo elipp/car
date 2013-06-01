@@ -98,10 +98,7 @@ int Socket::receive_data(char *buffer, struct sockaddr_in _OUT *out_from) {
 		buffer[real_bytes] = '\0';
 		return real_bytes;
 	}
-	else {
-		fprintf(stderr, "breaking from receive_data, select returned %d\n", select_r);
-	}
-	
+		
 	return select_r;
 }
 
