@@ -16,12 +16,20 @@ int Socket::initialize() {
 	ret = WSAStartup(MAKEWORD(2,2), &wsaData);
 	
 	if (ret != 0) {
-		fprintf(stderr, "WSAStartup failed.: %d\n", ret);
+		fprintf(stderr, "WSAStartup failed: %x\n", ret);
 		return 0;
 	}
 	_initialized = 1;
 	return 1;
 }
+
+void Socket::deinitialize() {
+	if (_initialized) {
+		WSACleanup();
+		_initialized = 0; 
+	}
+}
+
 #endif
 
 Socket::Socket(unsigned short port, int TYPE, bool blocking) {
@@ -38,7 +46,8 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 	my_addr.sin_port = htons((unsigned short) port);
 
 	while (bind(fd, (const sockaddr*)&my_addr, sizeof(struct sockaddr_in) ) < 0 ) {
-		fprintf(stderr, "Socket: bind request at port %u failed, trying port %u.\n", port, ++port);
+		fprintf(stderr, "Socket: bind request at port %u failed, trying port %u.\n", port, port+1);
+		++port;
 		my_addr.sin_port = htons((unsigned short) port);
 	}
 	
@@ -86,20 +95,14 @@ int Socket::receive_data(char *buffer, struct sockaddr_in _OUT *out_from) {
 	
 	int from_length = sizeof(struct sockaddr_in);
 	memset(out_from, 0x0, from_length);	// probably not necessary
-	
-	int select_r = wait_for_incoming_data(1000);	
-	// break every 1 second from the blocking recvfrom, since even closesocket() wont stop the block
-	if (select_r > 0) {
 
-		int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
-		//fprintf(stderr, "%d bytes of data available. select returned %d\n", bytes, select_r);
-		int real_bytes = max(bytes, 0);
-		real_bytes = min(bytes, PACKET_SIZE_MAX-1);
-		buffer[real_bytes] = '\0';
-		return real_bytes;
-	}
-		
-	return select_r;
+	int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
+	//fprintf(stderr, "%d bytes of data available. select returned %d\n", bytes, select_r);
+	int real_bytes = max(bytes, 0);
+	real_bytes = min(bytes, PACKET_SIZE_MAX-1);
+	buffer[real_bytes] = '\0';
+	return real_bytes;
+
 }
 
 

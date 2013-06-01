@@ -36,6 +36,7 @@ const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 #define C_KEYSTATE (unsigned char) 0xF2
 #define C_PONG (unsigned char) 0xF4
 #define C_CHAT_MESSAGE (unsigned char) 0xF5
+#define C_TERMINATE (unsigned char) 0xF6
 #define C_QUIT (unsigned char) 0xFF
 
 #define C_KEYSTATE_UP (0x01 << 0)

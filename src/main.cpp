@@ -373,12 +373,12 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	//if(AllocConsole()) {
+	/*if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
-	//	freopen("CONOUT$", "wt", stderr);
-	//	SetConsoleTitle("debug output");
+		freopen("CONOUT$", "wt", stderr);
+		SetConsoleTitle("debug output");
 		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	//}
+	}*/
 
 	if(!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
@@ -392,7 +392,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	MSG msg;
 	BOOL done=FALSE;
-
 
 	LocalClient::set_nick("Player");
 	LocalClient::start("192.168.1.2:50000"); //for debugging purpozez
@@ -427,9 +426,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
 
-		if (LocalClient::received_shutdown()) {
-			fprintf(stderr, "localclient received shutdown. stopping\n");
-			LocalClient::stop();
+		if (LocalClient::requires_shutdown()) { // this flag is set by a couple of conditions in the client code.
+				LocalClient::stop();
 		}
 
 		control();

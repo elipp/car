@@ -24,12 +24,10 @@ static int stub (const std::vector<std::string> &args) {
 	onScreenLog::print("\n");
 	return 1;
 };
+
+// those c++11 initializer lists aren't (fully?) supported yet in visual studio
 typedef int (*client_funcptr)(const std::vector<std::string> &);
-
-// those c++11 initializer lists aren't supported yet in msvc
-
 static const std::unordered_map<std::string, const client_funcptr> create_func_map();
-
 static const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
 
 static int help (const std::vector<std::string> &args) {
@@ -42,7 +40,7 @@ static int help (const std::vector<std::string> &args) {
 static int connect(const std::vector<std::string> &args) {
 	// if properly formatted, we should find ip_port_string at position 1
 	if (LocalClient::connected()) {
-		onScreenLog::print("/connect: already connected!\n");
+		onScreenLog::print("connect: already connected!\n");
 		return 0;
 	}
 	if (args.size() == 1) {
@@ -68,13 +66,16 @@ static int set_nick(const std::vector<std::string> &args) {
 	return 1;
 }
 
-
+static int disconnect(const std::vector<std::string> &args) {
+	LocalClient::stop();
+	return 1;
+}
 
 static const std::unordered_map<std::string, const client_funcptr> create_func_map() {
 	std::unordered_map<std::string, const client_funcptr> funcs;
 
 	funcs.insert(std::pair<std::string, const client_funcptr>("/connect", connect));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/disconnect", stub));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/disconnect", disconnect));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/nick", set_nick));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/quit", stub));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/help", help));
@@ -94,14 +95,17 @@ struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
 int LocalClient::_connected = 0;
 bool LocalClient::_failure = false;
-bool LocalClient::_received_shutdown = false;
+bool LocalClient::_requires_shutdown = false;
 
 unsigned short LocalClient::port = 50001;
 
 void LocalClient::connect() {
 	
 	int success = handshake();
-	if (!success) { return; }
+	if (!success) { 
+		_requires_shutdown = true;
+		return; 
+	}
 
 	Listener.start();
 	KeystateManager.start();
@@ -110,17 +114,13 @@ void LocalClient::connect() {
 		// kind of stupid though :P A sleeping parent thread for the client net code
 		Sleep(500);
 	}
-		
-	onScreenLog::print("Stopping keystate manager thread ... \n");
+
+exit:
 	KeystateManager.stop();
-	onScreenLog::print("done.\n");
-	
-	onScreenLog::print("Stopping listener thread ... \n");
 	Listener.stop();
-	onScreenLog::print("done.\n");
-	
+
 	peers.clear();
-	
+	_connected = 0;
 }
 
 int LocalClient::start(const std::string &ip_port_string) {
@@ -146,22 +146,28 @@ int LocalClient::start(const std::string &ip_port_string) {
 	Socket::initialize();
 
 	socket = Socket(port, SOCK_DGRAM, true);
+	
+	client.address = socket.get_own_addr();	// :D
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
 		_failure = true;
 		return 0;
 	}
-	
+	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
+
 	parent.start();	// calls connect with the above-specified settings
 }
 
 void LocalClient::stop() {
-
-	_connected = 0;	// this causes the sleeping parent thread to break out of the sleep loop and stop its two child threads (listen + keystate)
+	static const PTCLHEADERDATA TERMINATE_PACKET = { PROTOCOL_ID, 0, ID_SERVER, C_TERMINATE };
+	// the packet of death. this sets _connected = false and breaks out of the listen loop gracefully (ie. without calling WSACleanup) :D
+	socket.send_data(&socket.get_own_addr(), (const char*)&TERMINATE_PACKET, sizeof(TERMINATE_PACKET));
 	parent.stop();
 	socket.close();
-	_received_shutdown = false;
+	onScreenLog::print("Disconnected from server.\n");
+	_requires_shutdown = 0;
+	_connected = 0;
 }
 
 void LocalClient::keystate_task() {
@@ -256,10 +262,8 @@ int LocalClient::handshake() {
 
 void LocalClient::Listen::pong(unsigned seq_number) {
 	//onScreenLog::print("Received S_PING from remote (seq_number = %u)\n", seq_number);
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = C_PONG;
-	cmd_arg_mask.ch[1] = 0x00;
-	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	PTCLHEADERDATA PONG_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_PONG };
+	thread.copy_to_buffer(&PONG_HEADER, sizeof(PONG_HEADER), 0);
 	thread.copy_to_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
 	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + sizeof(seq_number));
 }
@@ -283,12 +287,17 @@ static inline std::vector<struct peer_info_t> process_peer_list_string(const cha
 
 
 void LocalClient::send_chat_message(const std::string &msg) {
+	if (!_connected) { 
+		onScreenLog::print("chat: not connected to server.\n");
+		return; 
+	}
 	static char chat_msg_buffer[PACKET_SIZE_MAX];
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = C_CHAT_MESSAGE;
+	PTCLHEADERDATA CHAT_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_CHAT_MESSAGE };
+
 	uint8_t message_len = min(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
-	cmd_arg_mask.ch[1] = message_len;
-	protocol_make_header(chat_msg_buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	CHAT_HEADER.cmd_arg_mask.ch[1] = message_len;
+	
+	memcpy(chat_msg_buffer, &CHAT_HEADER, sizeof(CHAT_HEADER));
 	memcpy(chat_msg_buffer + PTCL_HEADER_LENGTH, msg.c_str(), message_len);
 	size_t total_size = PTCL_HEADER_LENGTH + message_len;
 	send_data_to_server(chat_msg_buffer, total_size);
@@ -306,6 +315,7 @@ void LocalClient::Listen::handle_current_packet() {
 
 	if (header.sender_id != ID_SERVER) {
 		//onScreenLog::print( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
+		return;
 	}
 
 	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
@@ -325,13 +335,21 @@ void LocalClient::Listen::handle_current_packet() {
 			onScreenLog::print("<%s> %s: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
 		}
 		else {
+			// perhaps request a new peer list from the server. :P
 			onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
 		}
 	}
 	else if (cmd == S_SHUTDOWN) {
 		onScreenLog::print( "Received S_SHUTDOWN from server. Stopping.\n");
-		_received_shutdown = true;
+		_requires_shutdown = true;
+		_connected = 0; // this will break from the recvfrom loop gracefully
 		//LocalClient::stop();
+	}
+	else if (cmd == C_TERMINATE) {
+		fprintf(stderr, "Received C_TERMINATE from self. Stopping.\n");
+		onScreenLog::print("Received C_TERMINATE from self. Stopping.\n");
+		_requires_shutdown = true;
+		_connected = 0;
 	}
 	else if (cmd == S_PEER_LIST) {
 		construct_peer_list();
@@ -388,21 +406,17 @@ void LocalClient::Listen::listen() {
 	
 	while (thread.running() && _connected) {
 		int bytes = socket.receive_data(thread.buffer, &from);
-		if (bytes >= 0) {
-			//std::string	ip_str = get_dot_notation_ipv4(&from);
-			//onScreenLog::print( "Received %d bytes from %s\n", bytes, ip_str.c_str());
-			handle_current_packet();
-		}
+		if (bytes >= 0) { handle_current_packet(); }
 	}
 
 	post_quit_message();
+
 }
 
 void LocalClient::Keystate::post_keystate() {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = C_KEYSTATE;
-	cmd_arg_mask.ch[1] = client.keystate;
-	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	PTCLHEADERDATA KEYSTATE_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_KEYSTATE };
+	KEYSTATE_HEADER.cmd_arg_mask.ch[1] = client.keystate;
+	thread.copy_to_buffer(&KEYSTATE_HEADER, sizeof(KEYSTATE_HEADER), 0);
 	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
 }
 
@@ -445,7 +459,7 @@ void LocalClient::parse_user_input(const std::string s) {
 
 void LocalClient::quit() {
 	LocalClient::stop();
-	WSACleanup();
+	Socket::deinitialize();
 }
 
 int LocalClient::send_data_to_server(const char* buffer, size_t size) {

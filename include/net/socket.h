@@ -4,6 +4,7 @@
 #include <Winsock2.h>
 #include <Ws2tcpip.h>
 #include <cstring>
+#include <io.h>
 
 #define PACKET_SIZE_MAX 256
 
@@ -13,11 +14,13 @@ class Socket {
 
 	int fd;
 	struct sockaddr_in my_addr;
+	unsigned short port;
 	bool _bad;
 public:
 #ifdef _WIN32
 	static int initialized();
 	static int initialize();	// winsock requires WSAStartup and all that stuff
+	static void deinitialize();
 #endif
 	
 	Socket(unsigned short port, int TYPE, bool blocking);
@@ -26,6 +29,9 @@ public:
 	int receive_data(char *output_buffer, struct sockaddr_in _OUT *from);
 	char get_packet_buffer_char(int index);
 	void close();
+	int get_fd() const { return fd; }
+	unsigned short get_port() const { return port; }
+	struct sockaddr_in get_own_addr() const { return my_addr; }
 	bool bad() const { return _bad; }
 	Socket() { memset(this, 0, sizeof(*this)); }
 
