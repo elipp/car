@@ -83,8 +83,6 @@ class LocalClient {
 		NetTaskThread thread;
 		void handle_current_packet();
 		void pong(unsigned remote_seq_number);
-
-
 		void construct_peer_list();
 		void post_quit_message();
 		void post_keystate();
@@ -92,7 +90,6 @@ class LocalClient {
 	public:
 		void listen();
 		Listen() : thread(listen_task) {}
-
 		void start() { thread.start(); }
 		void stop() { thread.stop(); }
 
@@ -126,7 +123,6 @@ public:
 
 	static int start(const std::string &ip_port_string);
 	static void stop();
-	static void stop_parent_thread();
 
 	static void set_name(const std::string &nick);
 	static void parse_user_input(const std::string s);
