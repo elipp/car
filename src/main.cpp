@@ -383,7 +383,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if(!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
 	
-	wglSwapIntervalEXT(1);
+	//wglSwapIntervalEXT(1);
 
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -391,14 +391,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	onScreenLog::print("%s\n", cpustr.c_str());
 	
 	MSG msg;
-	BOOL done=FALSE;
 
-	LocalClient::set_nick("Player");
-	LocalClient::start("192.168.1.2:50000"); //for debugging purpozez
 
-	_timer timer;
+	LocalClient::set_name("Player");
+	onScreenLog::print("Use /connect <ip>:<port> to connect to a server,\n");
+	onScreenLog::print("or without arguments to connect to default (127.0.0.1:50000).\n");
+
+	_timer fps_timer;
+	fps_timer.begin();
 	
-	while(!done)
+	while(main_loop_running())
 	{
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
 		{
@@ -406,8 +408,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			{
 				onScreenLog::print("Sending quit message (C_QUIT) to server.\n");
 				LocalClient::quit();
-				
-				done=TRUE;
+				stop_main_loop();
 			}
 			else {
 				TranslateMessage(&msg);
@@ -426,8 +427,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
 
-		if (LocalClient::requires_shutdown()) { // this flag is set by a couple of conditions in the client code.
-				LocalClient::stop();
+		if (LocalClient::shutdown_requested()) { // this flag is set by a number of conditions in the client code
+			// stop must be explicitly called from a thread that's not involved with all the net action (ie. this one)
+			LocalClient::stop();
 		}
 
 		control();
@@ -435,10 +437,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		drawCars(LocalClient::get_peers());
 		onScreenLog::draw();
-		window_swapbuffers();
-
+		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
+
+		long us_remaining = 16666 - fps_timer.get_us();
+		if (us_remaining > 2000) {
+			Sleep(us_remaining/1000);
+		}
+		window_swapbuffers();
+		fps_timer.begin();
 
 		//long us_per_frame = timer.get_us();
 	

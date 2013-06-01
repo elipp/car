@@ -1,11 +1,11 @@
 #include "net/client.h"
 #include "net/protocol.h"
+#include "net/client_funcs.h"
 #include "lin_alg.h"
 
 #include <string>
 
-
-const vec4 colors[8] = {
+static const vec4 colors[8] = {
 	vec4(1.0, 0.2, 0.2, 1.0),
 	vec4(0.4, 0.7, 0.2, 1.0),
 	vec4(0.4, 0.2, 1.0, 1.0),
@@ -15,74 +15,6 @@ const vec4 colors[8] = {
 	vec4(1.0, 1.0, 1.0, 1.0),
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
-
-static int stub (const std::vector<std::string> &args) {
-	onScreenLog::print("called stub function with args ");
-	for (auto &it : args) {
-		onScreenLog::print("%s ", it.c_str());
-	}
-	onScreenLog::print("\n");
-	return 1;
-};
-
-// those c++11 initializer lists aren't (fully?) supported yet in visual studio
-typedef int (*client_funcptr)(const std::vector<std::string> &);
-static const std::unordered_map<std::string, const client_funcptr> create_func_map();
-static const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
-
-static int help (const std::vector<std::string> &args) {
-	onScreenLog::print("List of available commands:\n");
-	for (auto &it : funcs) {
-		onScreenLog::print(" %s\n", it.first.c_str());
-	}
-	return 1;
-}
-static int connect(const std::vector<std::string> &args) {
-	// if properly formatted, we should find ip_port_string at position 1
-	if (LocalClient::connected()) {
-		onScreenLog::print("connect: already connected!\n");
-		return 0;
-	}
-	if (args.size() == 1) {
-		// use default
-		return LocalClient::start("127.0.0.1:50000");
-	}
-
-	else if (args.size() != 2) {
-		return 0;
-	}
-	else {
-		return LocalClient::start(args[1]);
-	}
-}
-
-static int set_nick(const std::vector<std::string> &args) {
-	if (args.size() <= 1) {
-		return 0;
-	}
-	else {
-		LocalClient::set_nick(args[1]);
-	}
-	return 1;
-}
-
-static int disconnect(const std::vector<std::string> &args) {
-	LocalClient::stop();
-	return 1;
-}
-
-static const std::unordered_map<std::string, const client_funcptr> create_func_map() {
-	std::unordered_map<std::string, const client_funcptr> funcs;
-
-	funcs.insert(std::pair<std::string, const client_funcptr>("/connect", connect));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/disconnect", disconnect));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/nick", set_nick));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/quit", stub));
-	funcs.insert(std::pair<std::string, const client_funcptr>("/help", help));
-
-	return funcs;
-}
-
 
 LocalClient::Listen LocalClient::Listener;
 LocalClient::Keystate LocalClient::KeystateManager;
@@ -94,8 +26,7 @@ struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
 int LocalClient::_connected = 0;
-bool LocalClient::_failure = false;
-bool LocalClient::_requires_shutdown = false;
+bool LocalClient::_shutdown_requested = false;
 
 unsigned short LocalClient::port = 50001;
 
@@ -103,7 +34,7 @@ void LocalClient::connect() {
 	
 	int success = handshake();
 	if (!success) { 
-		_requires_shutdown = true;
+		_shutdown_requested = true;
 		return; 
 	}
 
@@ -151,7 +82,7 @@ int LocalClient::start(const std::string &ip_port_string) {
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
-		_failure = true;
+		_shutdown_requested = true;
 		return 0;
 	}
 	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
@@ -165,9 +96,8 @@ void LocalClient::stop() {
 	socket.send_data(&socket.get_own_addr(), (const char*)&TERMINATE_PACKET, sizeof(TERMINATE_PACKET));
 	parent.stop();
 	socket.close();
-	onScreenLog::print("Disconnected from server.\n");
-	_requires_shutdown = 0;
 	_connected = 0;
+	_shutdown_requested = false;
 }
 
 void LocalClient::keystate_task() {
@@ -224,7 +154,7 @@ int LocalClient::handshake() {
 
 	if (!received_data) {
 		onScreenLog::print("Handshake timed out.\n");
-		_failure = true;
+		_shutdown_requested = true;
 		return 0;
 	}
 	
@@ -236,7 +166,7 @@ int LocalClient::handshake() {
 
 	if (header.protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
-		_failure = true;
+		_shutdown_requested = true;
 		return 0;
 	}
 
@@ -244,7 +174,7 @@ int LocalClient::handshake() {
 
 	if (cmd != S_HANDSHAKE_OK) {
 		onScreenLog::print("LocalClient: handshake: received cmdbyte != S_HANDSHAKE_OK (%x). Handshake failed.\n", cmd);
-		_failure = true;
+		_shutdown_requested = true;
 		return 0;
 	}
 
@@ -340,16 +270,16 @@ void LocalClient::Listen::handle_current_packet() {
 		}
 	}
 	else if (cmd == S_SHUTDOWN) {
-		onScreenLog::print( "Received S_SHUTDOWN from server. Stopping.\n");
-		_requires_shutdown = true;
+		onScreenLog::print( "Received S_SHUTDOWN from server (server going down).\n");
 		_connected = 0; // this will break from the recvfrom loop gracefully
+		_shutdown_requested = true;	// this will cause LocalClient::stop() to be called from the main (rendering) thread
 		//LocalClient::stop();
 	}
 	else if (cmd == C_TERMINATE) {
 		fprintf(stderr, "Received C_TERMINATE from self. Stopping.\n");
 		onScreenLog::print("Received C_TERMINATE from self. Stopping.\n");
-		_requires_shutdown = true;
 		_connected = 0;
+		_shutdown_requested = true;
 	}
 	else if (cmd == S_PEER_LIST) {
 		construct_peer_list();
@@ -468,12 +398,12 @@ int LocalClient::send_data_to_server(const char* buffer, size_t size) {
 	++client.seq_number;
 	return bytes;
 }
-void LocalClient::set_nick(const std::string &nick) {
+void LocalClient::set_name(const std::string &nick) {
 	if (!_connected) {
 		client.info.name = nick;
 		onScreenLog::print("Name set to %s.\n", nick.c_str());
 	} else {
-		onScreenLog::print("set_nick: cannot change name while connected to server.\n");
+		onScreenLog::print("set_name: cannot change name while connected to server.\n");
 	}
 }
 

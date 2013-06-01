@@ -105,7 +105,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 			unsigned int embedded_pong_seq_number;
 			thread.copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH);
 			if (embedded_pong_seq_number == c.active_ping_seq_number) {
-				//fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
+				fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
 				c.active_ping_seq_number = 0;
 			}
 			else {
@@ -140,7 +140,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		post_peer_list();
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
-		fprintf(stderr, "C_CHAT_MESSAGE: %s: %s\n", client_iter->second.info.name.c_str(), thread.buffer + PTCL_HEADER_LENGTH);
+		fprintf(stderr, "%s: %s\n", client_iter->second.info.name.c_str(), thread.buffer + PTCL_HEADER_LENGTH);
 		distribute_chat_message(thread.buffer + PTCL_HEADER_LENGTH, header.sender_id);
 	}
 	else if (cmd == C_QUIT) {
@@ -309,7 +309,7 @@ void Server::Ping::ping_loop() {
 
 	static _timer ping_timer;
 
-	while (listening) {
+	while (thread.running()) {
 		ping_timer.begin();
 		if (clients.size() < 1) { Sleep(250); }
 		id_client_map::iterator iter = clients.begin();

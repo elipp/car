@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 
+#include "net/client_funcs.h"
 #include "net/protocol.h"
 #include "net/socket.h"
 #include "net/taskthread.h"
@@ -76,8 +77,7 @@ class LocalClient {
 	
 	static unsigned short port;
 	static int _connected;
-	static bool _failure;
-	static bool _requires_shutdown;
+	static bool _shutdown_requested;
 
 	static class Listen {
 		NetTaskThread thread;
@@ -122,13 +122,13 @@ public:
 	static void connect();
 	static void disconnect();
 
-	static bool requires_shutdown() { return _requires_shutdown; }
+	static bool shutdown_requested() { return _shutdown_requested; }
 
 	static int start(const std::string &ip_port_string);
 	static void stop();
 	static void stop_parent_thread();
 
-	static void set_nick(const std::string &nick);
+	static void set_name(const std::string &nick);
 	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }
 	static void quit();

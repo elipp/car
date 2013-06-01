@@ -36,6 +36,10 @@ bool active = TRUE;
 
 extern int initGL();
 
+static bool _main_loop_running=true;
+bool main_loop_running() { return _main_loop_running; }
+void stop_main_loop() { _main_loop_running = false; }
+
 void set_cursor_relative_pos(int x, int y) {
     POINT pt;
     pt.x = x;

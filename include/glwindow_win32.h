@@ -11,6 +11,9 @@
 extern bool WM_KEYDOWN_KEYS[];
 extern bool WM_CHAR_KEYS[];
 
+extern void stop_main_loop();
+extern bool main_loop_running();
+
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
