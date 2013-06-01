@@ -63,45 +63,35 @@ void Server::shutdown() {
 
 void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	
-	int protocol_id;
-	thread.copy_from_buffer(&protocol_id, PTCL_ID_FIELD);
+	PTCLHEADERDATA header;
+	protocol_get_header_data(thread.buffer, &header);
 	
-	
-	if (protocol_id != PROTOCOL_ID) {
-		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%x)!\nDump:\n", protocol_id);
+	if (header.protocol_id != PROTOCOL_ID) {
+		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%x)!\nDump:\n", header.protocol_id);
 		//buffer_print_raw(socket.get_inbound_buffer(), socket.current_data_length_in());
 		return;
 	}
+	
+	auto client_iter = clients.find(header.sender_id);
 
-	unsigned short client_id;
-	thread.copy_from_buffer(&client_id, PTCL_SENDER_ID_FIELD);
-
-	if (client_id != ID_CLIENT_UNASSIGNED) {
-		id_client_map::iterator it = clients.find(client_id);
-		if (it == clients.end()) {
-			fprintf(stderr, "Server: warning: received packet from non-existing player-id %u. Ignoring.\n", client_id);
+	if (header.sender_id != ID_CLIENT_UNASSIGNED) {
+		if (client_iter == clients.end()) {
+			fprintf(stderr, "Server: warning: received packet from non-existing player-id %u. Ignoring.\n", header.sender_id);
 			return;
 		}
 	}
 
-	unsigned int seq;
-	thread.copy_from_buffer(&seq, PTCL_SEQ_NUMBER_FIELD);
-
-	command_arg_mask_union cmdbyte_arg_mask;
-	thread.copy_from_buffer(&cmdbyte_arg_mask.us, PTCL_CMD_ARG_FIELD);
-
-	const unsigned char cmd = cmdbyte_arg_mask.ch[0];
+	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
+	const unsigned char &cmd_arg = header.cmd_arg_mask.ch[1];
 
 	std::string ip = get_dot_notation_ipv4(from);
 	//fprintf(stderr, "Received packet with size %u from %s (id = %u). Seq_number = %u\n", socket.current_data_length_in(), ip.c_str(), client_id, seq);
-	
-	auto client_iter = clients.find(client_id);
+
 	
 	if (cmd == C_KEYSTATE) {
-
 		if (client_iter != clients.end()) {
 			//if (seq > it->second.seq_number) {
-			client_iter->second.keystate = cmdbyte_arg_mask.ch[1];
+			client_iter->second.keystate = cmd_arg;
 			//}
 		}
 		else {
@@ -113,7 +103,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		if (client_iter != clients.end()) {
 			struct Client &c = client_iter->second;
 			unsigned int embedded_pong_seq_number;
-			thread.copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH );
+			thread.copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH);
 			if (embedded_pong_seq_number == c.active_ping_seq_number) {
 				//fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
 				c.active_ping_seq_number = 0;
@@ -123,7 +113,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 			}
 		}
 		else {
-			fprintf(stderr, "Server: error: couldn't find client with id %d (this shouldn't be happening!)\n", client_id);
+			fprintf(stderr, "Server: error: couldn't find client with id %d (this shouldn't be happening!)\n", header.sender_id);
 		}
 	}
 
@@ -151,15 +141,15 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
 		fprintf(stderr, "C_CHAT_MESSAGE: %s: %s\n", client_iter->second.info.name.c_str(), thread.buffer + PTCL_HEADER_LENGTH);
-		distribute_chat_message(thread.buffer + PTCL_HEADER_LENGTH, client_id);
+		distribute_chat_message(thread.buffer + PTCL_HEADER_LENGTH, header.sender_id);
 	}
 	else if (cmd == C_QUIT) {
 		remove_client(client_iter);
-		post_client_disconnect(client_id);
-		fprintf(stderr, "Received C_QUIT from client %d\n", client_id);
+		post_client_disconnect(header.sender_id);
+		fprintf(stderr, "Received C_QUIT from client %d\n", header.sender_id);
 	}
 	else {
-		fprintf(stderr, "received unrecognized cmdbyte %u with arg %u\n", cmdbyte_arg_mask.ch[0], cmdbyte_arg_mask.ch[1]);
+		fprintf(stderr, "received unrecognized cmdbyte %u with arg %u\n", cmd, cmd_arg);
 	}
 
 }

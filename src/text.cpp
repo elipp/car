@@ -11,10 +11,9 @@ ShaderProgram *text_shader = NULL;
 static GLuint text_shared_IBOid;
 
 std::string get_timestamp() {
-
 	char buffer[128];
 	SYSTEMTIME st;
-    GetSystemTime(&st);
+    GetLocalTime(&st);
 	sprintf(buffer, "%02d:%02d", st.wHour, st.wMinute);
 	return std::string(buffer);
 }

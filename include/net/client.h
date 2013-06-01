@@ -66,6 +66,8 @@ struct mutexed_peer_map {
 
 class LocalClient {
 
+	static NetTaskThread parent;	// hosts all the other threads.
+
 	static Socket socket;
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
@@ -74,6 +76,7 @@ class LocalClient {
 	
 	static unsigned short port;
 	static int _connected;
+	static bool _failure;
 
 	static class Listen {
 		NetTaskThread thread;
@@ -88,7 +91,7 @@ class LocalClient {
 	public:
 		void listen();
 		Listen() : thread(listen_task) {}
-		int handshake();
+
 		void start() { thread.start(); }
 		void stop() { thread.stop(); }
 
@@ -111,11 +114,17 @@ class LocalClient {
 	static int send_data_to_server(const char* buffer, size_t size); 
 	static void send_chat_message(const std::string &msg);
 	
+	static int handshake();
 	
 public:
 	static int connected() { return _connected; }
-	static int connect(const std::string &ip_and_port_string);
+	static void connect();
 	static void disconnect();
+
+	static int start(const std::string &ip_port_string);
+	static void stop();
+	static void stop_parent_thread();
+
 	static void set_nick(const std::string &nick);
 	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }

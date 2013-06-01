@@ -17,8 +17,8 @@ void protocol_make_header(char* buffer, unsigned short sender_id, unsigned int s
 	accum_reset();
 
 	accum_write(buffer, (const void*)&PROTOCOL_ID, sizeof(PROTOCOL_ID));
-	accum_write(buffer, (const void*)&sender_id, sizeof(sender_id));
 	accum_write(buffer, (const void*)&seq_number, sizeof(seq_number));
+	accum_write(buffer, (const void*)&sender_id, sizeof(sender_id));
 	accum_write(buffer, (const void*)&command_arg_mask, sizeof(command_arg_mask));
 }
 
@@ -33,7 +33,11 @@ std::string get_dot_notation_ipv4(const struct sockaddr_in *saddr) {
 }
 
 void protocol_update_seq_number(char *buffer, unsigned int seq_number) {
-	memcpy(buffer+6, &seq_number, sizeof(seq_number)); 
+	memcpy(buffer+4, &seq_number, sizeof(seq_number)); 
+}
+
+void protocol_get_header_data(const char* buffer, PTCLHEADERDATA *out_data) {
+	memcpy(out_data, buffer, sizeof(PTCLHEADERDATA));
 }
 
 void buffer_print_raw(const char* buffer, size_t size) {

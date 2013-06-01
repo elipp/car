@@ -29,7 +29,7 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 	fd = socket(AF_INET, TYPE, 0);
 	if (fd <= 0) {
-		fprintf(stderr, "Socket: Failed to create socket (error code %d).\n", WSAGetLastError());
+		fprintf(stderr, "Socket: Failed to create socket (error code %x).\n", WSAGetLastError());
 		return;
 	}
 	
@@ -60,20 +60,19 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 int Socket::wait_for_incoming_data(int milliseconds) {
 	
-	fd_set read_fds, write_fds, except_fds;
+	fd_set read_fds;
 	FD_ZERO(&read_fds);
-	FD_ZERO(&write_fds);
-	FD_ZERO(&except_fds);
 	FD_SET(fd, &read_fds);
 
-	// Set timeout to 1.0 seconds
 	struct timeval timeout;
 
-	timeout.tv_sec = milliseconds/1000;
-	int modulo = milliseconds%1000;
-	timeout.tv_usec = modulo*1000;
+	static const int second_in_milliseconds = 1000;	
+
+	timeout.tv_sec = milliseconds/second_in_milliseconds;
+	int modulo = milliseconds%second_in_milliseconds;
+	timeout.tv_usec = modulo*second_in_milliseconds;
 	
-	return select(fd + 1, &read_fds, &write_fds, &except_fds, &timeout);
+	return select(fd + 1, &read_fds, NULL, NULL, &timeout);
 	
 }
 
@@ -88,11 +87,22 @@ int Socket::receive_data(char *buffer, struct sockaddr_in _OUT *out_from) {
 	int from_length = sizeof(struct sockaddr_in);
 	memset(out_from, 0x0, from_length);	// probably not necessary
 	
-	int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
+	int select_r = wait_for_incoming_data(1000);	
+	// break every 1 second from the blocking recvfrom, since even closesocket() wont stop the block
+	if (select_r > 0) {
 
-	buffer[max(bytes, 0)] = '\0';
+		int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
+		//fprintf(stderr, "%d bytes of data available. select returned %d\n", bytes, select_r);
+		int real_bytes = max(bytes, 0);
+		real_bytes = min(bytes, PACKET_SIZE_MAX-1);
+		buffer[real_bytes] = '\0';
+		return real_bytes;
+	}
+	else {
+		fprintf(stderr, "breaking from receive_data, select returned %d\n", select_r);
+	}
 	
-	return bytes;
+	return select_r;
 }
 
 

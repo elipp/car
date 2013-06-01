@@ -42,19 +42,19 @@ static int help (const std::vector<std::string> &args) {
 static int connect(const std::vector<std::string> &args) {
 	// if properly formatted, we should find ip_port_string at position 1
 	if (LocalClient::connected()) {
-		onScreenLog::print("/connect: already connected, lolz!\n");
+		onScreenLog::print("/connect: already connected!\n");
 		return 0;
 	}
 	if (args.size() == 1) {
 		// use default
-		return LocalClient::connect("127.0.0.1:50000");
+		return LocalClient::start("127.0.0.1:50000");
 	}
 
 	else if (args.size() != 2) {
 		return 0;
 	}
 	else {
-		return LocalClient::connect(args[1]);
+		return LocalClient::start(args[1]);
 	}
 }
 
@@ -67,6 +67,8 @@ static int set_nick(const std::vector<std::string> &args) {
 	}
 	return 1;
 }
+
+
 
 static const std::unordered_map<std::string, const client_funcptr> create_func_map() {
 	std::unordered_map<std::string, const client_funcptr> funcs;
@@ -84,16 +86,44 @@ static const std::unordered_map<std::string, const client_funcptr> create_func_m
 LocalClient::Listen LocalClient::Listener;
 LocalClient::Keystate LocalClient::KeystateManager;
 
+NetTaskThread LocalClient::parent(LocalClient::connect);
+
 Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
 std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
 int LocalClient::_connected = 0;
+bool LocalClient::_failure = false;
 
 unsigned short LocalClient::port = 50001;
 
-int LocalClient::connect(const std::string &ip_port_string) {
+void LocalClient::connect() {
+	
+	int success = handshake();
+	if (!success) { return; }
 
+	Listener.start();
+	KeystateManager.start();
+
+	while (parent.running() && _connected) {
+		// kind of stupid though :P A sleeping parent thread for the client net code
+		Sleep(500);
+	}
+	
+	onScreenLog::print("Stopping keystate manager thread ... \n");
+	KeystateManager.stop();
+	onScreenLog::print("done.\n");
+	
+	onScreenLog::print("Stopping listener thread ... \n");
+	Listener.stop();
+	onScreenLog::print("done.\n");
+	
+	peers.clear();
+	
+}
+
+int LocalClient::start(const std::string &ip_port_string) {
+	
 	client.info.ip_string = "127.0.0.1";
 	client.info.id = ID_CLIENT_UNASSIGNED;	// not assigned
 	
@@ -118,33 +148,31 @@ int LocalClient::connect(const std::string &ip_port_string) {
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
-		return 0; 
+		_failure = true;
+		return 0;
 	}
-
-	if (!Listener.handshake()) { return 0; }
-	_connected = 1;
-	Listener.start();
-	KeystateManager.start();
-
-	return 1;
+	
+	parent.start();	// calls connect with the above-specified settings
 }
 
-void LocalClient::disconnect() {
-	_connected = 0;
-	onScreenLog::print("disconnect(): stub!\n");
-}
+void LocalClient::stop() {
 
+	_connected = 0;	// this causes the sleeping parent thread to break out of the sleep loop and stop its two child threads (listen + keystate)
+	_failure = false;
+	parent.stop();
+	socket.close();
+}
 
 void LocalClient::keystate_task() {
 	KeystateManager.keystate_loop();
 }
 
 void LocalClient::Keystate::keystate_loop() {
-
+	
 	#define KEYSTATE_GRANULARITY_MS 25
 	static _timer keystate_timer;
 	keystate_timer.begin();
-	while (thread.running()) {
+	while (thread.running() && _connected) {
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
 			update_keystate(WM_KEYDOWN_KEYS);
 			post_keystate();
@@ -153,21 +181,23 @@ void LocalClient::Keystate::keystate_loop() {
 			if (wait > 1) { Sleep(wait); }
 		}
 	}
-
 }
 
-int LocalClient::Listen::handshake() {
-
+int LocalClient::handshake() {
+	
 	command_arg_mask_union command_arg_mask;
 
 	command_arg_mask.ch[0] = C_HANDSHAKE;
 	command_arg_mask.ch[1] = 0xFF;
 
-	protocol_make_header(thread.buffer, client.info.id, client.seq_number, command_arg_mask.us);
-	thread.copy_to_buffer(client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
+	protocol_make_header(parent.buffer, client.info.id, client.seq_number, command_arg_mask.us);
+	parent.copy_to_buffer(client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
 
-	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
+	send_data_to_server(parent.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 
+	// hehe. if we're handshaking with localhost, select reports "we have data available to read" for the handshake data we just sent,
+	// even though we're sending to a different port. Unsure whether this is intended behavior
+			
 #define RETRY_GRANULARITY_MS 1000
 #define NUM_RETRIES 5
 		
@@ -175,34 +205,50 @@ int LocalClient::Listen::handshake() {
 	
 	int received_data = 0;
 	for (int i = 0; i < NUM_RETRIES; ++i) {
-
-		if (socket.wait_for_incoming_data(RETRY_GRANULARITY_MS) > 0) { 
+		int select_r = socket.wait_for_incoming_data(RETRY_GRANULARITY_MS);
+		if (select_r > 0) { 
+			// could be wrong data. should check the data we received and retry if it wasn't the correct stuff
 			received_data = 1;
 			break;
 		}
 		onScreenLog::print("Re-sending handshake to remote...\n");
-		send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
+		send_data_to_server(parent.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 	}
 
 	if (!received_data) {
 		onScreenLog::print("Handshake timed out.\n");
+		_failure = true;
 		return 0;
 	}
 	
 	struct sockaddr_in from;
-	int bytes = socket.receive_data(thread.buffer, &from);
+	int bytes = socket.receive_data(parent.buffer, &from);
 
-	int protocol_id;
-	thread.copy_from_buffer(&protocol_id, PTCL_ID_FIELD);
-	if (protocol_id != PROTOCOL_ID) {
-		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", protocol_id);
+	PTCLHEADERDATA header;
+	protocol_get_header_data(parent.buffer, &header);
+
+	if (header.protocol_id != PROTOCOL_ID) {
+		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
+		_failure = true;
 		return 0;
 	}
-	
-	thread.copy_from_buffer(&client.info.id, sizeof(client.info.id), PTCL_HEADER_LENGTH);
-	client.info.name = std::string(thread.buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
+
+	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
+
+	if (cmd != S_HANDSHAKE_OK) {
+		onScreenLog::print("LocalClient: handshake: received cmdbyte != S_HANDSHAKE_OK (%x). Handshake failed.\n", cmd);
+		_failure = true;
+		return 0;
+	}
+
+	// get player id embedded within the packet
+	parent.copy_from_buffer(&client.info.id, sizeof(client.info.id), PTCL_HEADER_LENGTH);
+
+	// get player name received from server
+	client.info.name = std::string(parent.buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
 	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
+	_connected = true;
 	return 1;
 
 }
@@ -248,30 +294,25 @@ void LocalClient::send_chat_message(const std::string &msg) {
 }
 
 void LocalClient::Listen::handle_current_packet() {
-	int protocol_id;
-	thread.copy_from_buffer(&protocol_id, PTCL_ID_FIELD);
-	if (protocol_id != PROTOCOL_ID) {
-		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", protocol_id);
+
+	PTCLHEADERDATA header;
+	protocol_get_header_data(thread.buffer, &header);
+
+	if (header.protocol_id != PROTOCOL_ID) {
+		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", header.protocol_id);
 		return;
 	}
 
-	unsigned short sender_id;
-	thread.copy_from_buffer(&sender_id, PTCL_SENDER_ID_FIELD);
-	if (sender_id != ID_SERVER) {
+	if (header.sender_id != ID_SERVER) {
 		//onScreenLog::print( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
 	}
-	unsigned int seq_number;
-	thread.copy_from_buffer(&seq_number, PTCL_SEQ_NUMBER_FIELD);
 
-	command_arg_mask_union cmd_arg_mask;
-	thread.copy_from_buffer(&cmd_arg_mask.us, PTCL_CMD_ARG_FIELD);
-
-	const unsigned char cmd = cmd_arg_mask.ch[0];
+	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
 	if (cmd == S_POSITION_UPDATE) {
 		update_positions();
 	}
 	else if (cmd == S_PING) {
-		pong(seq_number);
+		pong(header.seq_number);
 	}
 	else if (cmd == S_CLIENT_CHAT_MESSAGE) {
 		// the sender id is embedded into the datafield (bytes 12-14) of the packet
@@ -287,8 +328,8 @@ void LocalClient::Listen::handle_current_packet() {
 		}
 	}
 	else if (cmd == S_SHUTDOWN) {
-		onScreenLog::print( "Received S_SHUTDOWN from server.\n");
-		// shut down.
+		onScreenLog::print( "Received S_SHUTDOWN from server. Stopping.\n");
+		LocalClient::stop();
 	}
 	else if (cmd == S_PEER_LIST) {
 		construct_peer_list();
@@ -343,17 +384,16 @@ void LocalClient::Listen::listen() {
 	
 	struct sockaddr_in from;
 	
-	while (thread.running()) {
+	while (thread.running() && _connected) {
 		int bytes = socket.receive_data(thread.buffer, &from);
 		if (bytes >= 0) {
 			//std::string	ip_str = get_dot_notation_ipv4(&from);
 			//onScreenLog::print( "Received %d bytes from %s\n", bytes, ip_str.c_str());
 			handle_current_packet();
 		}
-
 	}
+
 	post_quit_message();
-	onScreenLog::print( "LocalClient::stopping listen.\n");
 }
 
 void LocalClient::Keystate::post_keystate() {
@@ -402,9 +442,7 @@ void LocalClient::parse_user_input(const std::string s) {
 }
 
 void LocalClient::quit() {
-	KeystateManager.stop();
-	Listener.stop();
-	socket.close();
+	LocalClient::stop();
 	WSACleanup();
 }
 
