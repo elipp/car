@@ -4,7 +4,6 @@
 #include <Winsock2.h>
 #include <Ws2tcpip.h>
 #include <cstring>
-#include <io.h>
 
 #define PACKET_SIZE_MAX 256
 
