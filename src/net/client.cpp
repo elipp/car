@@ -106,7 +106,7 @@ void LocalClient::keystate_task() {
 
 void LocalClient::Keystate::keystate_loop() {
 	
-	#define KEYSTATE_GRANULARITY_MS 25
+	#define KEYSTATE_GRANULARITY_MS 25	// this could be overly tight though.
 	static _timer keystate_timer;
 	keystate_timer.begin();
 	while (thread.running() && _connected) {
@@ -122,24 +122,23 @@ void LocalClient::Keystate::keystate_loop() {
 
 int LocalClient::handshake() {
 	
-	command_arg_mask_union command_arg_mask;
+	PTCLHEADERDATA HANDSHAKE_HEADER
+		= protocol_make_header(client.seq_number, ID_CLIENT_UNASSIGNED, C_HANDSHAKE);
 
-	command_arg_mask.ch[0] = C_HANDSHAKE;
-	command_arg_mask.ch[1] = 0xFF;
-
-	protocol_make_header(parent.buffer, client.info.id, client.seq_number, command_arg_mask.us);
+	protocol_copy_header(parent.buffer, &HANDSHAKE_HEADER);
 	parent.copy_to_buffer(client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
 
 	send_data_to_server(parent.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 
-	// hehe. if we're handshaking with localhost, select reports "we have data available to read" for the handshake data we just sent,
-	// even though we're sending to a different port. Unsure whether this is intended behavior
 			
 #define RETRY_GRANULARITY_MS 1000
 #define NUM_RETRIES 5
 		
 	onScreenLog::print( "LocalClient::sending handshake to remote.\n");
 	
+	// FIXME: currently broken when handshaking with localhost :P
+	// the WS2 select() call reports "data available" when sending to 127.0.0.1, despite different port.
+
 	int received_data = 0;
 	for (int i = 0; i < NUM_RETRIES; ++i) {
 		int select_r = socket.wait_for_incoming_data(RETRY_GRANULARITY_MS);
@@ -222,12 +221,13 @@ void LocalClient::send_chat_message(const std::string &msg) {
 		return; 
 	}
 	static char chat_msg_buffer[PACKET_SIZE_MAX];
-	PTCLHEADERDATA CHAT_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_CHAT_MESSAGE };
-
-	uint8_t message_len = min(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
-	CHAT_HEADER.cmd_arg_mask.ch[1] = message_len;
 	
-	memcpy(chat_msg_buffer, &CHAT_HEADER, sizeof(CHAT_HEADER));
+	uint8_t message_len = min(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
+
+	PTCLHEADERDATA CHAT_HEADER 
+		= protocol_make_header( client.seq_number, client.info.id, C_CHAT_MESSAGE, message_len);
+	
+	protocol_copy_header(chat_msg_buffer, &CHAT_HEADER);
 	memcpy(chat_msg_buffer + PTCL_HEADER_LENGTH, msg.c_str(), message_len);
 	size_t total_size = PTCL_HEADER_LENGTH + message_len;
 	send_data_to_server(chat_msg_buffer, total_size);
@@ -360,10 +360,9 @@ void LocalClient::Keystate::update_keystate(const bool *keys) {
 }
 
 void LocalClient::Listen::post_quit_message() {
-	//onScreenLog::print( "posting quit message\n");
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = C_QUIT;
-	protocol_make_header(thread.buffer, client.info.id, client.seq_number, cmd_arg_mask.us);
+	PTCLHEADERDATA QUIT_HEADER 
+		= protocol_make_header( client.seq_number, client.info.id, C_QUIT);
+	protocol_copy_header(thread.buffer, &QUIT_HEADER);
 	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
 }
 

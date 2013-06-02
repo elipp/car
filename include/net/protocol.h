@@ -17,6 +17,7 @@ struct PTCLHEADERDATA {
 	command_arg_mask_union cmd_arg_mask;
 };
 
+
 const int PROTOCOL_ID = 0xABACABAD;	// can't use a #define here; memcpy.
 const unsigned short ID_SERVER = 0x0000; 
 const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
@@ -44,8 +45,21 @@ const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 #define C_KEYSTATE_LEFT (0x01 << 2)
 #define C_KEYSTATE_RIGHT (0x01 << 3)
 
+#define SEQN_ASSIGNED_ELSEWHERE 0
+
+/* protocol_make_header + protocol_copy_header should probably be wrapped in a single call, since they always go hand in hand */
+
+inline PTCLHEADERDATA protocol_make_header(unsigned int seq_n, unsigned short sender_id, unsigned short cmd_am_us) {
+	PTCLHEADERDATA r = { PROTOCOL_ID, seq_n, sender_id, cmd_am_us };
+	return r;
+}
+inline PTCLHEADERDATA protocol_make_header(unsigned int seq_n, unsigned short sender_id, unsigned char cmd_am_ch0, unsigned char cmd_am_ch1) {
+	PTCLHEADERDATA r = { PROTOCOL_ID, seq_n, sender_id, cmd_am_ch0 };
+	r.cmd_arg_mask.ch[1] = cmd_am_ch1;
+	return r;
+}
+int protocol_copy_header(char *buffer, const PTCLHEADERDATA *header);
 void protocol_get_header_data(const char* buffer, PTCLHEADERDATA *out_data);
-void protocol_make_header(char *buffer, unsigned short sender_id, unsigned int seq_number, unsigned short command_arg_mask);
 void protocol_update_seq_number(char *buffer, unsigned int seq_number);
 void buffer_print_raw(const char* buffer, size_t size);
 

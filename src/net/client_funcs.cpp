@@ -41,6 +41,7 @@ int set_name(const std::vector<std::string> &args) {
 int disconnect(const std::vector<std::string> &args) {
 	if (LocalClient::connected()) {	
 		LocalClient::stop();
+		onScreenLog::print("Disconnected from server.\n");
 	} else {
 		onScreenLog::print("/disconnect: not connected.\n");
 	}

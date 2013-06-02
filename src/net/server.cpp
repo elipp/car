@@ -140,8 +140,9 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		post_peer_list();
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
-		fprintf(stderr, "%s: %s\n", client_iter->second.info.name.c_str(), thread.buffer + PTCL_HEADER_LENGTH);
-		distribute_chat_message(thread.buffer + PTCL_HEADER_LENGTH, header.sender_id);
+		const std::string msg(thread.buffer + PTCL_HEADER_LENGTH);
+		fprintf(stderr, "%s: %s\n", client_iter->second.info.name.c_str(), msg.c_str());
+		distribute_chat_message(msg, header.sender_id);
 	}
 	else if (cmd == C_QUIT) {
 		remove_client(client_iter);
@@ -149,20 +150,17 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		fprintf(stderr, "Received C_QUIT from client %d\n", header.sender_id);
 	}
 	else {
-		fprintf(stderr, "received unrecognized cmdbyte %u with arg %u\n", cmd, cmd_arg);
+		fprintf(stderr, "warning: received unrecognized cmdbyte %u with arg %u\n", cmd, cmd_arg);
 	}
 
 }
 
 void Server::Listen::distribute_chat_message(const std::string &msg, const unsigned short sender_id) {
-	// using the listen thread, so use socket buffer
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_CLIENT_CHAT_MESSAGE;
-	cmd_arg_mask.ch[1] = msg.length();
 
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
-	
-	size_t accum_offset = PTCL_HEADER_LENGTH;
+	PTCLHEADERDATA CHAT_MESSAGE_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_CHAT_MESSAGE };
+	CHAT_MESSAGE_HEADER.cmd_arg_mask.ch[1] = msg.length();
+
+	size_t accum_offset = thread.copy_to_buffer(&CHAT_MESSAGE_HEADER, sizeof(CHAT_MESSAGE_HEADER), 0);
 	
 	accum_offset += thread.copy_to_buffer(&sender_id, sizeof(sender_id), accum_offset);
 	accum_offset += thread.copy_to_buffer(msg.c_str(), msg.length(), accum_offset);
@@ -170,10 +168,8 @@ void Server::Listen::distribute_chat_message(const std::string &msg, const unsig
 }
 
 void Server::Listen::post_client_connect(const struct Client &c) {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_CLIENT_CONNECT;
-	cmd_arg_mask.ch[1] = 0x00;
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
+	PTCLHEADERDATA CLIENT_CONNECT_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_CONNECT };
+	thread.copy_to_buffer(&CLIENT_CONNECT_HEADER, sizeof(CLIENT_CONNECT_HEADER), 0);
 	char buffer[128];
 	int bytes= sprintf_s(buffer, 128, "%u/%s/%s/%u", c.info.id, c.info.name.c_str(), c.info.ip_string.c_str(), c.info.color);
 	buffer[bytes-1] = '\0';
@@ -206,11 +202,9 @@ unsigned short Server::Listen::add_client(struct sockaddr_in *newclient_saddr, c
 
 
 void Server::Listen::post_client_disconnect(unsigned short id) {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_CLIENT_DISCONNECT;
-	cmd_arg_mask.ch[1] = 0x00;
-
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us); 
+	
+	PTCLHEADERDATA CLIENT_DISCONNECT_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_DISCONNECT };
+	thread.copy_to_buffer(&CLIENT_DISCONNECT_HEADER, sizeof(CLIENT_DISCONNECT_HEADER), 0); 
 	thread.copy_to_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 
 	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH + sizeof(id));
@@ -239,26 +233,23 @@ id_client_map::iterator Server::remove_client(id_client_map::iterator &iter) {
 
 void Server::Listen::handshake(struct Client *client) {
 
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_HANDSHAKE_OK;
-	cmd_arg_mask.ch[1] = client->info.color;
-
-	protocol_make_header(thread.buffer, client->info.id, client->seq_number, cmd_arg_mask.us);
-	unsigned accum_offset = PTCL_HEADER_LENGTH;
-
+	PTCLHEADERDATA HANDSHAKE_HEADER = 
+		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_HANDSHAKE_OK, client->info.color);
+	
+	int accum_offset = protocol_copy_header(thread.buffer, &HANDSHAKE_HEADER);
 	accum_offset += thread.copy_to_buffer(&client->info.id, sizeof(client->info.id), accum_offset);
 	accum_offset += thread.copy_to_buffer(client->info.name.c_str(), client->info.name.length(), accum_offset);
-	int bytes = send_data_to_client(*client, thread.buffer, accum_offset);
+	send_data_to_client(*client, thread.buffer, accum_offset);
 }
 
 void Server::Listen::post_peer_list() {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_PEER_LIST;
-	cmd_arg_mask.ch[1] = (unsigned char) clients.size();
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
 
+	PTCLHEADERDATA PEER_LIST_HEADER = 
+		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_PEER_LIST, clients.size());
+	protocol_copy_header(thread.buffer, &PEER_LIST_HEADER);
+	
 	static const size_t buf_size = PACKET_SIZE_MAX-PTCL_HEADER_LENGTH;
-	char peer_buf[512];	// FIXME: HORRIBLE WORKAROUND (intermittent stack corruption errors at sprintf_s)
+	char peer_buf[512];	// FIXME: HORRIBLE WORKAROUND (fix intermittent stack corruption errors at sprintf_s)
 	size_t offset = 0;
 
 	id_client_map::iterator iter = clients.begin();
@@ -279,11 +270,8 @@ void Server::Listen::post_peer_list() {
 }
 
 void Server::Listen::broadcast_shutdown_message() {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_SHUTDOWN;
-	cmd_arg_mask.ch[1] = 0x00;
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
-
+	PTCLHEADERDATA SHUTDOWN_HEADER = protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_SHUTDOWN); 
+	protocol_copy_header(thread.buffer, &SHUTDOWN_HEADER);
 	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH);
 }
 void Server::Ping::ping_client(struct Client &c) {
@@ -299,10 +287,8 @@ void Server::ping_task() {
 
 void Server::Ping::ping_loop() {
 
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_PING;
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
-
+	PTCLHEADERDATA PING_HEADER = protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_PING);
+	protocol_copy_header(thread.buffer, &PING_HEADER);
 #define PING_SOFT_TIMEOUT_MS 1000
 #define PING_HARD_TIMEOUT_MS 5000
 #define PING_GRANULARITY_MS 1000
@@ -374,11 +360,10 @@ void Server::GameState::state_loop() {
 
 
 void Server::GameState::broadcast_state() {
-	command_arg_mask_union cmd_arg_mask;
-	cmd_arg_mask.ch[0] = S_POSITION_UPDATE;
-	cmd_arg_mask.ch[1] = (unsigned char) clients.size();
+	PTCLHEADERDATA POSITION_UPDATE_HEADER = 
+		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_POSITION_UPDATE, clients.size());
 
-	protocol_make_header(thread.buffer, ID_SERVER, 0, cmd_arg_mask.us);
+	protocol_copy_header(thread.buffer, &POSITION_UPDATE_HEADER);
 	size_t total_size = PTCL_HEADER_LENGTH;
 	for (auto &it : clients) {
 		// construct packet to be distributed
@@ -391,7 +376,7 @@ void Server::GameState::broadcast_state() {
 }
 
 void Server::GameState::calculate_state_client(struct Client &c) {
-
+	
 	static const float fwd_modifier = 0.008;
 	static const float side_modifier = 0.005;
 	static const float mouse_modifier = 0.0004;
