@@ -178,7 +178,10 @@ GLint ShaderProgram::checkShaderCompileStatus_all() // GL_COMPILE_STATUS
 
 				log_buffers[i][log_length-1] = '\0';
 
+				DeleteFile("shader.log");	// just to be sure :P
+
 				std::ofstream logfile("shader.log", std::ios::out | std::ios::app);	
+				logfile << this->shader_filenames[i] << ": \n";
 				logfile << log_buffers[i];
 				logfile.close();
 

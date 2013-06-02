@@ -363,9 +363,9 @@ unsigned lodepng_load_file(unsigned char** out, size_t* outsize, const char* fil
   /*provide some proper output values if error will happen*/
   *out = 0;
   *outsize = 0;
-
-  file = fopen(filename, "rb");
-  if(!file) return 78;
+  int ret;
+  ret = fopen_s(&file, filename, "rb");
+  if(ret != 0) return 78;
 
   /*get filesize:*/
   fseek(file , 0 , SEEK_END);
@@ -386,8 +386,9 @@ unsigned lodepng_load_file(unsigned char** out, size_t* outsize, const char* fil
 unsigned lodepng_save_file(const unsigned char* buffer, size_t buffersize, const char* filename)
 {
   FILE* file;
-  file = fopen(filename, "wb" );
-  if(!file) return 79;
+  int ret = 0;
+  ret = fopen_s(&file, filename, "wb" );
+  if(ret != 0) return 79;
   fwrite((char*)buffer , 1 , buffersize, file);
   fclose(file);
   return 0;

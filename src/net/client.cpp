@@ -88,6 +88,7 @@ int LocalClient::start(const std::string &ip_port_string) {
 	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
 
 	parent.start();	// calls connect with the above-specified settings
+	return 1;
 }
 
 void LocalClient::stop() {

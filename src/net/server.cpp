@@ -228,6 +228,7 @@ id_client_map::iterator Server::remove_client(id_client_map::iterator &iter) {
 	}
 	else {
 		fprintf(stderr, "Server: remove client: internal error: couldn't find client %u from the client_id map (this shouldn't be happening)!\n");
+		return clients.end();
 	}
 }
 
@@ -345,15 +346,18 @@ void Server::GameState::state_loop() {
 
 	while(thread.running()) {
 	#define POSITION_UPDATE_GRANULARITY_MS 16
+
 		if (clients.size() <= 0) { Sleep(250); }
 		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
-			for (auto &it : clients) { calculate_state_client(it.second); }
-			//fprintf(stderr, "Broadcasting game status to all clients.\n");
+			for (auto &it : clients) { 
+				calculate_state_client(it.second); 
+			}
 			broadcast_state();
+			long wait = POSITION_UPDATE_GRANULARITY_MS - calculate_timer.get_ms();
+			if (wait > 0) { Sleep(wait); }
 			calculate_timer.begin();
 		}
-		long wait = POSITION_UPDATE_GRANULARITY_MS - calculate_timer.get_ms();
-		if (wait > 0) { Sleep(wait); }
+
 	}
 
 }

@@ -14,7 +14,7 @@ std::string get_timestamp() {
 	char buffer[128];
 	SYSTEMTIME st;
     GetLocalTime(&st);
-	sprintf(buffer, "%02d:%02d", st.wHour, st.wMinute);
+	sprintf_s(buffer, "%02d:%02d", st.wHour, st.wMinute);
 	return std::string(buffer);
 }
 
@@ -43,7 +43,14 @@ static const int textfield_y_pos = WINDOW_HEIGHT - char_spacing_vert - 4;
 
 static float log_bottom_margin = char_spacing_vert*1.55;
 
-static inline GLuint texcoord_index_from_char(char c){ return c == '\0' ? BLANK_GLYPH : (GLuint)c - 0x20; }
+static inline GLuint texcoord_index_from_char(char c){ 
+	if (c >= 0x20 && c <= 0x7F) {
+		return (GLuint)c - 0x20;
+	}
+	else {
+		return 0;
+	}
+}
 
 static const struct xy glyph_base[4] = { 
 		{0.0, 0.0}, {0.0, 12.0}, {6.0, 12.0}, {6.0, 0.0} 

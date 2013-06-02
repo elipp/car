@@ -16,8 +16,8 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uns
   FILE* infile;		/* source file */
   JSAMPROW *buffer;
   int row_stride;		/* physical row width in output buffer */
-	
-  if ((infile = fopen(filename.c_str(), "rb")) == NULL) {
+	int err;
+  if ((err = fopen_s(&infile, filename.c_str(), "rb")) == NULL) {
     fprintf(stderr, "can't open %s\n", filename.c_str());
     return 0;
   }
