@@ -1,5 +1,12 @@
 #include "net/server.h"
 
+#ifdef SERVER_CLI
+#define SERVER_PRINT printf
+#else
+#define SERVER_PRINT onScreenLog::print
+#endif
+
+
 unsigned Server::seq_number = 0;
 
 Server::Listen Server::Listener;
@@ -10,10 +17,6 @@ std::unordered_map<unsigned short, struct Client> Server::clients;
 unsigned Server::num_clients = 0;
 int Server::_running = 0;
 Socket Server::socket;
-
-static inline void extract_from_buffer(void *dest, const void* source, size_t size) {
-	memcpy(dest, source, size);
-}
 
 void Server::listen_task() {
 	Listener.listen_loop();
@@ -30,35 +33,40 @@ void Server::listen_task() {
 		}
 	}
 	broadcast_shutdown_message();
-	fprintf(stderr, "Stopping listen.\n");
+	SERVER_PRINT("Stopping listen.\n");
 }
 
 int Server::init(unsigned short port) {
 	Socket::initialize();
 	socket = Socket(port, SOCK_DGRAM, true);	// for UDP and non-blocking
-	if (socket.bad()) { fprintf(stderr, "Server::init, socket init error.\n"); return 0; }
+	if (socket.bad()) { SERVER_PRINT( "Server::init, socket init error.\n"); return 0; }
 	
 	Listener.start();
 	PingManager.start();
 	GameStateManager.start();
 	
 	_running = 1;
+	SERVER_PRINT("Server: init successful. Bound to port %u.\n", get_port());
 	return 1;
 }
 
 void Server::shutdown() {
 	// post quit messages to all clients
 	_running = 0;
-	fprintf(stderr, "Shutting down. Broadcasting S_SHUTDOWN.\n");
-	fprintf(stderr, "Joining worker threads.\n");
+	SERVER_PRINT( "Server: shutting down. Broadcasting S_SHUTDOWN.\n");
+	SERVER_PRINT( "Server: joining worker threads.\n");
 	
 	if (clients.size() <= 0) {
+		socket.close();
 		Socket::deinitialize();	// this quickly breaks up the listen loop, no need to send S_SHUTDOWN either
 	}
+
 	GameStateManager.stop();
 	PingManager.stop();
 	Listener.stop();
-
+	
+	clients.clear();
+	socket.close();
 }
 
 
@@ -68,7 +76,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	protocol_get_header_data(thread.buffer, &header);
 	
 	if (header.protocol_id != PROTOCOL_ID) {
-		fprintf(stderr, "dropping packet. Reason: protocol_id mismatch (%x)!\nDump:\n", header.protocol_id);
+		SERVER_PRINT( "dropping packet. Reason: protocol_id mismatch (%x)!\nDump:\n", header.protocol_id);
 		//buffer_print_raw(socket.get_inbound_buffer(), socket.current_data_length_in());
 		return;
 	}
@@ -77,7 +85,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 
 	if (header.sender_id != ID_CLIENT_UNASSIGNED) {
 		if (client_iter == clients.end()) {
-			fprintf(stderr, "Server: warning: received packet from non-existing player-id %u. Ignoring.\n", header.sender_id);
+			SERVER_PRINT( "Server: warning: received packet from non-existing player-id %u. Ignoring.\n", header.sender_id);
 			return;
 		}
 	}
@@ -86,7 +94,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	const unsigned char &cmd_arg = header.cmd_arg_mask.ch[1];
 
 	std::string ip = get_dot_notation_ipv4(from);
-	//fprintf(stderr, "Received packet with size %u from %s (id = %u). Seq_number = %u\n", socket.current_data_length_in(), ip.c_str(), client_id, seq);
+	//SERVER_PRINT( "Received packet with size %u from %s (id = %u). Seq_number = %u\n", socket.current_data_length_in(), ip.c_str(), client_id, seq);
 
 	
 	if (cmd == C_KEYSTATE) {
@@ -96,7 +104,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 			//}
 		}
 		else {
-			fprintf(stderr, "received keystate from unknown client %u, ignoring\n", client_iter->second.info.id);
+			SERVER_PRINT( "received keystate from unknown client %u, ignoring\n", client_iter->second.info.id);
 		}
 	}
 
@@ -106,15 +114,15 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 			unsigned int embedded_pong_seq_number;
 			thread.copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH);
 			if (embedded_pong_seq_number == c.active_ping_seq_number) {
-				fprintf(stderr, "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
+				//SERVER_PRINT( "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
 				c.active_ping_seq_number = 0;
 			}
 			else {
-				fprintf(stderr, "Received C_PONG from client %d, but the seq_number embedded in the datagram (%d, bytes 12-16) doesn't match expected seq_number (%d)!\n", embedded_pong_seq_number, c.active_ping_seq_number);
+				SERVER_PRINT( "Received C_PONG from client %d, but the seq_number embedded in the datagram (%d, bytes 12-16) doesn't match expected seq_number (%d)!\n", embedded_pong_seq_number, c.active_ping_seq_number);
 			}
 		}
 		else {
-			fprintf(stderr, "Server: error: couldn't find client with id %d (this shouldn't be happening!)\n", header.sender_id);
+			SERVER_PRINT( "Server: error: couldn't find client with id %d (this shouldn't be happening!)\n", header.sender_id);
 		}
 	}
 
@@ -124,7 +132,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		int needs_renaming = 0;
 		for (auto &name_iter : clients) {
 			if (name_iter.second.info.name == name_string) { 
-				fprintf(stderr, "Client with name %s already found. Renaming.\n", name_string.c_str());
+				SERVER_PRINT( "Client with name %s already found. Renaming.\n", name_string.c_str());
 				needs_renaming = 1; break; 
 			}
 		}
@@ -136,22 +144,22 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 			handshake(&newcl_iter->second);
 		}
 		else {
-			fprintf(stderr, "server: internal error @ handshake (this shouldn't be happening!).\n");
+			SERVER_PRINT( "Server: internal error @ handshake (this shouldn't be happening!).\n");
 		}
 		post_peer_list();
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
 		const std::string msg(thread.buffer + PTCL_HEADER_LENGTH);
-		fprintf(stderr, "%s: %s\n", client_iter->second.info.name.c_str(), msg.c_str());
+		SERVER_PRINT( "%s: %s\n", client_iter->second.info.name.c_str(), msg.c_str());
 		distribute_chat_message(msg, header.sender_id);
 	}
 	else if (cmd == C_QUIT) {
 		remove_client(client_iter);
 		post_client_disconnect(header.sender_id);
-		fprintf(stderr, "Received C_QUIT from client %d\n", header.sender_id);
+		SERVER_PRINT( "Server: received C_QUIT from client %d\n", header.sender_id);
 	}
 	else {
-		fprintf(stderr, "warning: received unrecognized cmdbyte %u with arg %u\n", cmd, cmd_arg);
+		SERVER_PRINT( "warning: received unrecognized cmdbyte %u with arg %u\n", cmd, cmd_arg);
 	}
 
 }
@@ -196,7 +204,7 @@ unsigned short Server::Listen::add_client(struct sockaddr_in *newclient_saddr, c
 
 	clients.insert(std::pair<unsigned short, struct Client>(newclient.info.id, newclient));
 
-	fprintf(stderr, "Server: added client \"%s\" with id %d\n", newclient.info.name.c_str(), newclient.info.id);
+	SERVER_PRINT( "Server: added client \"%s\" with id %d\n", newclient.info.name.c_str(), newclient.info.id);
 
 	return newclient.info.id;
 }
@@ -228,7 +236,7 @@ id_client_map::iterator Server::remove_client(id_client_map::iterator &iter) {
 		return it;
 	}
 	else {
-		fprintf(stderr, "Server: remove client: internal error: couldn't find client %u from the client_id map (this shouldn't be happening)!\n");
+		SERVER_PRINT( "Server: remove client: internal error: couldn't find client %u from the client_id map (this shouldn't be happening)!\n");
 		return clients.end();
 	}
 }
@@ -260,13 +268,13 @@ void Server::Listen::post_peer_list() {
 
 		int bytes = sprintf_s(peer_buf + offset, buf_size, "|%u/%s/%s/%u", c.info.id, c.info.name.c_str(), c.info.ip_string.c_str(), c.info.color);
 		offset += bytes;
-		if (offset >= buf_size - 1) { fprintf(stderr, "post_peer_list: warning: offset > max\n"); offset = buf_size - 1; break; }
+		if (offset >= buf_size - 1) { SERVER_PRINT( "post_peer_list: warning: offset > max\n"); offset = buf_size - 1; break; }
 		++iter;
 	}
 	peer_buf[offset] = '\0';
 	thread.copy_to_buffer(peer_buf, offset, PTCL_HEADER_LENGTH);
 
-	fprintf(stderr, "Server: sending peer list to all clients.\n");
+	SERVER_PRINT( "Server: sending peer list to all clients.\n");
 
 	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH + offset);
 }
@@ -277,7 +285,7 @@ void Server::Listen::broadcast_shutdown_message() {
 	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH);
 }
 void Server::Ping::ping_client(struct Client &c) {
-	//fprintf(stderr, "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
+	//SERVER_PRINT( "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
 	// THIS IS ASSUMING THE PROTOCOL HEADER HAS BEEN PROPERLY SETUP.
 	c.active_ping_seq_number = c.seq_number;
 	protocol_update_seq_number(thread.buffer, c.seq_number);
@@ -315,11 +323,11 @@ void Server::Ping::ping_loop() {
 
 			else if (milliseconds_passed > PING_SOFT_TIMEOUT_MS) {
 				if (milliseconds_passed > PING_HARD_TIMEOUT_MS) {
-					fprintf(stderr, "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_MS);
+					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_MS);
 					iter = remove_client(iter);
 				}
 				else {
-					fprintf(stderr, "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_MS);
+					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_MS);
 					ping_client(c);
 					++iter;
 				}
@@ -452,7 +460,7 @@ void Server::GameState::calculate_state() {
 		if (clients.size() <= 0) { Sleep(250); }
 		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
 			for (auto &it : clients) { calculate_state_client(it.second); }
-			//fprintf(stderr, "Broadcasting game status to all clients.\n");
+			//SERVER_PRINT( "Broadcasting game status to all clients.\n");
 			broadcast_state();
 			calculate_timer.begin();
 		}
@@ -468,7 +476,7 @@ void Server::increment_client_seq_number(struct Client &c) {
 
 int Server::send_data_to_client(struct Client &client, const char* buffer, size_t data_size) {
 	if (data_size > PACKET_SIZE_MAX) {
-		fprintf(stderr, "send_data_to_client: WARNING! data_size > PACKET_SIZE_MAX. Truncating -> errors inbound.\n");
+		SERVER_PRINT( "send_data_to_client: WARNING! data_size > PACKET_SIZE_MAX. Truncating -> errors inbound.\n");
 		data_size = PACKET_SIZE_MAX;
 	}
 	int bytes = socket.send_data(&client.address, buffer, data_size);

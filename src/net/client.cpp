@@ -272,14 +272,13 @@ void LocalClient::Listen::handle_current_packet() {
 		}
 	}
 	else if (cmd == S_SHUTDOWN) {
-		onScreenLog::print( "Received S_SHUTDOWN from server (server going down).\n");
+		onScreenLog::print( "Client: Received S_SHUTDOWN from server (server going down).\n");
 		_connected = 0; // this will break from the recvfrom loop gracefully
 		_shutdown_requested = true;	// this will cause LocalClient::stop() to be called from the main (rendering) thread
 		//LocalClient::stop();
 	}
 	else if (cmd == C_TERMINATE) {
-		fprintf(stderr, "Received C_TERMINATE from self. Stopping.\n");
-		onScreenLog::print("Received C_TERMINATE from self. Stopping.\n");
+		onScreenLog::print("Client:Received C_TERMINATE from self. Stopping.\n");
 		_connected = 0;
 		_shutdown_requested = true;
 	}
@@ -420,7 +419,7 @@ void LocalClient::Listen::construct_peer_list() {
 		auto map_iter = peers.find(it.id);
 		if (map_iter == peers.end()) {
 			peers.insert(std::pair<unsigned short, struct Peer>(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
-			onScreenLog::print("Client %s (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
+			onScreenLog::print("Client \"%s\" (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
 		}
 		else {
 			if (!(map_iter->second.info == it)) {

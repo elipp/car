@@ -50,6 +50,8 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 		++port;
 		my_addr.sin_port = htons((unsigned short) port);
 	}
+
+	_port = port;
 	
 	u_long socket_mode = 1;
 

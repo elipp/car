@@ -13,7 +13,7 @@ class Socket {
 
 	int fd;
 	struct sockaddr_in my_addr;
-	unsigned short port;
+	unsigned short _port;
 	bool _bad;
 public:
 #ifdef _WIN32
@@ -29,7 +29,7 @@ public:
 	char get_packet_buffer_char(int index);
 	void close();
 	int get_fd() const { return fd; }
-	unsigned short get_port() const { return port; }
+	unsigned short get_port() const { return _port; }
 	struct sockaddr_in get_own_addr() const { return my_addr; }
 	bool bad() const { return _bad; }
 	Socket() { memset(this, 0, sizeof(*this)); }

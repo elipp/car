@@ -58,19 +58,17 @@ int quit(const std::vector<std::string> &args) {
 
 int startserver(const std::vector<std::string> &args) {
 	if (!Server::running()) {
-		unsigned short port = 50000;
-		onScreenLog::print("Starting local server on port %u.\n", port);
-		return Server::init(port);
+		return Server::init(50000);
 	}
 	else {
-		onScreenLog::print("Local server already running on port %u! Use /stopserver to stop.\n", Server::port());
+		onScreenLog::print("Local server already running on port %u! Use /stopserver to stop.\n", Server::get_port());
 		return 0;
 	}
 }
 
 int stopserver(const std::vector<std::string> &args) {
 	if (Server::running()) {
-		onScreenLog::print("Stopping local server.\n");
+		onScreenLog::print("Client: stopping local server.\n");
 		Server::shutdown();
 	}
 	return 1;

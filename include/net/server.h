@@ -77,7 +77,7 @@ class Server {
 	static id_client_map::iterator remove_client(id_client_map::iterator &iter);
 
 public:
-	static unsigned short port() { return socket.get_port(); }
+	static unsigned short get_port() { return socket.get_port(); }
 	static int running() { return _running; }	
 	static int init(unsigned short port);
 	static void shutdown();
