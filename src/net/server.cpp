@@ -1,8 +1,11 @@
 #include "net/server.h"
+#include "net/client.h"
 
 #ifdef SERVER_CLI
 #define SERVER_PRINT printf
 #else
+#include "net/client.h"
+#include "text.h"
 #define SERVER_PRINT onScreenLog::print
 #endif
 

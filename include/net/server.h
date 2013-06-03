@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include "protocol.h"
 #include "socket.h"
-#include "client.h"
 #include "net/taskthread.h"
 
 typedef std::unordered_map<unsigned short, struct Client> id_client_map;
