@@ -72,6 +72,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		switch(wParam)
 		{
 			case SC_SCREENSAVE:
+			case SC_KEYMENU:
+				if ((lParam>>16)<=0) return 0;
+				else return DefWindowProc(hWnd, uMsg, wParam, lParam);
 			case SC_MONITORPOWER:
 				return 0;
 		}

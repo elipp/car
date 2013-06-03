@@ -190,7 +190,7 @@ int initGL(void)
 	}
 	
 	glClearColor(0.0, 0.0, 0.0, 1.0);
-
+	
 	onScreenLog::init();
 	
 	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
@@ -199,10 +199,8 @@ int initGL(void)
 	
 	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
 	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-
 	onScreenLog::print( "Loading models...\n");
 
-	
 	chassis.VBOid = loadNewestBObj("models/chassis.bobj", &chassis.facecount);
 	wheel.VBOid = loadNewestBObj("models/wheel.bobj", &wheel.facecount);
 	plane.VBOid = loadNewestBObj("models/plane.bobj", &plane.facecount);
@@ -212,19 +210,20 @@ int initGL(void)
 	onScreenLog::print( "Loading textures...");
 	TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
 	onScreenLog::print( "done.\n");
-
+	
 	if (!TextureBank::validate()) {
-		onScreenLog::print( "Error: failed to validate TextureBank (fatal).\n");
+		fprintf(stderr, "Error: failed to validate TextureBank (fatal).\n");
+		system("pause");
 		return 0;
 	}
-
+	
 	text_texId = TextureBank::get_id_by_name("textures/dina_all.png");
 	
 	regular_shader = new ShaderProgram("shaders/regular"); 
 	text_shader = new ShaderProgram("shaders/text_shader");
 
 	if (regular_shader->is_bad() || text_shader->is_bad()) { 
-		onScreenLog::print( "Error: shader error (fatal).\n");
+		fprintf(stderr, "Error: shader error (fatal).\n");
 		return 0; 
 	}
 	
@@ -375,14 +374,14 @@ static std::string get_fps(long us_per_frame) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	/*if(AllocConsole()) {
+	/* if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
 		SetConsoleTitle("debug output");
 		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	}*/
+	} */
 
-	if( !CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
 	
 	//wglSwapIntervalEXT(1);
@@ -427,7 +426,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
-		/* // TEST BLOCK 
+#ifdef _TEST
 		running += 0.020;
 		glClear(GL_COLOR_BUFFER_BIT);
 		glClearColor(0.5*(cos(running) + 1), 0.5*(sin(running*0.31)+1), 0.5*(sin(running*0.44)+1), 1.0);
@@ -437,7 +436,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		window_swapbuffers();
 		fps_timer.begin();
-		*/
+
+#else 
 
 		if (LocalClient::shutdown_requested()) { // this flag is set by a number of conditions in the client code
 			// stop must be explicitly called from a thread that's not involved with all the net action (ie. this one)
@@ -459,7 +459,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		window_swapbuffers();
 		fps_timer.begin();
-
+#endif
 		//long us_per_frame = timer.get_us();
 	
 		//timer.begin();

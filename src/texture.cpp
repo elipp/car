@@ -105,7 +105,7 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	if (ext == "jpg" || ext == "jpeg") {
 		hasAlpha = false;
 		if (!loadJPEG(filename, &buffer, &width, &height)) {
-			onScreenLog::print("Texture: fatal error: loading file %s failed.\n", filename.c_str());
+			fprintf(stderr, "Texture: fatal error: loading file %s failed.\n", filename.c_str());
 			_otherbad = true;
 		}
 	
@@ -113,12 +113,13 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	else if (ext == "png") {
 		hasAlpha = true;
 		if(!loadPNG(filename, &buffer, &width, &height)) {
-			onScreenLog::print("Texture: fatal error: loading file %s failed.\n", filename.c_str());
+			fprintf(stderr, "Texture: fatal error: loading file %s failed.\n", filename.c_str());
 			_otherbad=true;
+			return;
 		}
 		_otherbad=true;
 	} else {
-		onScreenLog::print("Texture: fatal error: unsupported image format \"%s\" (only PNG/JPG are supported)\n", ext.c_str());
+		fprintf(stderr, "Texture: fatal error: unsupported image format \"%s\" (only PNG/JPG are supported)\n", ext.c_str());
 		_otherbad = true; 
 		return; 
 	}
@@ -127,26 +128,29 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 
 	if ((width & (width - 1)) == 0 && width == height) {
 			// image is valid, carry on
-			GLint internalfmt = hasAlpha ? GL_RGBA8 : GL_RGB8;
-			GLint texSubfmt = hasAlpha ? GL_RGBA : GL_RGB;
+			//GLint internalfmt = hasAlpha ? GL_RGBA8 : GL_RGB8;
+			//GLint texSubfmt = hasAlpha ? GL_RGBA : GL_RGB;
 			glEnable(GL_TEXTURE_2D);
 			glGenTextures(1, &textureId);
 			glBindTexture( GL_TEXTURE_2D, textureId);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, texSubfmt, GL_FLOAT,(const GLvoid*) &buffer[0]);
+			
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid*) &buffer[0]);
 			//glTexStorage2D(GL_TEXTURE_2D, 4, internalfmt, width, height); // this is superior to glTexImage2D. only available in GL4 though
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, texSubfmt, GL_UNSIGNED_BYTE, (const GLvoid*)&buffer[0]);
-			glGenerateMipmap(GL_TEXTURE_2D);	// requires glew
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid*)&buffer[0]);
+			
+			glGenerateMipmap(GL_TEXTURE_2D);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_param);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		
 		}
 	
 		else {	// if not power of two
 			_otherbad = true;
 		}
+		
 
-		//free(buffer);
 }
 
 	/*****
