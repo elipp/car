@@ -1,4 +1,5 @@
 #include "net/client.h"
+#include "net/server.h"
 #include "net/protocol.h"
 #include "net/client_funcs.h"
 #include "lin_alg.h"
@@ -389,6 +390,9 @@ void LocalClient::parse_user_input(const std::string s) {
 
 void LocalClient::quit() {
 	LocalClient::stop();
+	if (Server::running()) {
+		Server::shutdown();
+	}
 	Socket::deinitialize();
 }
 

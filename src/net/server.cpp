@@ -8,9 +8,8 @@ Server::GameState Server::GameStateManager;
 
 std::unordered_map<unsigned short, struct Client> Server::clients;
 unsigned Server::num_clients = 0;
+int Server::_running = 0;
 Socket Server::socket;
-
-static int listening = 0;
 
 static inline void extract_from_buffer(void *dest, const void* source, size_t size) {
 	memcpy(dest, source, size);
@@ -42,22 +41,24 @@ int Server::init(unsigned short port) {
 	Listener.start();
 	PingManager.start();
 	GameStateManager.start();
-
+	
+	_running = 1;
 	return 1;
 }
 
 void Server::shutdown() {
 	// post quit messages to all clients
-	listening = 0;
+	_running = 0;
 	fprintf(stderr, "Shutting down. Broadcasting S_SHUTDOWN.\n");
 	fprintf(stderr, "Joining worker threads.\n");
+	
+	if (clients.size() <= 0) {
+		Socket::deinitialize();	// this quickly breaks up the listen loop, no need to send S_SHUTDOWN either
+	}
 	GameStateManager.stop();
 	PingManager.stop();
 	Listener.stop();
-	fprintf(stderr, "Closing socket.\n");
-	socket.close();
-	fprintf(stderr, "Calling WSACleanup.\n");
-	WSACleanup();
+
 }
 
 
@@ -390,6 +391,11 @@ void Server::GameState::calculate_state_client(struct Client &c) {
 
 	static const float accel_modifier = 0.012;
 	static const float brake_modifier = 0.010;
+
+	static const float tmpx_limit = 1.1;
+
+	static const float tmpx_modifier = 0.22;
+
 	float car_acceleration = 0.0;
 
 	float car_prev_velocity;
@@ -398,69 +404,40 @@ void Server::GameState::calculate_state_client(struct Client &c) {
 	if (c.keystate & C_KEYSTATE_UP) {
 		c.car.data_internal.velocity += accel_modifier;
 	}
-	else {
-		c.car.data_symbolic.susp_angle_roll *= 0.90;
-		c.car.data_internal.front_wheel_tmpx *= 0.50;
-	}
-
-	c.car.data_symbolic.wheel_rot -= 1.05*c.car.data_internal.velocity;
 
 	if (c.keystate & C_KEYSTATE_DOWN) {
-		if (c.car.data_internal.velocity > 0.01) {
-			c.car.data_symbolic.direction -= 3*c.car.data_internal.F_centripetal*c.car.data_internal.velocity*0.20;
-			c.car.data_internal.velocity *= 0.99;
-		}
 		c.car.data_internal.velocity -= brake_modifier;
-
 	}
-	else {
-		c.car.data_symbolic.susp_angle_roll *= 0.90;
-		c.car.data_internal.front_wheel_tmpx *= 0.50;
-	}	
-	c.car.data_internal.velocity *= 0.95;	// regardless of keystate
+
+	c.car.data_internal.velocity *= 0.95;	// regardless of throttle/brake keystate
+	c.car.data_internal.front_wheel_tmpx *= 0.95;
 
 	if (c.keystate & C_KEYSTATE_LEFT) {
-		if (c.car.data_internal.front_wheel_tmpx < 15.0) {
-			c.car.data_internal.front_wheel_tmpx += 0.5;
-		}
+		c.car.data_internal.front_wheel_tmpx = min(c.car.data_internal.front_wheel_tmpx+tmpx_modifier, tmpx_limit);
 		c.car.data_internal.F_centripetal = -1.0;
 		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
-		c.car.data_symbolic.susp_angle_roll = fabs(c.car.data_symbolic.front_wheel_angle*c.car.data_internal.velocity*0.8);
-		if (c.car.data_internal.velocity > 0) {
-			c.car.data_symbolic.direction -= turning_modifier_forward*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
-		}
-		else {
-			c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
-		}
-
+		
 	} 
 	if (c.keystate & C_KEYSTATE_RIGHT) {
-		if (c.car.data_internal.front_wheel_tmpx > -15.0) {
-			c.car.data_internal.front_wheel_tmpx -= 0.5;
-		}
+		c.car.data_internal.front_wheel_tmpx = max(c.car.data_internal.front_wheel_tmpx-tmpx_modifier, -tmpx_limit);
 		c.car.data_internal.F_centripetal = 1.0;
 		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
-		c.car.data_symbolic.susp_angle_roll = -fabs(c.car.data_symbolic.front_wheel_angle*c.car.data_internal.velocity*0.8);
-		if (c.car.data_internal.velocity > 0) {
-			c.car.data_symbolic.direction -= turning_modifier_forward*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
-		}
-		else {
-			c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
-		}
-
-	} 
-
+	}
+	
+	c.car.data_symbolic.susp_angle_roll = c.car.data_internal.front_wheel_tmpx*fabs(c.car.data_internal.velocity)*0.2;
+	c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
+	
 	car_prev_velocity = 0.5*(c.car.data_internal.velocity+car_prev_velocity);
 	car_acceleration = 0.2*(c.car.data_internal.velocity - car_prev_velocity) + 0.8*car_acceleration;
 
 	if (!(c.keystate & C_KEYSTATE_LEFT) && !(c.keystate & C_KEYSTATE_RIGHT)){
-		c.car.data_internal.front_wheel_tmpx *= 0.30;
+		c.car.data_internal.front_wheel_tmpx *= 0.78;
 		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
-		c.car.data_symbolic.susp_angle_roll *= 0.50;
-		c.car.data_symbolic.susp_angle_fwd *= 0.50;
+		c.car.data_symbolic.susp_angle_roll *= 0.89;
 		c.car.data_internal.F_centripetal = 0.0;
 	}
-
+	
+	c.car.data_symbolic.wheel_rot -= 1.05*c.car.data_internal.velocity;
 	c.car.data_symbolic.susp_angle_fwd = 7*car_acceleration;
 	c.car.data_symbolic._position[0] += c.car.data_internal.velocity*sin(c.car.data_symbolic.direction-M_PI/2);
 	c.car.data_symbolic._position[2] += c.car.data_internal.velocity*cos(c.car.data_symbolic.direction-M_PI/2);
@@ -471,7 +448,7 @@ void Server::GameState::calculate_state() {
 #define POSITION_UPDATE_GRANULARITY_MS 16
 	static _timer calculate_timer;
 	calculate_timer.begin();
-	while (listening) {
+	while (thread.running()) {
 		if (clients.size() <= 0) { Sleep(250); }
 		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
 			for (auto &it : clients) { calculate_state_client(it.second); }

@@ -1,4 +1,5 @@
 #include "net/client_funcs.h"
+#include "net/server.h"
 
 const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
 
@@ -55,6 +56,26 @@ int quit(const std::vector<std::string> &args) {
 	return 1;
 }
 
+int startserver(const std::vector<std::string> &args) {
+	if (!Server::running()) {
+		unsigned short port = 50000;
+		onScreenLog::print("Starting local server on port %u.\n", port);
+		return Server::init(port);
+	}
+	else {
+		onScreenLog::print("Local server already running on port %u! Use /stopserver to stop.\n", Server::port());
+		return 0;
+	}
+}
+
+int stopserver(const std::vector<std::string> &args) {
+	if (Server::running()) {
+		onScreenLog::print("Stopping local server.\n");
+		Server::shutdown();
+	}
+	return 1;
+}
+
 // because those c++11 initializer lists aren't (fully?) supported
 const std::unordered_map<std::string, const client_funcptr> create_func_map() {
 	std::unordered_map<std::string, const client_funcptr> funcs;
@@ -64,6 +85,8 @@ const std::unordered_map<std::string, const client_funcptr> create_func_map() {
 	funcs.insert(std::pair<std::string, const client_funcptr>("/name", set_name));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/quit", quit));
 	funcs.insert(std::pair<std::string, const client_funcptr>("/help", help));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/startserver", startserver));
+	funcs.insert(std::pair<std::string, const client_funcptr>("/stopserver", stopserver));
 
 	return funcs;
 }

@@ -188,18 +188,21 @@ int initGL(void)
 	if(ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
 		return 0;
 	}
+	
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 
 	onScreenLog::init();
+	
 	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
 	glEnable(GL_DEPTH_TEST);
-
+	
 	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
 	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
 	onScreenLog::print( "Loading models...\n");
 
+	
 	chassis.VBOid = loadNewestBObj("models/chassis.bobj", &chassis.facecount);
 	wheel.VBOid = loadNewestBObj("models/wheel.bobj", &wheel.facecount);
 	plane.VBOid = loadNewestBObj("models/plane.bobj", &plane.facecount);
@@ -224,10 +227,9 @@ int initGL(void)
 		onScreenLog::print( "Error: shader error (fatal).\n");
 		return 0; 
 	}
-
+	
 	onScreenLog::draw();
 	window_swapbuffers();
-
 
 	glGenBuffers(1, &IBOid);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
@@ -257,7 +259,7 @@ int initGL(void)
 	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
-
+	
 	return 1;
 
 }
@@ -380,7 +382,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	}*/
 
-	if(!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	if( !CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
 	if (!initGL()) { return 1; }
 	
 	//wglSwapIntervalEXT(1);
@@ -390,16 +392,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	onScreenLog::print("%s\n", cpustr.c_str());
 	
-	MSG msg;
-
-
 	LocalClient::set_name("Player");
 	onScreenLog::print("Use /connect <ip>:<port> to connect to a server,\n");
 	onScreenLog::print("or without arguments to connect to default (127.0.0.1:50000).\n");
-
+	
 	_timer fps_timer;
 	fps_timer.begin();
 	
+	static float running = 0;
+	MSG msg;
 	while(main_loop_running())
 	{
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
@@ -426,6 +427,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
+		/* // TEST BLOCK 
+		running += 0.020;
+		glClear(GL_COLOR_BUFFER_BIT);
+		glClearColor(0.5*(cos(running) + 1), 0.5*(sin(running*0.31)+1), 0.5*(sin(running*0.44)+1), 1.0);
+		long us_remaining = 16666 - fps_timer.get_us();
+		if (us_remaining > 2000) {
+			Sleep(us_remaining/1000);
+		}
+		window_swapbuffers();
+		fps_timer.begin();
+		*/
 
 		if (LocalClient::shutdown_requested()) { // this flag is set by a number of conditions in the client code
 			// stop must be explicitly called from a thread that's not involved with all the net action (ie. this one)

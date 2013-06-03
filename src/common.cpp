@@ -17,20 +17,20 @@ std::vector<std::string> split(const std::string &s, char delim) {
 
 static const float FW_ANGLE_LIMIT = M_PI/6; // rad
 static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
+static const float REAL_ANGLE_LIMIT = 0.6*FW_ANGLE_LIMIT;
 // f(x) = -(1/(x+1/sqrt(30))^2) + 30
 // f(x) = 1/(-x + 1/sqrt(30))^2 - 30
 
 float f_wheel_angle(float x) {
-	float t;
 	if (x >= 0) {
-		t = x+SQRT_FW_ANGLE_LIMIT_RECIP;
-		t *= t;
-		return -(1/t) + FW_ANGLE_LIMIT;
+		float t = (x + SQRT_FW_ANGLE_LIMIT_RECIP);
+		float angle = -1/(t*t) + FW_ANGLE_LIMIT;
+		return angle > REAL_ANGLE_LIMIT ? REAL_ANGLE_LIMIT : angle;
 	}
 	else {
-		t = -x+SQRT_FW_ANGLE_LIMIT_RECIP;
-		t *= t;
-		return (1/t) - FW_ANGLE_LIMIT;
+		float t = (-x + SQRT_FW_ANGLE_LIMIT_RECIP);
+		float angle = 1/(t*t) - FW_ANGLE_LIMIT;
+		return angle < -REAL_ANGLE_LIMIT ? -REAL_ANGLE_LIMIT : angle;
 	}
 }
 
