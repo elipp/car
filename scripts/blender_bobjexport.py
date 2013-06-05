@@ -4,7 +4,7 @@ bl_info = {
 	"version": (0, 0, 1),
 	"blender": (2, 6, 7),
 	"location": "File > Import-Export",
-	"description": "Export mesh data to memcpyable bobj.",
+	"description": "Export (the currently selected!) object to memcpyable bobj.",
 	"category": "Import-Export" 
 	}
 	
@@ -21,10 +21,6 @@ import struct
 
 from bpy_extras.io_utils import ExportHelper
 
-
-def deselect_all(objects):
-	for ob in objects:
-		ob.select = False
 		
 def mesh_triangulate(me):
     import bmesh
@@ -34,31 +30,24 @@ def mesh_triangulate(me):
     bm.to_mesh(me)
     bm.free()	
 	
-def clearfile(filename):
-	try:
-		with open(filename, 'w'): 	# this clears the file.
-			pass
-	except IOError as e:
-		print("clearfile: error opening file " + filename + ": ", e)
-		
 def do_export(context, filepath):
-	#meshify, triangulate, compile and dump to file.
+	#meshify currently selected objects, triangulate, compile and dump to file.
 	
 	scene = context.scene
 	
 	if (len(context.selected_objects) <= 0):
-		print("No selected objects. Exiting.\n")
-		return False
+		return "Error: no selected objects! Exiting.\n"
 	
 	APPLY_MODIFIERS = True
+	
+	bpy.ops.object.mode_set(mode="OBJECT")
 	
 	mesh = context.selected_objects[0].to_mesh(scene, APPLY_MODIFIERS, "PREVIEW")
 	mesh_triangulate(mesh)
 	mesh.calc_tessface()
 	
 	if(len(mesh.uv_textures) <= 0):
-		print("Error: mesh doesnt have uv-coordinates. Exiting.")
-		return False
+		return "Error: mesh doesnt have uv-coordinates. Exiting."
 		
 	data = []
 	for face in mesh.tessfaces:
@@ -92,7 +81,7 @@ def do_export(context, filepath):
 	out_fp.close()
 	import os
 	print("Output file size: " + str(os.path.getsize(filepath)))
-	return True
+	return "OK"
 	
 
 class Export_bobj(bpy.types.Operator, ExportHelper):
@@ -108,13 +97,16 @@ class Export_bobj(bpy.types.Operator, ExportHelper):
 		props=self.properties
 		filepath = bpy.path.ensure_ext(filepath, self.filename_ext)
 		
-		exported = do_export(context, filepath)
-		if exported:
+		errmsg = do_export(context, filepath)
+		if "Error" in errmsg:
+			self.report({"ERROR"}, errmsg + "\nbobj export failed. No output files.\n")
+			return {'CANCELLED'}	
+
+		else:		
 			print('finished export in %s seconds' %((time.time() - start_time)) )
 			print(filepath)
 			return {'FINISHED'}
-		else:
-			return {'FINISHED'}		
+		
 		
 	
 ### REGISTER ###
