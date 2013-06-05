@@ -60,11 +60,11 @@ def print_glyph(glyph, has_comma = True):
 			
 def main():
 	
-	V_INVERTED = True
+	V_INVERTED = False
 	
-	texcoords = get_texcoords(True)
+	texcoords = get_texcoords(V_INVERTED)
 	print("#ifndef PRECALCULATED_TEXCOORDS_H")
-	print("#define PRECALCULATED_TEXCOORDS_H")
+	print("#define PRECALCULATED_TEXCOORDS_H\n")
 	print("/*\n This file was generated via scripts/print_dina_all_texcoords.py.")
 	print(" using counter-clockwise vertex ordering.\n")
 	print(" params:")
