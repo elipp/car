@@ -34,7 +34,10 @@ struct meshinfo {
 	GLuint facecount;
 };
 
-struct meshinfo chassis, wheel, plane;
+static Model *chassis = NULL, 
+			 *wheel = NULL, 
+			 *racetrack = NULL,
+			 *terrain = NULL;
 
 GLuint IBOid, FBOid, FBO_textureId;
 
@@ -42,8 +45,9 @@ bool mouseLocked = false;
 
 GLfloat running = 0.0;
 
-static ShaderProgram *regular_shader = NULL;
-static ShaderProgram *normal_plot_shader = NULL;
+static ShaderProgram *regular_shader = NULL,
+					 *normal_plot_shader = NULL,
+					 *racetrack_shader = NULL;
 
 mat4 view;
 Quaternion viewq;
@@ -54,7 +58,8 @@ vec4 cameraVel;
 
 static Car local_car;
 
-GLushort * indices; 
+GLuint road_texId;
+GLuint terrain_texId;
 
 #ifndef M_PI
 #define M_PI 3.1415926535
@@ -164,6 +169,7 @@ vec4 randomvec4(float min, float max) {
 
 GLushort *generateIndices() {
 	// due to the design of the .bobj file format, the index buffers just run arithmetically (0, 1, 2, ..., 0xFFFF)
+	// this means the maximum amount of (triangle) faces per VBO equals 0xFFFF/3 = 21845
 	GLushort index_count = 0xFFFF;
 	GLushort *indices = new GLushort[index_count];
 
@@ -199,46 +205,58 @@ int initGL(void)
 	
 	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
 	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-	onScreenLog::print( "Loading models...\n");
-
-	chassis.VBOid = loadNewestBObj("models/chassis.bobj", &chassis.facecount);
-	wheel.VBOid = loadNewestBObj("models/wheel.bobj", &wheel.facecount);
-	plane.VBOid = loadNewestBObj("models/plane.bobj", &plane.facecount);
-	onScreenLog::print( "done.\n");
-	indices = generateIndices();
-
-	onScreenLog::print( "Loading textures...");
-	TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
-	onScreenLog::print( "done.\n");
-	
-	if (!TextureBank::validate()) {
-		fprintf(stderr, "Error: failed to validate TextureBank (fatal).\n");
-		system("pause");
-		return 0;
-	}
-	
-	text_texId = TextureBank::get_id_by_name("textures/dina_all.png");
-	
+		
 	regular_shader = new ShaderProgram("shaders/regular"); 
 	text_shader = new ShaderProgram("shaders/text_shader");
+	racetrack_shader = new ShaderProgram("shaders/racetrack");
 
-	if (regular_shader->is_bad() || text_shader->is_bad()) { 
-		fprintf(stderr, "Error: shader error (fatal).\n");
+	if (regular_shader->is_bad() ||
+		text_shader->is_bad() ||
+		racetrack_shader->is_bad()) { 
+
+		messagebox_error("Error: shader error. See shader.log.\n");
 		return 0; 
 	}
 	
+	onScreenLog::print( "Loading models...\n");
+	
+	chassis = new Model("models/chassis.bobj", regular_shader);
+	wheel = new Model("models/wheel.bobj", regular_shader);
+	racetrack = new Model("models/racetrack.bobj", racetrack_shader);
+	terrain = new Model("models/terrain.bobj", racetrack_shader);
+
+	if (chassis->bad() || wheel->bad() || racetrack->bad() || terrain->bad()) {
+		messagebox_error("initGL error: model load error.\n");
+		return 0; 
+	}
+
+	onScreenLog::print( "done.\n");
+	
+	GLushort *indices = generateIndices();
+	
+	onScreenLog::print( "Loading textures...");
+	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
+	road_texId = TextureBank::add(Texture("textures/road.jpg", GL_LINEAR_MIPMAP_LINEAR));
+	terrain_texId = TextureBank::add(Texture("textures/grass.jpg", GL_LINEAR_MIPMAP_LINEAR));
+	onScreenLog::print( "done.\n");
+	
+	if (!TextureBank::validate()) {
+		messagebox_error("Error: failed to validate TextureBank (fatal).\n");
+		return 0;
+	}
+
+	racetrack->bind_texture(road_texId);
+	terrain->bind_texture(terrain_texId);
+
 	onScreenLog::draw();
 	window_swapbuffers();
 
 	glGenBuffers(1, &IBOid);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned short int)*3*facecount, indices, GL_STATIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(GLushort)(0xFFFF), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(int)(0xFFFF), indices, GL_STATIC_DRAW);
 
 	delete [] indices;	
 	
-	regular_shader->construct_uniform_map();
-	text_shader->construct_uniform_map();
 	
 	glEnableVertexAttribArray(ATTRIB_POSITION);
 	glEnableVertexAttribArray(ATTRIB_NORMAL);
@@ -250,12 +268,6 @@ int initGL(void)
 
 	view_position = vec4(0.0, 0.0, -9.0, 1.0);
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
-		
-	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
-	
-	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
@@ -263,104 +275,108 @@ int initGL(void)
 
 }
 
+void updateView() {
+	viewq.normalize();
+	view = viewq.toRotationMatrix();
+	view = view*mat4::translate(view_position);
+}
+
+void drawRacetrack() {
+	glEnable(GL_DEPTH_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
+	
+	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
+
+	racetrack_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+
+	static const mat4 racetrack_model = mat4::translate(5.0, 0.0, 0.0)*mat4::scale(2,2,2) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
+
+	mat4 racetrack_modelview = view * racetrack_model;
+	racetrack->use_ModelView(racetrack_modelview);
+	
+	racetrack->draw();
+}
+
+void drawTerrain() {
+	glEnable(GL_DEPTH_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
+	
+	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
+	racetrack_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+
+	static const mat4 racetrack_model = mat4::translate(0.0, -20, 0.0)*mat4::scale(25, 25, 25) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
+
+	mat4 terrain_modelview = view * racetrack_model;
+	terrain->use_ModelView(terrain_modelview);
+	
+	terrain->draw();
+}
 
 void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	for (auto &iter : peers) {
 		const Car &car =  iter.second.car;
-	glEnable(GL_DEPTH_TEST);
-	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
-	glUseProgram(regular_shader->getProgramHandle());	
+		glEnable(GL_DEPTH_TEST);
+		glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 
-	running += 0.015;
-	if (running > 1000000) { running = 0; }
+		//running += 0.015;
+		//if (running > 1000000) { running = 0; }
 
-	regular_shader->update_uniform_1f("running", running);
-	regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
+		//regular_shader->update_uniform_1f("running", running);
+		regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);  // is still in full matafaking effizzect :D 
-	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);	 
+		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
-	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+		mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.data_symbolic.direction, 0.0, 1.0, 0.0);
+		mat4 mw = modelview*mat4::rotate(car.data_symbolic.susp_angle_roll, 1.0, 0.0, 0.0);
+		mw *= mat4::rotate(car.data_symbolic.susp_angle_fwd, 0.0, 0.0, 1.0);
+		vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
-	viewq.normalize();
-	view = viewq.toRotationMatrix();
-	view = view*mat4::translate(view_position);
+		regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+		chassis->use_ModelView(mw);
+		regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color].rawData());
+
+		chassis->draw();
 	
-	// no need to reconstruct iterator every time
-
-	static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
-
-	mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.data_symbolic.direction, 0.0, 1.0, 0.0);
-	mat4 mw = modelview*mat4::rotate(car.data_symbolic.susp_angle_roll, 1.0, 0.0, 0.0);
-	mw *= mat4::rotate(car.data_symbolic.susp_angle_fwd, 0.0, 0.0, 1.0);
-	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
-
-	regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
-	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color].rawData());
-	glBindBuffer(GL_ARRAY_BUFFER, chassis.VBOid);
+		regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
 	
-	// the car doesn't have a texture as of yet :P laterz
-	//glActiveTexture(GL_TEXTURE0);
-	//glBindTexture(GL_TEXTURE_2D, TEXTURE_ID);
-	//regular_shader->update_uniform_1i("texture_color", 0);
+		// front wheels
+		static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
+		mw = modelview;
+		mw *= front_left_wheel_translation;
+		mw *= mat4::rotate(M_PI - car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
+		mw *= mat4::rotate(-car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 
-	//modelview.print();
+		wheel->use_ModelView(mw);
+		wheel->draw();
 
-	glDisable(GL_BLEND);
-	glDrawElements(GL_TRIANGLES, chassis.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
+		static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
+		mw = modelview;
+		mw *= front_right_wheel_translation;
+		mw *= mat4::rotate(-car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
+		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, wheel.VBOid);
+		wheel->use_ModelView(mw);
+		wheel->draw();
 	
-	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+		// back wheels
+		static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
+		mw = modelview;
+		mw *= back_left_wheel_translation;
+		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
+
+		wheel->use_ModelView(mw);
+		wheel->draw();
 	
-	regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
-	
-	// front wheels
-	static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
-	mw = modelview;
-	mw *= front_left_wheel_translation;
-	mw *= mat4::rotate(M_PI - car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(-car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		static const mat4 back_right_wheel_translation = mat4::translate(vec4(1.3, -0.6, -0.9, 1.0));
 
-
-	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
-	
-	static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
-	mw = modelview;
-	mw *= front_right_wheel_translation;
-	mw *= mat4::rotate(-car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
-	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
-
-
-	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
-
-	// back wheels
-	static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
-	mw = modelview;
-	mw *= back_left_wheel_translation;
-	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
-	mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
-
-	
-	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
-	
-	static const mat4 back_right_wheel_translation = mat4::translate(vec4(1.3, -0.6, -0.9, 1.0));
-
-	mw = modelview;
-	mw *= back_right_wheel_translation;
-	mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
-
-	regular_shader->update_uniform_mat4("ModelView", mw.rawData());
-	glDrawElements(GL_TRIANGLES, wheel.facecount*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
-}
+		mw = modelview;
+		mw *= back_right_wheel_translation;
+		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		
+		wheel->use_ModelView(mw);
+		wheel->draw();
+	}
 }
 
 
@@ -382,7 +398,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	} */
 
 	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
-	if (!initGL()) { return 1; }
+	if (!initGL()) {
+		return 1; 
+	}
 	
 	//wglSwapIntervalEXT(1);
 
@@ -426,27 +444,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
 		}
-#ifdef _TEST
-		running += 0.020;
-		glClear(GL_COLOR_BUFFER_BIT);
-		glClearColor(0.5*(cos(running) + 1), 0.5*(sin(running*0.31)+1), 0.5*(sin(running*0.44)+1), 1.0);
-		long us_remaining = 16666 - fps_timer.get_us();
-		if (us_remaining > 2000) {
-			Sleep(us_remaining/1000);
-		}
-		window_swapbuffers();
-		fps_timer.begin();
-
-#else 
 
 		if (LocalClient::shutdown_requested()) { // this flag is set by a number of conditions in the client code
 			// stop must be explicitly called from a thread that's not involved with all the net action (ie. this one)
 			LocalClient::stop();
 		}
-
+		
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
 		control();
 		update_c_pos();
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		updateView();
+
+		drawRacetrack();
+		drawTerrain();
 		drawCars(LocalClient::get_peers());
 		onScreenLog::draw();
 		
@@ -459,7 +470,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		window_swapbuffers();
 		fps_timer.begin();
-#endif
 		//long us_per_frame = timer.get_us();
 	
 		//timer.begin();

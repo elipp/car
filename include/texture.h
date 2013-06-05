@@ -48,7 +48,7 @@ class TextureBank {
 	static std::vector<Texture> textures;
 public:
 	static GLint get_id_by_name(const std::string &name);
-	static void add(const Texture &t);
+	static GLuint add(const Texture &t);
 	static size_t get_size() { return textures.size(); }
 	static bool validate();
 };

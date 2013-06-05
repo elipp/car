@@ -108,15 +108,19 @@ ShaderProgram::ShaderProgram(const std::string &name_base) {
 		goto cleanup;
 	}
 
+	
+
 	#define my_delete_arr(arr) if(arr) delete [] arr; arr = NULL;
+
+	construct_uniform_map();
+	printStatus();
+
 cleanup:
 	my_delete_arr(vs_buf);
 	my_delete_arr(tcs_buf);
 	my_delete_arr(tes_buf);
 	my_delete_arr(gs_buf); 
 	my_delete_arr(fs_buf);
-
-	printStatus();
 }
 
 inline const char* shader_present(const GLuint *objIDs, GLint index) {
@@ -254,7 +258,7 @@ void ShaderProgram::construct_uniform_map() {
 		uniform_name_buf[name_len] = '\0';
 		GLuint loc = glGetUniformLocation(programHandle, uniform_name_buf);
 		uniforms.insert(std::pair<std::string, int>(std::string(uniform_name_buf), loc));
-		onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d.\n", id_string.c_str(), uniform_name_buf, loc);
+		//onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d.\n", id_string.c_str(), uniform_name_buf, loc);
 	}
 }
 
@@ -263,7 +267,7 @@ void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//onScreenLog::print( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		onScreenLog::print( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -275,7 +279,7 @@ void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//onScreenLog::print( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		onScreenLog::print( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -287,7 +291,7 @@ void ShaderProgram::update_uniform_1f(const std::string &uniform_name, GLfloat v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//onScreenLog::print( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		onScreenLog::print( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -300,7 +304,7 @@ void ShaderProgram::update_uniform_1i(const std::string &uniform_name, GLint val
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		//onScreenLog::print( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		onScreenLog::print( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {

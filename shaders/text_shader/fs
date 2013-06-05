@@ -2,7 +2,7 @@
 
 in vec2 TexCoord_FS_in;
 
-uniform sampler2D texture1;
+uniform sampler2D texture_color;
 uniform vec4 text_color;
 
 out vec4 out_fragcolor;
@@ -10,7 +10,7 @@ out vec4 out_fragcolor;
 void main(void) {
 
 	//vec2 tc_inverted_v = vec2(TexCoord_FS_in.x, 1-TexCoord_FS_in.y);
-	vec4 col = texture2D(texture1, TexCoord_FS_in);
+	vec4 col = texture2D(texture_color, TexCoord_FS_in);
 	float real_a = col.g;
 	if (col.g != 1.0) {
 		discard;

@@ -17,8 +17,8 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uns
   JSAMPROW *buffer;
   int row_stride;		/* physical row width in output buffer */
 	int err;
-  if ((err = fopen_s(&infile, filename.c_str(), "rb")) == NULL) {
-    fprintf(stderr, "can't open %s\n", filename.c_str());
+  if ((err = fopen_s(&infile, filename.c_str(), "rb")) != 0) {
+    fprintf(stderr, "loadJPEG: fatal: can't open %s\n", filename.c_str());
     return 0;
   }
 
@@ -72,6 +72,7 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uns
   fclose(infile);
   *width = cinfo.image_width;
   *height = cinfo.image_height;
+ 
   return 1;
 
 }
@@ -79,7 +80,6 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uns
 
 static int loadPNG(const std::string &filename, unsigned char **out, unsigned *width, unsigned *height) {
 	return (lodepng_decode32_file(out, width, height, filename.c_str()) == 0); // 0 means no error
-	// TODO need to free the buffers!!
 }
 
 
@@ -126,17 +126,19 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	
 	_badheader = _nosuch = _otherbad = false;
 
-	if ((width & (width - 1)) == 0 && width == height) {
+#define IS_POWER_OF_TWO(x) ((x) & ((x) - 1))
+
+	if (IS_POWER_OF_TWO(width) == 0 && width == height) {
 			// image is valid, carry on
-			//GLint internalfmt = hasAlpha ? GL_RGBA8 : GL_RGB8;
-			//GLint texSubfmt = hasAlpha ? GL_RGBA : GL_RGB;
+			GLint internal_format = GL_RGBA;
+			GLint input_pixel_format = hasAlpha ? GL_RGBA : GL_RGB;
 			glEnable(GL_TEXTURE_2D);
 			glGenTextures(1, &textureId);
 			glBindTexture( GL_TEXTURE_2D, textureId);
 			
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid*) &buffer[0]);
+			glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, input_pixel_format, GL_UNSIGNED_BYTE, (const GLvoid*) &buffer[0]);
 			//glTexStorage2D(GL_TEXTURE_2D, 4, internalfmt, width, height); // this is superior to glTexImage2D. only available in GL4 though
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid*)&buffer[0]);
+			//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid*)&buffer[0]);
 			
 			glGenerateMipmap(GL_TEXTURE_2D);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -150,6 +152,7 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 			_otherbad = true;
 		}
 		
+		free(buffer);
 
 }
 
@@ -171,8 +174,9 @@ GLint TextureBank::get_id_by_name(const std::string &name) {
 	return -1;
 }
 
-void TextureBank::add(const Texture &t) {
+GLuint TextureBank::add(const Texture &t) {
 	textures.push_back(t);
+	return t.getId();
 }
 
 bool TextureBank::validate() {

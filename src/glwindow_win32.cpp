@@ -140,6 +140,9 @@ LRESULT CALLBACK WndProc_child(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hWnd, uMsg, wParam, lParam); 
 }
 
+void messagebox_error(const std::string &msg) {
+	MessageBox(NULL, msg.c_str(), "Error (fatal)", MB_OK | MB_ICONEXCLAMATION);
+}
 
 BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag)
 {

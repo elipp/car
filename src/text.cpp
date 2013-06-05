@@ -175,7 +175,7 @@ if (!_enabled) { return; }
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
-	text_shader->update_uniform_1i("texture1", 0);
+	text_shader->update_uniform_1i("texture_color", 0);
 	text_shader->update_uniform_vec4("text_color", input_field_text_color.rawData());
 
 	static mat4 InputField_modelview = mat4::identity();
@@ -367,7 +367,7 @@ void onScreenLog::draw() {
 	
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
-	text_shader->update_uniform_1i("texture1", 0);
+	text_shader->update_uniform_1i("texture_color", 0);
 	
 	static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
 	text_shader->update_uniform_vec4("text_color", log_text_color.rawData());
