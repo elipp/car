@@ -10,7 +10,25 @@
 typedef std::unordered_map<unsigned short, struct Client> id_client_map;
 typedef std::pair<unsigned short, struct Client> id_client_pair;
 
+#define POSITION_UPDATE_GRANULARITY_MS 16.666*2
+#define POSITION_UPDATE_DT_COEFF (POSITION_UPDATE_GRANULARITY_MS/16.666)
+
 #define _NETTASKTHREAD_CALLBACK
+
+// posupd constants :P
+
+const float turning_modifier_forward = 0.55;
+const float turning_modifier_reverse = 1.2*turning_modifier_forward;
+
+const float accel_modifier = 0.012*POSITION_UPDATE_DT_COEFF;
+const float brake_modifier = 0.8*accel_modifier;
+
+const float velocity_dissipation = pow(0.962, POSITION_UPDATE_DT_COEFF);
+
+const float tmpx_limit = 0.68;
+const float tmpx_dissipation = pow(0.95, POSITION_UPDATE_DT_COEFF);
+const float tmpx_modifier = 0.22*POSITION_UPDATE_DT_COEFF;
+
 
 class Server {
 	
@@ -52,12 +70,12 @@ class Server {
 		void start() { thread.start(); }
 		void stop() { thread.stop(); }
 	} PingManager;
+
 	static _NETTASKTHREAD_CALLBACK void ping_task();
 
 	static class GameState {
 
 		NetTaskThread thread;
-		void calculate_state();
 		inline void calculate_state_client(struct Client &c);
 		void broadcast_state();
 	public:

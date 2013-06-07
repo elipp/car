@@ -59,10 +59,40 @@ struct Client {
 	}
 };
 
+typedef std::unordered_map<unsigned short, struct Peer>::iterator peer_iter;
 
-struct mutexed_peer_map {
+class mutexed_peer_map {
+	
 	std::unordered_map<unsigned short, struct Peer> map;
 	std::mutex mutex;
+public:
+	peer_iter begin() { return map.begin(); }
+	peer_iter end() { return map.end(); }
+	peer_iter find(unsigned short key) { return map.find(key); }
+	int num_peers() { return map.size(); }
+	
+	std::unordered_map<unsigned short, struct Peer> get_map_copy() { return map; }
+	void insert(const std::pair<unsigned short, struct Peer> &peer) { 
+		mutex.lock();
+		map.insert(peer);
+		mutex.unlock();
+	}
+	void erase(unsigned short id) {
+		mutex.lock();
+		map.erase(id);
+		mutex.unlock();
+	}
+	void update_peer_data(peer_iter &iter, const void *src, size_t src_size) {
+		// the iter part has already been checked for errors, so just carry on 
+		mutex.lock();
+		memcpy(&iter->second.car, src, src_size);
+		mutex.unlock();
+	}
+	void clear() { 
+		mutex.lock();
+		map.clear(); 
+		mutex.unlock();
+	}
 };
 
 class LocalClient {
@@ -73,19 +103,21 @@ class LocalClient {
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
 	
-	static std::unordered_map<unsigned short, struct Peer> peers;
+	static mutexed_peer_map peers;
 	
 	static unsigned short port;
 	static int _connected;
 	static bool _shutdown_requested;
+	
+	static _timer posupd_timer;
 
-	static class Listen {
+	static class Listen { 
 		NetTaskThread thread;
 		void handle_current_packet();
 		void pong(unsigned remote_seq_number);
 		void construct_peer_list();
 		void post_quit_message();
-		void post_keystate();
+
 		void update_positions();
 	public:
 		void listen();
@@ -115,6 +147,8 @@ class LocalClient {
 	static int handshake();
 	
 public:
+	
+	static void interpolate_positions();
 	static int connected() { return _connected; }
 	static void connect();
 	static void disconnect();
@@ -123,10 +157,11 @@ public:
 
 	static int start(const std::string &ip_port_string);
 	static void stop();
-
+	
+	static int num_peers(){ return peers.num_peers(); }
 	static void set_name(const std::string &nick);
 	static void parse_user_input(const std::string s);
-	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers; }
+	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers.get_map_copy(); }
 	static void quit();
 private:
 	LocalClient() {}

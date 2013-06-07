@@ -10,6 +10,10 @@ ShaderProgram *text_shader = NULL;
 
 static GLuint text_shared_IBOid;
 
+void text_set_Projection(const mat4 &m) {
+	text_Projection = m;
+}
+
 std::string get_timestamp() {
 	char buffer[128];
 	SYSTEMTIME st;
@@ -38,8 +42,6 @@ unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 bool onScreenLog::_autoscroll = true;
 unsigned onScreenLog::num_characters_drawn = 0;
-
-static const int textfield_y_pos = WINDOW_HEIGHT - char_spacing_vert - 4;
 
 static float log_bottom_margin = char_spacing_vert*1.55;
 
@@ -148,11 +150,11 @@ void onScreenLog::InputField::update_VBO() {
 
 	for (i = 1; i < input_buffer.length()+1; ++i) {
 
-		glyph_buffer[i] = glyph_from_char(pos_x + x_adjustment, textfield_y_pos, input_buffer[i-1]);
+		glyph_buffer[i] = glyph_from_char(pos_x + x_adjustment, InputField::textfield_pos_y, input_buffer[i-1]);
 		x_adjustment += char_spacing_horiz;
 	}
 
-	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
+	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, InputField::textfield_pos_y, CURSOR_GLYPH);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(glyph), (const GLvoid*)&glyph_buffer[0]);
@@ -178,7 +180,7 @@ if (!_enabled) { return; }
 	text_shader->update_uniform_1i("texture_color", 0);
 	text_shader->update_uniform_vec4("text_color", input_field_text_color.rawData());
 
-	static mat4 InputField_modelview = mat4::identity();
+	static const mat4 InputField_modelview = mat4::identity();
 
 	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)InputField_modelview.rawData());
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
@@ -190,7 +192,7 @@ if (!_enabled) { return; }
 void onScreenLog::InputField::clear() {
 	input_buffer.clear();
 	cursor_pos = 0;
-	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, textfield_y_pos, CURSOR_GLYPH);
+	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, InputField::textfield_pos_y, CURSOR_GLYPH);
 	update_VBO();
 }
 
@@ -246,6 +248,8 @@ int onScreenLog::init() {
 	VBOid = generate_empty_VBO(OSL_BUFFER_SIZE*sizeof(glyph), GL_DYNAMIC_DRAW);
 	input_field.VBOid = generate_empty_VBO(INPUT_FIELD_BUFFER_SIZE*sizeof(glyph), GL_DYNAMIC_DRAW);
 	text_generate_shared_IBO();
+	input_field.textfield_pos_y = WINDOW_HEIGHT - char_spacing_vert - 4;	// this is required, specifying this in the input field constructor apparently
+	// doesn't cut it.
 	return 1;
 }
 
@@ -286,7 +290,7 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	current_index += length;
 	
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	if (current_index > OSL_BUFFER_SIZE) {
+	if (current_index >= OSL_BUFFER_SIZE - 1) {
 
 		// the excessive part will be flushed to the beginning of the VBO :P
 		unsigned excess = current_index - OSL_BUFFER_SIZE + 1;
@@ -323,7 +327,7 @@ void onScreenLog::print(const char* fmt, ...) {
 
 	print_queue.add(buffer);
 	num_characters_drawn += total_len;
-	num_characters_drawn = num_characters_drawn >= OSL_BUFFER_SIZE ? OSL_BUFFER_SIZE : (num_characters_drawn);
+	num_characters_drawn = (num_characters_drawn > OSL_BUFFER_SIZE) ? OSL_BUFFER_SIZE : (num_characters_drawn);
 
 }
 
@@ -347,7 +351,6 @@ void onScreenLog::scroll(float ds) {
 	}
 
 }
-
 
 void onScreenLog::set_y_translation(float new_y) {
 	modelview(3,1) = new_y;

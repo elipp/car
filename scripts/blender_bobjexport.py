@@ -65,21 +65,33 @@ def do_export(context, filepath):
 			i += 1
 			
 	
-	print("Constructed vertex data structure with a V3FN3FT2F arrangment in a flat python list.\nOutput file statistics:")
+	print("Constructed vertex data structure with a V3FN3FT2F arrangement\nin a flat python list.\nOutput file statistics:")
 	print("len(data) = " + str(len(data)) + " <=> " +
 	"num_vertices = " + str(int(len(data)/8)) + " <=> " +
 	"num_faces = " + str(int((len(data)/8)/3)) + ".")
-	print(data[0])
 	print("len(mesh.tessfaces): " + str(len(mesh.tessfaces)))
 	print("len(tessface_uv_textures.active.data) : " + str(len(mesh.tessface_uv_textures.active.data)))
+	print("")
+	tmpfilename = filepath + ".tmpuncompressed"
 	
-	out_fp = open(filepath, "wb")
+	out_fp = open(tmpfilename, "wb")
 	out_fp.write("bobj".encode("UTF-8"))
 	out_fp.write(struct.pack("i", int(len(data)/8)))
 	data_arr = array('f', data)
 	data_arr.tofile(out_fp)
 	out_fp.close()
 	import os
+	import subprocess
+	lzmacommand = ["lzma.exe", "e", tmpfilename, filepath]
+	print("Compressing with LZMA (lzma.exe), command:")
+	print(lzmacommand)
+	r = subprocess.call(["lzma", "e", tmpfilename, filepath])
+	if r != 0:
+		print("lzma.exe returned error (code " + str(r) + ").\n")
+		return "Error: lzma compression failed (lzma.exe)."
+	print("Done.")
+	print("Deleting temporary file " + tmpfilename)
+	os.remove(tmpfilename)
 	print("Output file size: " + str(os.path.getsize(filepath)))
 	return "OK"
 	

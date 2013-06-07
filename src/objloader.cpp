@@ -9,6 +9,10 @@
 #include "objloader.h"
 #include "common.h"
 
+#include <cassert>
+
+#include "lzma/mylzma.h"
+
 extern GLuint IBOid;
 extern mat4 projection;
 
@@ -33,12 +37,18 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 	
 	onScreenLog::print(".bobjloader: loading file %s\n", filename.c_str());
 
-	std::size_t filesize = cpp_getfilesize(infile);
-	char *buffer = new char[filesize];
+	char *decompressed;
+	size_t decompressed_size;
 
-	infile.read(buffer, filesize);
-	
-	char* iter = buffer + 4;	// the first 4 bytes of a bobj file contain the letters "bobj". Or do they? :D
+	int res = LZMA_decode(filename, &decompressed, &decompressed_size);	// this also allocates the memory
+	if (res != 0) {
+		fprintf(stderr, "LZMA decoder: an error occurred. Aborting.\n"); 
+		_bad = true; 
+		return; 
+	}
+
+		
+	char* iter = decompressed + 4;	// the first 4 bytes of a bobj file contain the letters "bobj". Or do they? :D
 
 	// read vertex & face count.
 
@@ -63,9 +73,11 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 
 	vertex* vertices = new vertex[vcount];
 
-	iter = buffer + 8;
+	iter = decompressed + 8;
 
 	memcpy(vertices, iter, vcount*8*sizeof(float));
+	delete [] decompressed;	// not needed anymore
+	
 	size_t offset = 0;
 	for (auto &iter : VBOid_numfaces_map) {
 		const GLuint &current_VBOid = iter.first;
@@ -77,8 +89,9 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 	
 	onScreenLog::print("Successfully loaded file %s.\n\n", filename.c_str(), vcount);
 	delete [] vertices;
+	
 	_bad = false;
-
+	
 }
 
 void Model::bind_texture(GLuint _texId) {

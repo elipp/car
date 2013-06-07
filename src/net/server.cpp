@@ -2,12 +2,14 @@
 #include "net/client.h"
 
 #ifdef SERVER_CLI
-#define SERVER_PRINT printf
+#define SERVER_PRINT(fmt, ... ) fprintf(stderr, fmt, __VA_ARGS__)
 #else
 #include "net/client.h"
 #include "text.h"
-#define SERVER_PRINT onScreenLog::print
+#define SERVER_PRINT(fmt, ...) onScreenLog::print(fmt, __VA_ARGS__)
 #endif
+
+#include <cmath>
 
 
 unsigned Server::seq_number = 0;
@@ -21,7 +23,7 @@ unsigned Server::num_clients = 0;
 int Server::_running = 0;
 Socket Server::socket;
 
-void Server::listen_task() {
+void _NETTASKTHREAD_CALLBACK Server::listen_task() {
 	Listener.listen_loop();
 }
 
@@ -170,7 +172,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 void Server::Listen::distribute_chat_message(const std::string &msg, const unsigned short sender_id) {
 
 	PTCLHEADERDATA CHAT_MESSAGE_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_CHAT_MESSAGE };
-	CHAT_MESSAGE_HEADER.cmd_arg_mask.ch[1] = msg.length();
+	CHAT_MESSAGE_HEADER.cmd_arg_mask.ch[1] = (unsigned char)msg.length();
 
 	size_t accum_offset = thread.copy_to_buffer(&CHAT_MESSAGE_HEADER, sizeof(CHAT_MESSAGE_HEADER), 0);
 	
@@ -294,7 +296,7 @@ void Server::Ping::ping_client(struct Client &c) {
 	protocol_update_seq_number(thread.buffer, c.seq_number);
 	send_data_to_client(c, thread.buffer, PTCL_HEADER_LENGTH);
 }
-void Server::ping_task() {
+void _NETTASKTHREAD_CALLBACK Server::ping_task() {
 	PingManager.ping_loop();
 }
 
@@ -302,6 +304,7 @@ void Server::Ping::ping_loop() {
 
 	PTCLHEADERDATA PING_HEADER = protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_PING);
 	protocol_copy_header(thread.buffer, &PING_HEADER);
+
 #define PING_SOFT_TIMEOUT_MS 1000
 #define PING_HARD_TIMEOUT_MS 5000
 #define PING_GRANULARITY_MS 1000
@@ -326,11 +329,11 @@ void Server::Ping::ping_loop() {
 
 			else if (milliseconds_passed > PING_SOFT_TIMEOUT_MS) {
 				if (milliseconds_passed > PING_HARD_TIMEOUT_MS) {
-					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d seconds(s) (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_MS);
+					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d ms (hard timeout), kicking.\n", c.info.id, PING_HARD_TIMEOUT_MS);
 					iter = remove_client(iter);
 				}
 				else {
-					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d second(s) (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_MS);
+					SERVER_PRINT( "client %u: unanswered S_PING request for more than %d ms (soft timeout), repinging.\n", c.info.id, PING_SOFT_TIMEOUT_MS);
 					ping_client(c);
 					++iter;
 				}
@@ -348,17 +351,17 @@ void Server::Ping::ping_loop() {
 }
 
 
-void Server::state_task() {
+void _NETTASKTHREAD_CALLBACK Server::state_task() {
 	GameStateManager.state_loop();
 }
+
+
 
 void Server::GameState::state_loop() {
 	static _timer calculate_timer;
 	calculate_timer.begin();
 
 	while(thread.running()) {
-	#define POSITION_UPDATE_GRANULARITY_MS 16
-
 		if (clients.size() <= 0) { Sleep(250); }
 		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
 			for (auto &it : clients) { 
@@ -369,9 +372,7 @@ void Server::GameState::state_loop() {
 			if (wait > 0) { Sleep(wait); }
 			calculate_timer.begin();
 		}
-
 	}
-
 }
 
 
@@ -393,85 +394,45 @@ void Server::GameState::broadcast_state() {
 
 void Server::GameState::calculate_state_client(struct Client &c) {
 	
-	static const float fwd_modifier = 0.008;
-	static const float side_modifier = 0.005;
-	static const float mouse_modifier = 0.0004;
-
-	static const float turning_modifier_forward = 0.19;
-	static const float turning_modifier_reverse = 0.16;
-
-	static const float accel_modifier = 0.012;
-	static const float brake_modifier = 0.010;
-
-	static const float tmpx_limit = 1.1;
-
-	static const float tmpx_modifier = 0.22;
+	Car &car = c.car;
 
 	float car_acceleration = 0.0;
+	float car_prev_velocity = car.state.velocity;
+	
+	car.state.velocity *= velocity_dissipation;	// regardless of throttle/brake keystate
+	car.data_internal.front_wheel_tmpx *= tmpx_dissipation;
 
-	float car_prev_velocity;
-	car_prev_velocity = c.car.data_internal.velocity;
+	if (c.keystate & C_KEYSTATE_UP) { car.state.velocity += accel_modifier; }
 
-	if (c.keystate & C_KEYSTATE_UP) {
-		c.car.data_internal.velocity += accel_modifier;
-	}
-
-	if (c.keystate & C_KEYSTATE_DOWN) {
-		c.car.data_internal.velocity -= brake_modifier;
-	}
-
-	c.car.data_internal.velocity *= 0.95;	// regardless of throttle/brake keystate
-	c.car.data_internal.front_wheel_tmpx *= 0.95;
+	if (c.keystate & C_KEYSTATE_DOWN) { car.state.velocity -= brake_modifier; }
 
 	if (c.keystate & C_KEYSTATE_LEFT) {
-		c.car.data_internal.front_wheel_tmpx = min(c.car.data_internal.front_wheel_tmpx+tmpx_modifier, tmpx_limit);
-		c.car.data_internal.F_centripetal = -1.0;
-		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
-		
+		car.data_internal.front_wheel_tmpx = min(car.data_internal.front_wheel_tmpx+tmpx_modifier, tmpx_limit);
 	} 
 	if (c.keystate & C_KEYSTATE_RIGHT) {
-		c.car.data_internal.front_wheel_tmpx = max(c.car.data_internal.front_wheel_tmpx-tmpx_modifier, -tmpx_limit);
-		c.car.data_internal.F_centripetal = 1.0;
-		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
+		car.data_internal.front_wheel_tmpx = max(car.data_internal.front_wheel_tmpx-tmpx_modifier, -tmpx_limit);
 	}
-	
-	c.car.data_symbolic.susp_angle_roll = c.car.data_internal.front_wheel_tmpx*fabs(c.car.data_internal.velocity)*0.2;
-	c.car.data_symbolic.direction -= turning_modifier_reverse*c.car.data_internal.F_centripetal*c.car.data_internal.velocity;
-	
-	car_prev_velocity = 0.5*(c.car.data_internal.velocity+car_prev_velocity);
-	car_acceleration = 0.2*(c.car.data_internal.velocity - car_prev_velocity) + 0.8*car_acceleration;
-
 	if (!(c.keystate & C_KEYSTATE_LEFT) && !(c.keystate & C_KEYSTATE_RIGHT)){
-		c.car.data_internal.front_wheel_tmpx *= 0.78;
-		c.car.data_symbolic.front_wheel_angle = f_wheel_angle(c.car.data_internal.front_wheel_tmpx);
-		c.car.data_symbolic.susp_angle_roll *= 0.89;
-		c.car.data_internal.F_centripetal = 0.0;
+		car.data_internal.front_wheel_tmpx *= 0.45;
+		car.state.susp_angle_roll *= 0.89;
 	}
+	car.state.front_wheel_angle = f_wheel_angle(car.data_internal.front_wheel_tmpx);
 	
-	c.car.data_symbolic.wheel_rot -= 1.05*c.car.data_internal.velocity;
-	c.car.data_symbolic.susp_angle_fwd = 7*car_acceleration;
-	c.car.data_symbolic._position[0] += c.car.data_internal.velocity*sin(c.car.data_symbolic.direction-M_PI/2);
-	c.car.data_symbolic._position[2] += c.car.data_internal.velocity*cos(c.car.data_symbolic.direction-M_PI/2);
-}
-
-void Server::GameState::calculate_state() {
+	car.state.susp_angle_roll = car.data_internal.front_wheel_tmpx*fabs(car.state.velocity)*0.2;
 	
-#define POSITION_UPDATE_GRANULARITY_MS 16
-	static _timer calculate_timer;
-	calculate_timer.begin();
-	while (thread.running()) {
-		if (clients.size() <= 0) { Sleep(250); }
-		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
-			for (auto &it : clients) { calculate_state_client(it.second); }
-			//SERVER_PRINT( "Broadcasting game status to all clients.\n");
-			broadcast_state();
-			calculate_timer.begin();
-		}
-		long wait = POSITION_UPDATE_GRANULARITY_MS - calculate_timer.get_ms();
-		if (wait > 0) { Sleep(wait); }
-	}
-}
+	float turn_coeff = 1.5*pow(8,-(fabs(car.state.velocity)));
+	car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
+							*car.state.front_wheel_angle*car.state.velocity*turn_coeff*POSITION_UPDATE_DT_COEFF;
+	
+	car_prev_velocity = 0.5*(car.state.velocity+car_prev_velocity);
+	car_acceleration = 0.2*(car.state.velocity - car_prev_velocity) + 0.8*car_acceleration;
 
+
+	car.state.wheel_rot -= 1.07*car.state.velocity * POSITION_UPDATE_DT_COEFF;
+	car.data_internal.susp_angle_fwd = 7*car_acceleration;
+	car.state._position[0] += car.state.velocity*sin(car.state.direction-M_PI/2) * POSITION_UPDATE_DT_COEFF;
+	car.state._position[2] += car.state.velocity*cos(car.state.direction-M_PI/2) * POSITION_UPDATE_DT_COEFF;
+}
 
 void Server::increment_client_seq_number(struct Client &c) {
 	++c.seq_number;

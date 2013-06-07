@@ -20,10 +20,11 @@ extern void messagebox_error(const std::string &msg);
 typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
 extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
-extern const float WINDOW_WIDTH;
-extern const float WINDOW_HEIGHT;
-extern const float HALF_WINDOW_WIDTH;
-extern const float HALF_WINDOW_HEIGHT;
+extern float WINDOW_WIDTH;
+extern float WINDOW_HEIGHT;
+
+#define HALF_WINDOW_WIDTH (WINDOW_WIDTH/2)
+#define HALF_WINDOW_HEIGHT (WINDOW_HEIGHT/2)
 
 extern void set_cursor_relative_pos(int x, int y);
 

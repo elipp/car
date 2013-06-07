@@ -13,8 +13,8 @@
 #include "precalculated_texcoords.h"
 #include "shader.h"
 
-extern mat4 text_Projection;
-extern mat4 text_ModelView;
+extern void text_set_Projection(const mat4 &proj);
+//extern mat4 text_ModelView;
 extern GLuint text_texId;
 extern GLuint text_shared_IBOid;
 
@@ -59,13 +59,19 @@ public:
 		void update_VBO();
 		bool _changed;
 	public:
+		
 		GLuint VBOid;
+
+		float textfield_pos_y;
+
 		bool enabled() const { return _enabled; }
 		
 		void enable();
 		void disable();
 		
 		void refresh();
+
+		void update_y_pos(float new_y) { textfield_pos_y = new_y; }
 
 		void insert_char_to_cursor_pos(char c);
 		void delete_char_before_cursor_pos();
@@ -75,8 +81,10 @@ public:
 		void clear();
 
 		void submit_and_parse();	// also does a clear
-		InputField() { 
-			cursor_pos = 0; input_buffer.reserve(INPUT_FIELD_BUFFER_SIZE); input_buffer.clear(); 
+		InputField() {
+			cursor_pos = 0; 
+			input_buffer.reserve(INPUT_FIELD_BUFFER_SIZE); 
+			input_buffer.clear(); 
 			VBOid = 0;
 		}
 	

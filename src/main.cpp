@@ -65,6 +65,7 @@ GLuint terrain_texId;
 #define M_PI 3.1415926535
 #endif
 
+static int vsync = 0;
 
 void rotatex(float mod) {
 	qy += mod;
@@ -91,11 +92,6 @@ void control()
 	static const float side_modifier = 0.005;
 	static const float mouse_modifier = 0.0004;
 
-	static const float turning_modifier_forward = 0.19;
-	static const float turning_modifier_reverse = 0.16;
-
-	static const float accel_modifier = 0.012;
-	static const float brake_modifier = 0.010;
 	static float dx, dy;
 	dx = 0; dy = 0;
 	
@@ -123,6 +119,13 @@ void control()
 		WM_KEYDOWN_KEYS['P'] = false;
 	}
 
+	if (WM_KEYDOWN_KEYS['V']) {
+		vsync ^= 1;
+		wglSwapIntervalEXT(vsync);
+		onScreenLog::print("vsync: %d\n", vsync);
+		WM_KEYDOWN_KEYS['V'] = false;
+	}
+
 	if (dy != 0) {
 		rotatey(mouse_modifier*dy);
 	}
@@ -147,10 +150,6 @@ void control()
 		
 
 }
-
-static GLuint skybox_VBOid;
-static GLuint skybox_facecount;
-static mat4 skyboxmat = mat4::identity();
 
 inline double rand01() {
 	return (double)rand()/(double)RAND_MAX;
@@ -194,7 +193,7 @@ int initGL(void)
 	if(ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
 		return 0;
 	}
-	
+	ResizeGLScene(WINDOW_WIDTH, WINDOW_HEIGHT);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	
 	onScreenLog::init();
@@ -264,13 +263,15 @@ int initGL(void)
 
 	view = mat4::identity();
 
-	projection = mat4::proj_persp(M_PI/8.0, (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT, 2.0, 1000.0);
+	projection = mat4::proj_persp(M_PI/8.0, (WINDOW_WIDTH/WINDOW_HEIGHT), 2.0, 1000.0);
 
 	view_position = vec4(0.0, 0.0, -9.0, 1.0);
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
+	wglSwapIntervalEXT(vsync);
+
 	return 1;
 
 }
@@ -326,9 +327,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
-		mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.data_symbolic.direction, 0.0, 1.0, 0.0);
-		mat4 mw = modelview*mat4::rotate(car.data_symbolic.susp_angle_roll, 1.0, 0.0, 0.0);
-		mw *= mat4::rotate(car.data_symbolic.susp_angle_fwd, 0.0, 0.0, 1.0);
+		mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
+		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
+		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
 		vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
 		regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
@@ -343,8 +344,8 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
 		mw = modelview;
 		mw *= front_left_wheel_translation;
-		mw *= mat4::rotate(M_PI - car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
-		mw *= mat4::rotate(-car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		mw *= mat4::rotate(M_PI - car.state.front_wheel_angle, 0.0, 1.0, 0.0);
+		mw *= mat4::rotate(-car.state.wheel_rot, 0.0, 0.0, 1.0);
 
 		wheel->use_ModelView(mw);
 		wheel->draw();
@@ -352,8 +353,8 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
 		mw = modelview;
 		mw *= front_right_wheel_translation;
-		mw *= mat4::rotate(-car.data_symbolic.front_wheel_angle, 0.0, 1.0, 0.0);
-		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		mw *= mat4::rotate(-car.state.front_wheel_angle, 0.0, 1.0, 0.0);
+		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
 
 		wheel->use_ModelView(mw);
 		wheel->draw();
@@ -362,7 +363,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
 		mw = modelview;
 		mw *= back_left_wheel_translation;
-		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
 		mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
 
 		wheel->use_ModelView(mw);
@@ -372,7 +373,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 		mw = modelview;
 		mw *= back_right_wheel_translation;
-		mw *= mat4::rotate(car.data_symbolic.wheel_rot, 0.0, 0.0, 1.0);
+		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
 		
 		wheel->use_ModelView(mw);
 		wheel->draw();
@@ -394,7 +395,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
 		SetConsoleTitle("debug output");
-		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	} */
 
 	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
@@ -402,8 +403,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1; 
 	}
 	
-	//wglSwapIntervalEXT(1);
-
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
 	
@@ -451,28 +450,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
+		
 		control();
 		update_c_pos();
 		updateView();
 
-		drawRacetrack();
+	//	drawRacetrack();
 		drawTerrain();
-		drawCars(LocalClient::get_peers());
 		onScreenLog::draw();
 		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
+		
+		if (LocalClient::connected()) {
+			drawCars(LocalClient::get_peers());
+			LocalClient::interpolate_positions();
+		}
 
-		long us_remaining = 16666 - fps_timer.get_us();
-		if (us_remaining > 2000) {
-			Sleep(us_remaining/1000);
+		if (!vsync) {
+			double ms_remaining = 16.666 - fps_timer.get_ms();
+			// one should measure time per loop to get accurate frame rate
+			if (ms_remaining > 3) {
+				Sleep((int)(ms_remaining));
+			}
 		}
 		window_swapbuffers();
 		fps_timer.begin();
-		//long us_per_frame = timer.get_us();
-	
-		//timer.begin();
 			
 		
 	}

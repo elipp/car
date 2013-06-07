@@ -39,9 +39,9 @@ public:
 			float direction;
 			float wheel_rot;
 			float susp_angle_roll;
-			float susp_angle_fwd;
+			float velocity;
 			float front_wheel_angle;
-		} data_symbolic;
+		} state;
 
 		float data_serial[8];
 	};
@@ -50,10 +50,11 @@ public:
 	struct {
 		float front_wheel_tmpx;
 		float F_centripetal;
-		float velocity;
+		float susp_angle_fwd;
+
 	} data_internal;
 
-	vec4 position() const { return vec4(data_symbolic._position[0], data_symbolic._position[1], data_symbolic._position[2], 1.0); }
+	vec4 position() const { return vec4(state._position[0], state._position[1], state._position[2], 1.0); }
 	
 	Car() { memset(this, 0, sizeof(*this)); }
 }; 
@@ -82,26 +83,23 @@ float f_wheel_angle(float x);
 class _timer {
 	double cpu_freq;	// in kHz
 	__int64 counter_start;
-	
 	__int64 get() {
 		LARGE_INTEGER li;
 		QueryPerformanceCounter(&li);
 		return li.QuadPart;
 	}
 public:
-
 	bool init() {
 		LARGE_INTEGER li;
-		if (!QueryPerformanceFrequency(&li)) {
-			fprintf(stderr, "_timer: initialization failed.\n");
-			return false;
-		}
+		QueryPerformanceFrequency(&li);
 		cpu_freq = double(li.QuadPart);	// in Hz. this is subject to dynamic frequency scaling, though
-
+		begin();
 		return true;
 	}
 	void begin() {
 		LARGE_INTEGER li;
+		QueryPerformanceFrequency(&li);
+		cpu_freq = double(li.QuadPart);
 		QueryPerformanceCounter(&li);
 		counter_start = li.QuadPart;
 	}

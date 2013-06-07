@@ -26,15 +26,14 @@ static HINSTANCE hInstance;
 
 static HWND hWnd_child = NULL;
 
-const float WINDOW_WIDTH = 1280;
-const float WINDOW_HEIGHT = 960;
-const float HALF_WINDOW_WIDTH = WINDOW_WIDTH/2.0;
-const float HALF_WINDOW_HEIGHT = WINDOW_HEIGHT/2.0;
+float WINDOW_WIDTH = 1280;
+float WINDOW_HEIGHT = 960;
 
 bool fullscreen = false;
 bool active = TRUE;
 
 extern int initGL();
+extern mat4 projection;
 
 static bool _main_loop_running=true;
 bool main_loop_running() { return _main_loop_running; }
@@ -290,59 +289,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	ShowWindow(hWnd, SW_SHOW);
 	SetForegroundWindow(hWnd);
 	SetFocus(hWnd);
-	ResizeGLScene(width, height);
 
-	// create child window for logging :P
-	WNDCLASSEX wc_c;
-    static char *className_c = "Log window";
-    static char *windowName_c = "aglio-olio: Log window";
-
-    wc_c.cbSize        = sizeof (WNDCLASSEX);
-    wc_c.style         = 0;
-    wc_c.lpfnWndProc   = WndProc_child;
-    wc_c.cbClsExtra    = 0;
-    wc_c.cbWndExtra    = 0;
-    wc_c.hIcon         = LoadIcon (NULL, IDI_APPLICATION);
-    wc_c.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    wc_c.hbrBackground = (HBRUSH) GetStockObject (GRAY_BRUSH);
-    wc_c.lpszMenuName  = NULL;
-    wc_c.lpszClassName = className_c;
-    wc_c.hInstance     = hInstance;
-    wc_c.hIconSm       = LoadIcon (NULL, IDI_APPLICATION);
-	
-	ATOM child_register = RegisterClassEx (&wc_c);
-    DWORD child_get_last_error  = GetLastError ();
- 
-    
-  /*  hWnd_child = CreateWindowEx ( WS_EX_CLIENTEDGE,                      // no extended styles           
-                                "EDIT",           // class name                   
-                                windowName_c,          // window name                  
-                                WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_VSCROLL |
-                                ES_LEFT | ES_MULTILINE | ES_READONLY,        
-                                CW_USEDEFAULT,          // default horizontal position  
-                                CW_USEDEFAULT,          // default vertical position    
-                                1024,          // default width                
-                                768,          // default height               
-                                hWnd, 
-                                (HMENU) NULL,           // class menu used              
-                                hInstance,              // instance handle              
-                                NULL);                  // no window creation data      
- 
-    if (!hWnd_child) 
-        return FALSE; 
-
-	HFONT myFont = CreateFont(12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "Consolas");
-
-	SendMessage(hWnd_child, WM_SETFONT, WPARAM(myFont), TRUE);
-
-	ShowWindow (hWnd_child, SW_SHOW); 
-    UpdateWindow (hWnd_child);
-	// clear log window
-	clearLogWindow(); */
-
-
-	SetForegroundWindow(hWnd);
-	SetFocus(hWnd);
 	return TRUE;
 }
 
@@ -402,10 +349,13 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 		height=1;										// Making Height Equal One
 	}
 
-//	glViewport(0,0,width,height);						// Reset The Current Viewport
+	WINDOW_WIDTH = width;
+	WINDOW_HEIGHT = height;
 
+	glViewport(0,0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
 
-	// Calculate The Aspect Ratio Of The Window
-	//gluPerspective(45.0f,(GLfloat)width/(GLfloat)height,0.1f,100.0f);
+	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
+	projection = mat4::proj_persp(M_PI/8.0, (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT, 2.0, 1000.0);
+	onScreenLog::input_field.update_y_pos(WINDOW_HEIGHT - char_spacing_vert - 4);
 
 }

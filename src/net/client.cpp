@@ -25,8 +25,9 @@ NetTaskThread LocalClient::parent(LocalClient::connect);
 Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
-std::unordered_map<unsigned short, struct Peer> LocalClient::peers;
+mutexed_peer_map LocalClient::peers;
 int LocalClient::_connected = 0;
+_timer LocalClient::posupd_timer;
 bool LocalClient::_shutdown_requested = false;
 
 unsigned short LocalClient::port = 50001;
@@ -47,7 +48,7 @@ void LocalClient::connect() {
 		Sleep(500);
 	}
 
-exit:
+//exit:
 	KeystateManager.stop();
 	Listener.stop();
 
@@ -315,19 +316,50 @@ void LocalClient::Listen::update_positions() {
 		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE);
 		auto it = peers.find(id);
 		if (it == peers.end()) {
-			//onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
+			onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
-			thread.copy_from_buffer(&it->second.car.data_serial, serial_data_size, offset);
-			//onScreenLog::print( "update_positions: copied car %u position data as \n", id);
-			//it->second.car.position().print();
+			peers.update_peer_data(it, thread.buffer + offset, serial_data_size);
 		}
 	}
-	
+	LocalClient::posupd_timer.begin();	
 }
 
-void LocalClient::listen_task() {
+void LocalClient::interpolate_positions() {
+	// assume a steady 30 POSUPDs per second (admittedly stupid :D), fill a frame exactly in the middle.
+	if (peers.num_peers() <= 0) { 
+		posupd_timer.begin();	// workaround, don't know what for though
+		return; 
+	}
+	static const float HALF_GRANULARITY = POSITION_UPDATE_GRANULARITY_MS/2.0;
+	static const float DT_COEFF = HALF_GRANULARITY/16.666;
+	float ms_from_last_posupd = posupd_timer.get_ms();
+	float dt = HALF_GRANULARITY - ms_from_last_posupd;
+	
+	if (dt > 0) {
+		Sleep(dt);
+	}
+
+	auto it = peers.begin();
+	while (it != peers.end()) {
+		Car &car = it->second.car;
+
+		float turn_coeff = 1.5*pow(8,-(fabs(car.state.velocity)));
+		car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
+								*car.state.front_wheel_angle*car.state.velocity*turn_coeff*DT_COEFF;
+	
+
+		car.state.wheel_rot -= 1.07*car.state.velocity * DT_COEFF;
+		car.state._position[0] += car.state.velocity*sin(car.state.direction-M_PI/2) * DT_COEFF;
+		car.state._position[2] += car.state.velocity*cos(car.state.direction-M_PI/2) * DT_COEFF;
+
+		++it;
+	}
+
+}
+
+void LocalClient::listen_task() { 
 	Listener.listen();
 }
 
