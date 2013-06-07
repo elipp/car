@@ -3,7 +3,6 @@
 #include "net/client.h"
 
 mat4 text_Projection = mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
-mat4 text_ModelView = mat4::identity();
 GLuint text_texId;
 
 ShaderProgram *text_shader = NULL;
@@ -14,58 +13,59 @@ void text_set_Projection(const mat4 &m) {
 	text_Projection = m;
 }
 
-
 static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 
 onScreenLog::InputField onScreenLog::input_field;
 onScreenLog::PrintQueue onScreenLog::print_queue;
 
-#define CURSOR_GLYPH 0x7F	// is really DEL though
+#define CURSOR_GLYPH 0x7F	// is really DEL though in utf8
 #define RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
+#define RGBA(r,g,b,a) ((r)/255.0), ((g)/255.0), ((b)/255.0), ((a)/255.0)
 
-float onScreenLog::pos_x = 4.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
+float onScreenLog::pos_x = 7.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview = mat4::identity();
 GLuint onScreenLog::VBOid = 0;
 float char_spacing_vert = 11.0;
 float char_spacing_horiz = 7.0;
 unsigned onScreenLog::line_length = OSL_LINE_LEN;
 unsigned onScreenLog::num_lines_displayed = 32;
-unsigned onScreenLog::current_index = 0;
+unsigned onScreenLog::current_index = 1;	// index 0 is reserved for the overlay rectangle glyph
 unsigned onScreenLog::current_line_num = 0;
 bool onScreenLog::_visible = true;
 bool onScreenLog::_autoscroll = true;
-unsigned onScreenLog::num_characters_drawn = 0;
+unsigned onScreenLog::num_characters_drawn = 1;
 
 static float log_bottom_margin = char_spacing_vert*1.55;
 
-static inline GLuint texcoord_index_from_char(char c){ 
-	if (c >= 0x20 && c <= 0x7F) {
-		return (GLuint)c - 0x20;
-	}
-	else {
-		return 0;
-	}
+#define IS_PRINTABLE_CHAR(c) ((c) >= 0x20 && (c) <= 0x7F)
+
+inline GLuint texcoord_index_from_char(char c){ 
+	return IS_PRINTABLE_CHAR(c) ? ((GLuint)c - 0x20) : 0;
 }
 
-static const struct xy glyph_base[4] = { 
-		{0.0, 0.0}, {0.0, 12.0}, {6.0, 12.0}, {6.0, 0.0} 
-};
-
-static struct xy get_glyph_xy(int index, float x, float y) {
+inline struct xy get_glyph_xy(int index, float x, float y) {
+	static const struct xy glyph_base[4] = { {0.0, 0.0}, {0.0, 12.0}, {6.0, 12.0}, {6.0, 0.0} };
 	struct xy _xy = { (x) + glyph_base[(index)].x, (y) + glyph_base[(index)].y };
 	return _xy;
 }
 
-static inline glyph glyph_from_char(float x, float y, char c) { 
+inline glyph glyph_from_char(float x, float y, char c) { 
 	glyph g;
-
 	const unsigned tindex = texcoord_index_from_char(c);
-
 	for (unsigned i = 0; i < 4; ++i) {
 		g.vertices[i] = vertex2(get_glyph_xy(i, x, y), glyph_texcoords[tindex][i]);
 	}
 	return g;
+}
 
+inline glyph solid_rectangle_glyph(float upper_left_corner_x, float upper_left_corner_y, float width, float height) {
+	glyph g;
+	const unsigned tindex = texcoord_index_from_char(CURSOR_GLYPH); // because it has a solid color texture
+	g.vertices[0] = vertex2(upper_left_corner_x, upper_left_corner_y, glyph_texcoords[tindex][0]);
+	g.vertices[1] = vertex2(upper_left_corner_x, upper_left_corner_y + height, glyph_texcoords[tindex][1]);
+	g.vertices[2] = vertex2(upper_left_corner_x + width, upper_left_corner_y + height, glyph_texcoords[tindex][2]);
+	g.vertices[3] = vertex2(upper_left_corner_x + width, upper_left_corner_y, glyph_texcoords[tindex][3]);
+	return g;
 }
 
 static GLushort *generateSharedTextIndices() {
@@ -100,10 +100,8 @@ static GLuint generate_empty_VBO(size_t size, GLint FLAG) {
 
 void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
 	if (input_buffer.length() < INPUT_FIELD_BUFFER_SIZE) {
-		if (c == VK_RETURN) { return; }
-		else if (c == VK_BACK) {
+		if (c == VK_BACK) {
 			delete_char_before_cursor_pos();
-
 		}
 		else {
 			input_buffer.insert(input_buffer.begin() + cursor_pos, c); // that's f...ing ridiculous though :D
@@ -137,11 +135,9 @@ void onScreenLog::InputField::move_cursor(int amount) {
 
 void onScreenLog::InputField::update_VBO() {
 
-	int i = 0;
-	
 	float x_adjustment = 0;
-
-	for (i = 1; i < input_buffer.length()+1; ++i) {
+	int i = 1;
+	for (; i < input_buffer.length()+1; ++i) {
 
 		glyph_buffer[i] = glyph_from_char(pos_x + x_adjustment, InputField::textfield_pos_y, input_buffer[i-1]);
 		x_adjustment += char_spacing_horiz;
@@ -149,9 +145,58 @@ void onScreenLog::InputField::update_VBO() {
 
 	glyph_buffer[0] = glyph_from_char(pos_x + cursor_pos*char_spacing_horiz, InputField::textfield_pos_y, CURSOR_GLYPH);
 	
-	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
+	glBindBuffer(GL_ARRAY_BUFFER, onScreenLog::InputField::VBOid);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(glyph), (const GLvoid*)&glyph_buffer[0]);
 
+}
+
+void onScreenLog::draw() {
+	
+	if (!_visible) { return; }
+	
+	
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_DEPTH_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
+	
+	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
+	glUseProgram(text_shader->getProgramHandle());
+	
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, text_texId);
+	text_shader->update_uniform_1i("texture_color", 0);
+	
+	static const vec4 overlay_rect_color(0.02, 0.02, 0.02, 0.6);
+	static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
+
+	static float running = 0;
+	running += 0.015;
+
+	static const mat4 overlay_modelview = mat4::identity();
+
+	text_shader->update_uniform_mat4("Projection", text_Projection);
+	text_shader->update_uniform_vec4("text_color", overlay_rect_color);
+	text_shader->update_uniform_mat4("ModelView", overlay_modelview);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);	// uses a shared index buffer.
+	
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+
+	text_shader->update_uniform_vec4("text_color", log_text_color);
+	text_shader->update_uniform_mat4("ModelView", onScreenLog::modelview);
+
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(0, 1.5*char_spacing_vert, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert + 2);
+
+	glDrawElements(GL_TRIANGLES, 6*(num_characters_drawn-1), GL_UNSIGNED_SHORT, BUFFER_OFFSET(6*sizeof(GLushort)));
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_BLEND);
+
+	input_field.draw();	// it's only drawn if its enabled
+	
 }
 
 
@@ -171,7 +216,7 @@ if (!_enabled) { return; }
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
 	text_shader->update_uniform_1i("texture_color", 0);
-	text_shader->update_uniform_vec4("text_color", input_field_text_color.rawData());
+	text_shader->update_uniform_vec4("text_color", input_field_text_color);
 
 	static const mat4 InputField_modelview = mat4::identity();
 
@@ -235,14 +280,31 @@ void text_generate_shared_IBO() {
 	delete [] indices;
 }
 
-
+void onScreenLog::update_overlay_pos() {
+	 glyph overlay_glyph = 
+		solid_rectangle_glyph(1, 
+		WINDOW_HEIGHT - ((num_lines_displayed + 2.0)*char_spacing_vert), 
+		char_spacing_horiz*line_length+4, 
+		char_spacing_vert*(num_lines_displayed + 5.0));
+	 glBindBuffer(GL_ARRAY_BUFFER, onScreenLog::VBOid);
+	 glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(overlay_glyph), &overlay_glyph);
+}
 
 int onScreenLog::init() {
 	VBOid = generate_empty_VBO(OSL_BUFFER_SIZE*sizeof(glyph), GL_DYNAMIC_DRAW);
+	// the log vbo is still bound ^
+	static const glyph overlay_glyph = 
+		solid_rectangle_glyph(1, 
+		WINDOW_HEIGHT - ((num_lines_displayed + 2.0)*char_spacing_vert), 
+		char_spacing_horiz*line_length+4, 
+		char_spacing_vert*(num_lines_displayed + 5.0));
+
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(overlay_glyph), &overlay_glyph); 
+
 	input_field.VBOid = generate_empty_VBO(INPUT_FIELD_BUFFER_SIZE*sizeof(glyph), GL_DYNAMIC_DRAW);
 	text_generate_shared_IBO();
-	input_field.textfield_pos_y = WINDOW_HEIGHT - char_spacing_vert - 4;	// this is required, specifying this in the input field constructor apparently
-	// doesn't cut it.
+	input_field.textfield_pos_y = WINDOW_HEIGHT - char_spacing_vert - 4;	
+	// this is required, specifying this in the input field constructor apparently doesn't cut it.
 	return 1;
 }
 
@@ -284,21 +346,20 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	
 	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
 	if (current_index >= OSL_BUFFER_SIZE - 1) {
-
 		// the excessive part will be flushed to the beginning of the VBO :P
-		unsigned excess = current_index - OSL_BUFFER_SIZE + 1;
+		unsigned excess = current_index - OSL_BUFFER_SIZE + 2;
 		unsigned fitting = length - excess;
 		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), fitting*sizeof(glyph), (const GLvoid*)glyphs);
-		glBufferSubData(GL_ARRAY_BUFFER, 0*sizeof(glyph), excess*sizeof(glyph), (const GLvoid*)(glyphs + fitting));
-		current_index = excess;
+		glBufferSubData(GL_ARRAY_BUFFER, 1*sizeof(glyph), excess*sizeof(glyph), (const GLvoid*)(glyphs + fitting));
+		current_index = excess == 0 ? 1 : excess;	// to prevent us from corrupting the overlay rectangle glyph ^^
 	}
 	else {
 		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(glyph), length*(sizeof(glyph)), (const GLvoid*)glyphs);
 	}
 
 	if (_autoscroll) {
-		float d = (y_adjustment + pos_y + log_bottom_margin) - WINDOW_HEIGHT;
-		if (d > modelview(3,1)) { 
+		float d = (y_adjustment + pos_y + log_bottom_margin + char_spacing_vert) - WINDOW_HEIGHT;
+		if (d > onScreenLog::modelview(3,1)) { 
 			set_y_translation(-d);
 		}
 	}
@@ -330,11 +391,11 @@ void onScreenLog::print_string(const std::string &s) {
 
 void onScreenLog::scroll(float ds) {
 	float y_adjustment = current_line_num * char_spacing_vert;
-	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y - WINDOW_HEIGHT;
+	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y + char_spacing_vert - WINDOW_HEIGHT;
 	
-	modelview(3, 1) += ds;
+	onScreenLog::modelview(3, 1) += ds;
 	
-	if (bottom_scroll_displacement + modelview(3,1) >= 0) {
+	if (bottom_scroll_displacement + onScreenLog::modelview(3,1) >= 0) {
 		_autoscroll = false;
 
 	}
@@ -346,44 +407,16 @@ void onScreenLog::scroll(float ds) {
 }
 
 void onScreenLog::set_y_translation(float new_y) {
-	modelview(3,1) = new_y;
+	onScreenLog::modelview(3,1) = new_y;
 }
 
-void onScreenLog::draw() {
-	if (!_visible) { return; }
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_SCISSOR_TEST);
-	glScissor(0, 1.5*char_spacing_vert, WINDOW_WIDTH, num_lines_displayed * char_spacing_vert);
-	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
-	
-	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
-	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
-	glUseProgram(text_shader->getProgramHandle());
-	
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, text_texId);
-	text_shader->update_uniform_1i("texture_color", 0);
-	
-	static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
-	text_shader->update_uniform_vec4("text_color", log_text_color.rawData());
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)modelview.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);	// uses a shared index buffer.
-	
-	glDrawElements(GL_TRIANGLES, 6*num_characters_drawn, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
-	glDisable(GL_SCISSOR_TEST);
 
-	if (input_field.enabled()) {
-		input_field.draw();
-	}
-}	
 
 void onScreenLog::clear() {
-	current_index = 0;
+	current_index = 1;
 	current_line_num = 0;
-	num_characters_drawn = 0;
-	modelview = mat4::identity();
+	num_characters_drawn = 1;	// there's the overlay glyph in the beginning of the vbo =)
+	onScreenLog::modelview = mat4::identity();
 }
 
 

@@ -56,7 +56,6 @@ mat4 projection;
 vec4 view_position;
 vec4 cameraVel;
 
-static Car local_car;
 
 GLuint road_texId;
 GLuint terrain_texId;
@@ -65,7 +64,7 @@ GLuint terrain_texId;
 #define M_PI 3.1415926535
 #endif
 
-static int vsync = 0;
+static int vsync = 1;
 
 void rotatex(float mod) {
 	qy += mod;
@@ -84,13 +83,16 @@ void rotatey(float mod) {
 void update_c_pos() {
 	view_position -= viewq * vec4(c_vel_side, 0.0, 0.0, 1.0);
 	view_position += viewq * vec4(0.0, 0.0, c_vel_fwd, 1.0);
+	viewq.normalize();
+	view = viewq.toRotationMatrix();
+	view = view*mat4::translate(view_position);
 }
 
 void control()
 {
-	static const float fwd_modifier = 0.008;
-	static const float side_modifier = 0.005;
-	static const float mouse_modifier = 0.0004;
+	static const float fwd_modifier = 0.012;
+	static const float side_modifier = 0.012;
+	static const float mouse_modifier = 0.0006;
 
 	static float dx, dy;
 	dx = 0; dy = 0;
@@ -263,7 +265,7 @@ int initGL(void)
 
 	view = mat4::identity();
 
-	projection = mat4::proj_persp(M_PI/8.0, (WINDOW_WIDTH/WINDOW_HEIGHT), 2.0, 1000.0);
+	projection = mat4::proj_persp(M_PI/4, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, 400.0);
 
 	view_position = vec4(0.0, 0.0, -9.0, 1.0);
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
@@ -276,11 +278,6 @@ int initGL(void)
 
 }
 
-void updateView() {
-	viewq.normalize();
-	view = viewq.toRotationMatrix();
-	view = view*mat4::translate(view_position);
-}
 
 void drawRacetrack() {
 	glEnable(GL_DEPTH_TEST);
@@ -288,7 +285,7 @@ void drawRacetrack() {
 	
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
-	racetrack_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
 	static const mat4 racetrack_model = mat4::translate(5.0, 0.0, 0.0)*mat4::scale(2,2,2) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
 
@@ -303,7 +300,7 @@ void drawTerrain() {
 	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
 	
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
-	racetrack_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
 	static const mat4 racetrack_model = mat4::translate(0.0, -20, 0.0)*mat4::scale(25, 25, 25) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
 
@@ -323,7 +320,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		//if (running > 1000000) { running = 0; }
 
 		//regular_shader->update_uniform_1f("running", running);
-		regular_shader->update_uniform_mat4("Projection", (const GLfloat*)projection.rawData());
+		regular_shader->update_uniform_mat4("Projection", projection);
 
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
@@ -332,13 +329,13 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
 		vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
-		regular_shader->update_uniform_vec4("light_direction", light_dir.rawData());
+		regular_shader->update_uniform_vec4("light_direction", light_dir);
 		chassis->use_ModelView(mw);
-		regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color].rawData());
+		regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color]);
 
 		chassis->draw();
 	
-		regular_shader->update_uniform_vec4("paint_color", wheel_color.rawData());
+		regular_shader->update_uniform_vec4("paint_color", wheel_color);
 	
 		// front wheels
 		static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
@@ -381,16 +378,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 }
 
 
-static std::string get_fps(long us_per_frame) {
-	double f = 1000000/us_per_frame;
-	static char fps[8];
-	sprintf_s(fps, 8, "%4.2f", f);
-	return std::string(fps);
-}
-
-
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
+	
 	/* if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		freopen("CONOUT$", "wt", stderr);
@@ -402,6 +392,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (!initGL()) {
 		return 1; 
 	}
+	
+	int k = timeBeginPeriod(1);
+
+
+	onScreenLog::print("timeBeginPeriod(1) returned %s.\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR" : "TIMERR_NOCANDO" );
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -417,8 +412,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	static float running = 0;
 	MSG msg;
-
-
+	
 	while(main_loop_running())
 	{
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
@@ -455,28 +449,37 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		control();
 		update_c_pos();
-		updateView();
+
 
 	//	drawRacetrack();
 		drawTerrain();
 		onScreenLog::draw();
 		
+
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
 		
 		if (LocalClient::connected()) {
-			drawCars(LocalClient::get_peers());
+			//double t = LocalClient::time_since_last_posupd_ms();
 			LocalClient::interpolate_positions();
+			drawCars(LocalClient::get_peers());
+			
 		}
 
-		if (!vsync) {
-			while (fps_timer.get_ms() < 16.6);
+		
+		long wait = 16.666 - fps_timer.get_ms();
+	
+		if (!vsync) { // then we'll do a "half-busy" wait :P
+			if (wait > 3) { Sleep(wait-1); }	// sleep for those 4 milliseconds
+			while(fps_timer.get_ms() < 16);
 		}
+
 		window_swapbuffers();
 		fps_timer.begin();
 			
 		
 	}
+	timeEndPeriod(1);
 
 
 	return (msg.wParam);

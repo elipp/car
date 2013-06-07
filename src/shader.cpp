@@ -263,7 +263,7 @@ void ShaderProgram::construct_uniform_map() {
 }
 
 
-void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const void* data) {
+void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const mat4 &m) {
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
@@ -272,10 +272,10 @@ void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const v
 	}
 	else {
 		GLuint uniform_location = iter->second;
-		glUniformMatrix4fv(uniform_location, 1, GL_FALSE, (const GLfloat*)data);
+		glUniformMatrix4fv(uniform_location, 1, GL_FALSE, (const GLfloat*)m.rawData());
 	}
 }
-void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const void *data) {
+void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const vec4 &v) {
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
@@ -284,7 +284,7 @@ void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const v
 	}
 	else {
 		GLuint uniform_location = iter->second;
-		glUniform4fv(uniform_location, 1, (const GLfloat*)data);
+		glUniform4fv(uniform_location, 1, (const GLfloat*)v.rawData());
 	}
 }
 void ShaderProgram::update_uniform_1f(const std::string &uniform_name, GLfloat value){

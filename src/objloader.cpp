@@ -113,8 +113,8 @@ void Model::draw() {
 		program->update_uniform_1i("texture_color", 0);
 	}
 
-	program->update_uniform_mat4("ModelView", this->ModelView.rawData());
-	program->update_uniform_mat4("Projection", projection.rawData());
+	program->update_uniform_mat4("ModelView", this->ModelView);
+	program->update_uniform_mat4("Projection", projection);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);  // is still in full matafaking effizzect :D 
 	for (auto &iter : VBOid_numfaces_map) {

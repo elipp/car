@@ -30,7 +30,11 @@ int LocalClient::_connected = 0;
 _timer LocalClient::posupd_timer;
 bool LocalClient::_shutdown_requested = false;
 
+unsigned LocalClient::latest_posupd_seq_number = 0;
+
 unsigned short LocalClient::port = 50001;
+
+static Car local_car;
 
 void LocalClient::connect() {
 	
@@ -45,7 +49,7 @@ void LocalClient::connect() {
 
 	while (parent.running() && _connected) {
 		// kind of stupid though :P A sleeping parent thread for the client net code
-		Sleep(1000);
+		Sleep(2000);
 	}
 
 //exit:
@@ -252,13 +256,21 @@ void LocalClient::Listen::handle_current_packet() {
 	}
 
 	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
-	if (cmd == S_POSITION_UPDATE) {
-		update_positions();
-	}
-	else if (cmd == S_PING) {
+
+	switch (cmd) {
+
+	case S_POSITION_UPDATE:
+		// don't apply older pupd-package data. we also have an interpolation mechanism :P
+		if (header.seq_number > latest_posupd_seq_number) {
+			update_positions();
+			latest_posupd_seq_number = header.seq_number;
+		}
+		break;
+
+	case S_PING:
 		pong(header.seq_number);
-	}
-	else if (cmd == S_CLIENT_CHAT_MESSAGE) {
+		break;
+	case S_CLIENT_CHAT_MESSAGE: {
 		// the sender id is embedded into the datafield (bytes 12-14) of the packet
 		unsigned short sender_id = 0;
 		thread.copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
@@ -271,22 +283,26 @@ void LocalClient::Listen::handle_current_packet() {
 			// perhaps request a new peer list from the server. :P
 			onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
 		}
-	}
-	else if (cmd == S_SHUTDOWN) {
+		break;
+		}
+
+	case S_SHUTDOWN:
 		onScreenLog::print( "Client: Received S_SHUTDOWN from server (server going down).\n");
 		_connected = 0; // this will break from the recvfrom loop gracefully
 		_shutdown_requested = true;	// this will cause LocalClient::stop() to be called from the main (rendering) thread
-		//LocalClient::stop();
-	}
-	else if (cmd == C_TERMINATE) {
+		break;
+
+	case C_TERMINATE:
 		onScreenLog::print("Client:Received C_TERMINATE from self. Stopping.\n");
 		_connected = 0;
 		_shutdown_requested = true;
-	}
-	else if (cmd == S_PEER_LIST) {
+		break;
+	
+	case S_PEER_LIST:
 		construct_peer_list();
-	}
-	else if (cmd == S_CLIENT_DISCONNECT) {
+		break;
+
+	case S_CLIENT_DISCONNECT: {
 		unsigned short id;
 		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 		auto it = peers.find(id);
@@ -297,6 +313,12 @@ void LocalClient::Listen::handle_current_packet() {
 			onScreenLog::print( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
 			peers.erase(id);
 		}
+		break;
+		}
+	
+	default:
+		onScreenLog::print("Warning: received unknown command char %u from server.\n", cmd);
+		break;
 	}
 
 }
@@ -315,8 +337,9 @@ void LocalClient::Listen::update_positions() {
 		unsigned short id;
 		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE);
 		auto it = peers.find(id);
+		
 		if (it == peers.end()) {
-			onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
+			onScreenLog::print( "update_positions: unkno wn peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
@@ -324,6 +347,18 @@ void LocalClient::Listen::update_positions() {
 		}
 	}
 	LocalClient::posupd_timer.begin();	
+}
+
+inline void interp(Car &car, float DT_COEFF) {
+		float turn_coeff = turn_velocity_coeff(car.state.velocity);
+		car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
+								*car.state.front_wheel_angle*car.state.velocity*turn_coeff*DT_COEFF;
+	
+
+		car.state.wheel_rot -= 1.07*car.state.velocity * DT_COEFF;
+		car.state._position[0] += car.state.velocity*sin(car.state.direction-M_PI/2) * DT_COEFF;
+		car.state._position[2] += car.state.velocity*cos(car.state.direction-M_PI/2) * DT_COEFF;
+
 }
 
 void LocalClient::interpolate_positions() {
@@ -334,19 +369,12 @@ void LocalClient::interpolate_positions() {
 	static const float HALF_GRANULARITY = POSITION_UPDATE_GRANULARITY_MS/2.0;
 	const float DT_COEFF = HALF_GRANULARITY/16.666;
 
+	//float local_DT_COEFF = time_since_last_posupd_ms()/16.666;
+
 	auto it = peers.begin();
 	while (it != peers.end()) {
 		Car &car = it->second.car;
-
-		float turn_coeff = turn_velocity_coeff(car.state.velocity);
-		car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
-								*car.state.front_wheel_angle*car.state.velocity*turn_coeff*DT_COEFF;
-	
-
-		car.state.wheel_rot -= 1.07*car.state.velocity * DT_COEFF;
-		car.state._position[0] += car.state.velocity*sin(car.state.direction-M_PI/2) * DT_COEFF;
-		car.state._position[2] += car.state.velocity*cos(car.state.direction-M_PI/2) * DT_COEFF;
-
+		interp(car, DT_COEFF);
 		++it;
 	}
 

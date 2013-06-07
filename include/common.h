@@ -84,7 +84,8 @@ float f_wheel_angle(float x);
 class _timer {
 	double cpu_freq;	// in kHz
 	__int64 counter_start;
-	__int64 get() {
+
+	__int64 get() const {
 		LARGE_INTEGER li;
 		QueryPerformanceCounter(&li);
 		return li.QuadPart;
@@ -106,13 +107,13 @@ public:
 	}
 
 
-	inline double get_s() {	
+	inline double get_s() const {	
 		return double(_timer::get()-_timer::counter_start)/_timer::cpu_freq;
 	}
-	inline double get_ms() {
+	inline double get_ms() const {
 		return double(1000*(_timer::get_s()));
 	}
-	inline double get_us() {
+	inline double get_us() const {
 		return double(1000000*(_timer::get_s()));
 	}
 	_timer() {

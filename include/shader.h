@@ -60,8 +60,8 @@ public:
 	bool is_bad() const { return bad; }
 
 	void construct_uniform_map();
-	void update_uniform_mat4(const std::string &uniform_name, const void *data);
-	void update_uniform_vec4(const std::string &uniform_name, const void *data);
+	void update_uniform_mat4(const std::string &uniform_name, const mat4 &m);
+	void update_uniform_vec4(const std::string &uniform_name, const vec4 &v);
 	void update_uniform_1f(const std::string &uniform_name, GLfloat value);
 	void update_uniform_1i(const std::string &uniform_name, GLint value);	// just wrappers around the glapi calls
 

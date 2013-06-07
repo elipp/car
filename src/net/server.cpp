@@ -329,10 +329,10 @@ void Server::Ping::ping_loop() {
 #define PING_GRANULARITY_MS 1000
 
 	static _timer ping_timer;
+	ping_timer.begin();
 
 	while (thread.running()) {
-		ping_timer.begin();
-		if (clients.size() < 1) { Sleep(250); }
+		if (clients.size() < 1) { Sleep(500); }
 		id_client_map::iterator iter = clients.begin();
 		while (iter != clients.end()) {
 
@@ -365,6 +365,7 @@ void Server::Ping::ping_loop() {
 		}
 		long wait = PING_GRANULARITY_MS - ping_timer.get_ms();
 		if (wait > 1) { Sleep(wait); }
+		ping_timer.begin();
 	}
 
 }
@@ -381,14 +382,14 @@ void Server::GameState::state_loop() {
 	calculate_timer.begin();
 
 	while(thread.running()) {
-		if (clients.size() <= 0) { Sleep(250); }
+		if (clients.size() <= 0) { Sleep(500); }
 		else {
 			for (auto &it : clients) { 
 				calculate_state_client(it.second); 
 			}
 			broadcast_state();
-			long wait = POSITION_UPDATE_GRANULARITY_MS - calculate_timer.get_ms();
-			if (wait > 0) { Sleep(wait); }
+			thread.half_busy_sleep_until(POSITION_UPDATE_GRANULARITY_MS, calculate_timer);	// for more accuracy
+			//fprintf(stderr, "posupd: %f ms from last\n", calculate_timer.get_ms());
 			calculate_timer.begin();
 		}
 	}

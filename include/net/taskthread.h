@@ -1,8 +1,13 @@
 #ifndef TASKTHREAD_H
 #define TASKTHREAD_H
 
+
 #include "net/socket.h"
+#include "common.h"
 #include <thread>
+
+#define HALF_BUSY_SLEEP_LAGGING_BEHIND 0x0
+#define HALF_BUSY_SLEEP_OK 0x1
 
 typedef void (*NTTCALLBACK)(void);
 
@@ -35,6 +40,14 @@ public:
 		task_callback = callback;
 		_running = 0;
 	}
+
+	inline int half_busy_sleep_until(double ms, const _timer &timer) {
+		if (timer.get_ms() > ms) { return HALF_BUSY_SLEEP_LAGGING_BEHIND; }
+		if (ms > 4) { Sleep((int)ms - 2); } // a ~2 ms timer resolution is implied, which is ideally given by timeBeginPeriod(1)
+		while (timer.get_ms() < ms);	// just busy wait those last milliseconds
+		return HALF_BUSY_SLEEP_OK;
+	}
+
 };
 
 

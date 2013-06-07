@@ -86,13 +86,16 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_CHAR:
 		if (onScreenLog::input_field.enabled()) {
-			onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
+			if (wParam != VK_RETURN) { // is handled in the WM_KEYDOWN -caseblock
+				onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
+			}
 		}
 		break;
 		
 	case WM_KEYDOWN:
 		if (onScreenLog::input_field.enabled()) {
 			if (wParam == VK_RETURN) {
+				
 				onScreenLog::input_field.submit_and_parse();
 				onScreenLog::input_field.disable();
 			}
@@ -344,9 +347,8 @@ static std::string *convertLF_to_CRLF(const char *buf) {
 
 GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize The GL Window
 {
-	if (height==0)										// Prevent A Divide By Zero By
-	{
-		height=1;										// Making Height Equal One
+	if (height == 0) { 	
+		height = 1;		
 	}
 
 	WINDOW_WIDTH = width;
@@ -355,7 +357,8 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 	glViewport(0,0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
 
 	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
-	projection = mat4::proj_persp(M_PI/8.0, (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT, 2.0, 1000.0);
+	projection = mat4::proj_persp(M_PI/4, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, 400.0);
 	onScreenLog::input_field.update_y_pos(WINDOW_HEIGHT - char_spacing_vert - 4);
+	onScreenLog::update_overlay_pos();
 
 }

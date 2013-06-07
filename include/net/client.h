@@ -111,6 +111,8 @@ class LocalClient {
 	
 	static _timer posupd_timer;
 
+	static unsigned latest_posupd_seq_number;
+
 	static class Listen { 
 		NetTaskThread thread;
 		void handle_current_packet();
@@ -148,6 +150,8 @@ class LocalClient {
 	
 public:
 	
+	static inline double time_since_last_posupd_ms() { return posupd_timer.get_ms(); }
+
 	static void interpolate_positions();
 	static int connected() { return _connected; }
 	static void connect();
@@ -158,6 +162,8 @@ public:
 	static int start(const std::string &ip_port_string);
 	static void stop();
 	
+	static unsigned short id() { return client.info.id; }
+
 	static int num_peers(){ return peers.num_peers(); }
 	static void set_name(const std::string &nick);
 	static void parse_user_input(const std::string s);

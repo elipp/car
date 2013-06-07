@@ -11,8 +11,8 @@ void main(void) {
 
 	//vec2 tc_inverted_v = vec2(TexCoord_FS_in.x, 1-TexCoord_FS_in.y);
 	vec4 col = texture2D(texture_color, TexCoord_FS_in);
-	float real_a = col.g;
-	if (col.g != 1.0) {
+	
+	if (col.g != 1.0) { // see the dina_all texture for reference :P
 		discard;
 	}
 	else {

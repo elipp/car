@@ -14,7 +14,7 @@
 #include "shader.h"
 
 extern void text_set_Projection(const mat4 &proj);
-//extern mat4 text_ModelView;
+
 extern GLuint text_texId;
 extern GLuint text_shared_IBOid;
 
@@ -35,8 +35,9 @@ struct xy {
 struct vertex2 {		
 	float x, y;
 	float u, v;
-	vertex2(const struct xy pos, const struct uv tc) : x(pos.x), y(pos.y), u(tc.u), v(tc.v) {}
-	vertex2() {}
+	vertex2(const struct xy &pos, const struct uv &tc) : x(pos.x), y(pos.y), u(tc.u), v(tc.v) {};
+	vertex2(float _x, float _y, const struct uv &tc) : x(_x), y(_y), u(tc.u), v(tc.v) {};
+	vertex2() {};
 };
 
 struct glyph {
@@ -61,11 +62,9 @@ public:
 	public:
 		
 		GLuint VBOid;
-
 		float textfield_pos_y;
 
 		bool enabled() const { return _enabled; }
-		
 		void enable();
 		void disable();
 		
@@ -113,6 +112,7 @@ private:
 	static void set_y_translation(float new_y);
 	
 public:
+	static void update_overlay_pos();
 	static void print_string(const std::string &s);
 	static void toggle_visibility() { _visible = !_visible; }
 	static void scroll(float ds);
