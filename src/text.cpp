@@ -14,13 +14,6 @@ void text_set_Projection(const mat4 &m) {
 	text_Projection = m;
 }
 
-std::string get_timestamp() {
-	char buffer[128];
-	SYSTEMTIME st;
-    GetLocalTime(&st);
-	sprintf_s(buffer, "%02d:%02d", st.wHour, st.wMinute);
-	return std::string(buffer);
-}
 
 static const unsigned shared_indices_count = 0xFFFF - 0xFFFF%6;
 

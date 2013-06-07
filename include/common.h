@@ -20,6 +20,7 @@
 #define M_PI 3.14159265359
 #endif
 
+extern std::string get_timestamp();
 
 static const float PI_PER_TWO = M_PI/2;
 

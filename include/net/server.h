@@ -23,6 +23,10 @@ const float turning_modifier_reverse = 1.2*turning_modifier_forward;
 const float accel_modifier = 0.012*POSITION_UPDATE_DT_COEFF;
 const float brake_modifier = 0.8*accel_modifier;
 
+inline float turn_velocity_coeff(float vel) {
+	return 1.5*pow(8, -fabs(vel));
+}
+
 const float velocity_dissipation = pow(0.962, POSITION_UPDATE_DT_COEFF);
 
 const float tmpx_limit = 0.68;

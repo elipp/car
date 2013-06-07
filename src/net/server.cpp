@@ -11,6 +11,25 @@
 
 #include <cmath>
 
+static const float FW_ANGLE_LIMIT = M_PI/6; // rad
+static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
+static const float REAL_ANGLE_LIMIT = 0.6*FW_ANGLE_LIMIT;
+// f(x) = -(1/(x+1/sqrt(30))^2) + 30
+// f(x) = 1/(-x + 1/sqrt(30))^2 - 30
+
+
+static float f_wheel_angle(float x) {
+	if (x >= 0) {
+		float t = (x + SQRT_FW_ANGLE_LIMIT_RECIP);
+		float angle = -1/(t*t) + FW_ANGLE_LIMIT;
+		return angle > REAL_ANGLE_LIMIT ? REAL_ANGLE_LIMIT : angle;
+	}
+	else {
+		float t = (-x + SQRT_FW_ANGLE_LIMIT_RECIP);
+		float angle = 1/(t*t) - FW_ANGLE_LIMIT;
+		return angle < -REAL_ANGLE_LIMIT ? -REAL_ANGLE_LIMIT : angle;
+	}
+}
 
 unsigned Server::seq_number = 0;
 
@@ -155,7 +174,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
 		const std::string msg(thread.buffer + PTCL_HEADER_LENGTH);
-		SERVER_PRINT( "%s: %s\n", client_iter->second.info.name.c_str(), msg.c_str());
+		SERVER_PRINT( "<%s> %s: %s\n", get_timestamp().c_str(), client_iter->second.info.name.c_str(), msg.c_str());
 		distribute_chat_message(msg, header.sender_id);
 	}
 	else if (cmd == C_QUIT) {
@@ -363,7 +382,7 @@ void Server::GameState::state_loop() {
 
 	while(thread.running()) {
 		if (clients.size() <= 0) { Sleep(250); }
-		else if (calculate_timer.get_ms() > POSITION_UPDATE_GRANULARITY_MS) {
+		else {
 			for (auto &it : clients) { 
 				calculate_state_client(it.second); 
 			}
@@ -420,7 +439,7 @@ void Server::GameState::calculate_state_client(struct Client &c) {
 	
 	car.state.susp_angle_roll = car.data_internal.front_wheel_tmpx*fabs(car.state.velocity)*0.2;
 	
-	float turn_coeff = 1.5*pow(8,-(fabs(car.state.velocity)));
+	float turn_coeff = turn_velocity_coeff(car.state.velocity);
 	car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
 							*car.state.front_wheel_angle*car.state.velocity*turn_coeff*POSITION_UPDATE_DT_COEFF;
 	

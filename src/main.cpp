@@ -417,6 +417,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	static float running = 0;
 	MSG msg;
+
+
 	while(main_loop_running())
 	{
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
@@ -468,11 +470,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		if (!vsync) {
-			double ms_remaining = 16.666 - fps_timer.get_ms();
-			// one should measure time per loop to get accurate frame rate
-			if (ms_remaining > 3) {
-				Sleep((int)(ms_remaining));
-			}
+			while (fps_timer.get_ms() < 16.6);
 		}
 		window_swapbuffers();
 		fps_timer.begin();

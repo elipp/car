@@ -45,7 +45,7 @@ void LocalClient::connect() {
 
 	while (parent.running() && _connected) {
 		// kind of stupid though :P A sleeping parent thread for the client net code
-		Sleep(500);
+		Sleep(1000);
 	}
 
 //exit:
@@ -109,7 +109,7 @@ void LocalClient::keystate_task() {
 
 void LocalClient::Keystate::keystate_loop() {
 	
-	#define KEYSTATE_GRANULARITY_MS 25	// this could be overly tight though.
+	#define KEYSTATE_GRANULARITY_MS 46.66	// aiming for as low a rate as possible
 	static _timer keystate_timer;
 	keystate_timer.begin();
 	while (thread.running() && _connected) {
@@ -327,25 +327,18 @@ void LocalClient::Listen::update_positions() {
 }
 
 void LocalClient::interpolate_positions() {
-	// assume a steady 30 POSUPDs per second (admittedly stupid :D), fill a frame exactly in the middle.
 	if (peers.num_peers() <= 0) { 
 		posupd_timer.begin();	// workaround, don't know what for though
 		return; 
 	}
 	static const float HALF_GRANULARITY = POSITION_UPDATE_GRANULARITY_MS/2.0;
-	static const float DT_COEFF = HALF_GRANULARITY/16.666;
-	float ms_from_last_posupd = posupd_timer.get_ms();
-	float dt = HALF_GRANULARITY - ms_from_last_posupd;
-	
-	if (dt > 0) {
-		Sleep(dt);
-	}
+	const float DT_COEFF = HALF_GRANULARITY/16.666;
 
 	auto it = peers.begin();
 	while (it != peers.end()) {
 		Car &car = it->second.car;
 
-		float turn_coeff = 1.5*pow(8,-(fabs(car.state.velocity)));
+		float turn_coeff = turn_velocity_coeff(car.state.velocity);
 		car.state.direction += (car.state.velocity > 0 ? turning_modifier_forward : turning_modifier_reverse)
 								*car.state.front_wheel_angle*car.state.velocity*turn_coeff*DT_COEFF;
 	

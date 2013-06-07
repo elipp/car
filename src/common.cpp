@@ -15,23 +15,14 @@ std::vector<std::string> split(const std::string &s, char delim) {
     return elems;
 }
 
-static const float FW_ANGLE_LIMIT = M_PI/6; // rad
-static const float SQRT_FW_ANGLE_LIMIT_RECIP = 1.0/sqrt(FW_ANGLE_LIMIT);
-static const float REAL_ANGLE_LIMIT = 0.6*FW_ANGLE_LIMIT;
-// f(x) = -(1/(x+1/sqrt(30))^2) + 30
-// f(x) = 1/(-x + 1/sqrt(30))^2 - 30
 
-float f_wheel_angle(float x) {
-	if (x >= 0) {
-		float t = (x + SQRT_FW_ANGLE_LIMIT_RECIP);
-		float angle = -1/(t*t) + FW_ANGLE_LIMIT;
-		return angle > REAL_ANGLE_LIMIT ? REAL_ANGLE_LIMIT : angle;
-	}
-	else {
-		float t = (-x + SQRT_FW_ANGLE_LIMIT_RECIP);
-		float angle = 1/(t*t) - FW_ANGLE_LIMIT;
-		return angle < -REAL_ANGLE_LIMIT ? -REAL_ANGLE_LIMIT : angle;
-	}
+
+std::string get_timestamp() {
+	char buffer[128];
+	SYSTEMTIME st;
+    GetLocalTime(&st);
+	sprintf_s(buffer, "%02d:%02d", st.wHour, st.wMinute);
+	return std::string(buffer);
 }
 
 
