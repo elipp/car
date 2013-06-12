@@ -17,10 +17,8 @@ static const vec4 colors[8] = {
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
 
-LocalClient::Listen LocalClient::Listener;
-LocalClient::Keystate LocalClient::KeystateManager;
-
-NetTaskThread LocalClient::parent(LocalClient::connect);
+LocalClient::Listen LocalClient::Listener(NULL);
+LocalClient::Keystate LocalClient::KeystateManager(NULL);
 
 Socket LocalClient::socket;
 struct Client LocalClient::client;
@@ -36,32 +34,10 @@ unsigned short LocalClient::port = 50001;
 
 static Car local_car;
 
-void LocalClient::connect() {
+int LocalClient::connect(const std::string &ip_port_string) {
 	
-	int success = handshake();
-	if (!success) { 
-		_shutdown_requested = true;
-		return; 
-	}
+	// establish what can called a virtual connection :P
 
-	Listener.start();
-	KeystateManager.start();
-
-	while (parent.running() && _connected) {
-		// kind of stupid though :P A sleeping parent thread for the client net code
-		Sleep(2000);
-	}
-
-//exit:
-	KeystateManager.stop();
-	Listener.stop();
-
-	peers.clear();
-	_connected = 0;
-}
-
-int LocalClient::start(const std::string &ip_port_string) {
-	
 	client.info.ip_string = "127.0.0.1";
 	client.info.id = ID_CLIENT_UNASSIGNED;	// not assigned
 	
@@ -93,30 +69,44 @@ int LocalClient::start(const std::string &ip_port_string) {
 	}
 	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
 
-	parent.start();	// calls connect with the above-specified settings
+
+	int success = handshake();
+	if (!success) { 
+		_shutdown_requested = true;
+		return 0; 
+	}
+
+	Listener.start();
+	KeystateManager.start();
+
 	return 1;
+
+/*
+//exit:
+
+	*/
 }
 
 void LocalClient::stop() {
 	static const PTCLHEADERDATA TERMINATE_PACKET = { PROTOCOL_ID, 0, ID_SERVER, C_TERMINATE };
 	// the packet of death. this sets _connected = false and breaks out of the listen loop gracefully (ie. without calling WSACleanup) :D
 	socket.send_data(&socket.get_own_addr(), (const char*)&TERMINATE_PACKET, sizeof(TERMINATE_PACKET));
-	parent.stop();
+	KeystateManager.stop();
+	Listener.stop();
+
+	peers.clear();
+	_connected = 0;
 	socket.close();
 	_connected = 0;
 	_shutdown_requested = false;
 }
 
-void LocalClient::keystate_task() {
-	KeystateManager.keystate_loop();
-}
-
-void LocalClient::Keystate::keystate_loop() {
+void LocalClient::Keystate::task() {
 	
 	#define KEYSTATE_GRANULARITY_MS 46.66	// aiming for as low a rate as possible
 	static _timer keystate_timer;
 	keystate_timer.begin();
-	while (thread.running() && _connected) {
+	while (running() && _connected) {
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
 			update_keystate(WM_KEYDOWN_KEYS);
 			post_keystate();
@@ -129,13 +119,15 @@ void LocalClient::Keystate::keystate_loop() {
 
 int LocalClient::handshake() {
 	
+	char handshake_buffer[PACKET_SIZE_MAX];
+
 	PTCLHEADERDATA HANDSHAKE_HEADER
 		= protocol_make_header(client.seq_number, ID_CLIENT_UNASSIGNED, C_HANDSHAKE);
 
-	protocol_copy_header(parent.buffer, &HANDSHAKE_HEADER);
-	parent.copy_to_buffer(client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
+	protocol_copy_header(handshake_buffer, &HANDSHAKE_HEADER);
+	copy_to_ext_buffer(handshake_buffer, client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
 
-	send_data_to_server(parent.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
+	send_data_to_server(handshake_buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 
 			
 #define RETRY_GRANULARITY_MS 1000
@@ -155,7 +147,7 @@ int LocalClient::handshake() {
 			break;
 		}
 		onScreenLog::print("Re-sending handshake to remote...\n");
-		send_data_to_server(parent.buffer, PTCL_HEADER_LENGTH + client.info.name.length());
+		send_data_to_server(handshake_buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 	}
 
 	if (!received_data) {
@@ -165,10 +157,10 @@ int LocalClient::handshake() {
 	}
 	
 	struct sockaddr_in from;
-	int bytes = socket.receive_data(parent.buffer, &from);
+	int bytes = socket.receive_data(handshake_buffer, &from);
 
 	PTCLHEADERDATA header;
-	protocol_get_header_data(parent.buffer, &header);
+	protocol_get_header_data(handshake_buffer, &header);
 
 	if (header.protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
@@ -185,10 +177,10 @@ int LocalClient::handshake() {
 	}
 
 	// get player id embedded within the packet
-	parent.copy_from_buffer(&client.info.id, sizeof(client.info.id), PTCL_HEADER_LENGTH);
+	copy_from_ext_buffer(handshake_buffer, &client.info.id, sizeof(client.info.id), PTCL_HEADER_LENGTH);
 
 	// get player name received from server
-	client.info.name = std::string(parent.buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
+	client.info.name = std::string(handshake_buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
 	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
 	_connected = true;
@@ -199,9 +191,9 @@ int LocalClient::handshake() {
 void LocalClient::Listen::pong(unsigned seq_number) {
 	//onScreenLog::print("Received S_PING from remote (seq_number = %u)\n", seq_number);
 	PTCLHEADERDATA PONG_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_PONG };
-	thread.copy_to_buffer(&PONG_HEADER, sizeof(PONG_HEADER), 0);
-	thread.copy_to_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
-	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH + sizeof(seq_number));
+	copy_to_buffer(&PONG_HEADER, sizeof(PONG_HEADER), 0);
+	copy_to_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
+	send_data_to_server(buffer, PTCL_HEADER_LENGTH + sizeof(seq_number));
 }
 
 static inline std::vector<struct peer_info_t> process_peer_list_string(const char* buffer) {
@@ -243,7 +235,7 @@ void LocalClient::send_chat_message(const std::string &msg) {
 void LocalClient::Listen::handle_current_packet() {
 
 	PTCLHEADERDATA header;
-	protocol_get_header_data(thread.buffer, &header);
+	protocol_get_header_data(buffer, &header);
 
 	if (header.protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", header.protocol_id);
@@ -273,10 +265,10 @@ void LocalClient::Listen::handle_current_packet() {
 	case S_CLIENT_CHAT_MESSAGE: {
 		// the sender id is embedded into the datafield (bytes 12-14) of the packet
 		unsigned short sender_id = 0;
-		thread.copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
+		copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
 		auto it = peers.find(sender_id);
 		if (it != peers.end()) {
-			std::string chatmsg(thread.buffer + PTCL_HEADER_LENGTH + sizeof(sender_id));
+			std::string chatmsg(buffer + PTCL_HEADER_LENGTH + sizeof(sender_id));
 			onScreenLog::print("<%s> %s: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
 		}
 		else {
@@ -304,7 +296,7 @@ void LocalClient::Listen::handle_current_packet() {
 
 	case S_CLIENT_DISCONNECT: {
 		unsigned short id;
-		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
+		copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 		auto it = peers.find(id);
 		if (it == peers.end()) {
 			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
@@ -325,7 +317,7 @@ void LocalClient::Listen::handle_current_packet() {
 
 void LocalClient::Listen::update_positions() {
 	command_arg_mask_union cmd_arg_mask;
-	thread.copy_from_buffer(&cmd_arg_mask, PTCL_CMD_ARG_FIELD);
+	copy_from_buffer(&cmd_arg_mask, PTCL_CMD_ARG_FIELD);
 	unsigned num_clients = cmd_arg_mask.ch[1];
 
 	static const size_t serial_data_size = sizeof(Car().data_serial);
@@ -335,7 +327,7 @@ void LocalClient::Listen::update_positions() {
 
 	for (unsigned i = 0; i < num_clients; ++i) {
 		unsigned short id;
-		thread.copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE);
+		copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE);
 		auto it = peers.find(id);
 		
 		if (it == peers.end()) {
@@ -343,7 +335,7 @@ void LocalClient::Listen::update_positions() {
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
-			peers.update_peer_data(it, thread.buffer + offset, serial_data_size);
+			peers.update_peer_data(it, buffer + offset, serial_data_size);
 		}
 	}
 	LocalClient::posupd_timer.begin();	
@@ -380,16 +372,12 @@ void LocalClient::interpolate_positions() {
 
 }
 
-void LocalClient::listen_task() { 
-	Listener.listen();
-}
-
-void LocalClient::Listen::listen() {
+void LocalClient::Listen::task() {
 	
 	struct sockaddr_in from;
 	
-	while (thread.running() && _connected) {
-		int bytes = socket.receive_data(thread.buffer, &from);
+	while (running() && _connected) {
+		int bytes = socket.receive_data(buffer, &from);
 		if (bytes >= 0) { handle_current_packet(); }
 	}
 
@@ -400,8 +388,8 @@ void LocalClient::Listen::listen() {
 void LocalClient::Keystate::post_keystate() {
 	PTCLHEADERDATA KEYSTATE_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_KEYSTATE };
 	KEYSTATE_HEADER.cmd_arg_mask.ch[1] = client.keystate;
-	thread.copy_to_buffer(&KEYSTATE_HEADER, sizeof(KEYSTATE_HEADER), 0);
-	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
+	copy_to_buffer(&KEYSTATE_HEADER, sizeof(KEYSTATE_HEADER), 0);
+	send_data_to_server(buffer, PTCL_HEADER_LENGTH);
 }
 
 void LocalClient::Keystate::update_keystate(const bool *keys) {
@@ -416,8 +404,8 @@ void LocalClient::Keystate::update_keystate(const bool *keys) {
 void LocalClient::Listen::post_quit_message() {
 	PTCLHEADERDATA QUIT_HEADER 
 		= protocol_make_header( client.seq_number, client.info.id, C_QUIT);
-	protocol_copy_header(thread.buffer, &QUIT_HEADER);
-	send_data_to_server(thread.buffer, PTCL_HEADER_LENGTH);
+	protocol_copy_header(buffer, &QUIT_HEADER);
+	send_data_to_server(buffer, PTCL_HEADER_LENGTH);
 }
 
 void LocalClient::parse_user_input(const std::string s) {
@@ -465,7 +453,7 @@ void LocalClient::set_name(const std::string &nick) {
 
 void LocalClient::Listen::construct_peer_list() {
 					
-	std::vector<struct peer_info_t> peer_list = process_peer_list_string(thread.buffer + PTCL_HEADER_LENGTH + 1);
+	std::vector<struct peer_info_t> peer_list = process_peer_list_string(buffer + PTCL_HEADER_LENGTH + 1);
 		
 	for (auto &it : peer_list) {
 		//onScreenLog::print( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());

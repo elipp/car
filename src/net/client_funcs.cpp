@@ -18,14 +18,14 @@ int connect(const std::vector<std::string> &args) {
 	}
 	if (args.size() == 1) {
 		// use default
-		return LocalClient::start("127.0.0.1:50000");
+		return LocalClient::connect("127.0.0.1:50000");
 	}
 
 	else if (args.size() != 2) {
 		return 0;
 	}
 	else {
-		return LocalClient::start(args[1]);
+		return LocalClient::connect(args[1]);
 	}
 }
 

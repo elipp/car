@@ -33,24 +33,20 @@ static float f_wheel_angle(float x) {
 
 unsigned Server::seq_number = 0;
 
-Server::Listen Server::Listener;
-Server::Ping Server::PingManager;
-Server::GameState Server::GameStateManager;
+Server::Listen Server::Listener(NULL);	// use NULL callbacks
+Server::Ping Server::PingManager(NULL);
+Server::GameState Server::GameStateManager(NULL);
 
 std::unordered_map<unsigned short, struct Client> Server::clients;
 unsigned Server::num_clients = 0;
 int Server::_running = 0;
 Socket Server::socket;
 
-void _NETTASKTHREAD_CALLBACK Server::listen_task() {
-	Listener.listen_loop();
-}
-
- void Server::Listen::listen_loop(void) {
+ void Server::Listen::task(void) {
 	
-	while(thread.running()) {
+	while(running()) {
 		sockaddr_in from;
-		int bytes = socket.receive_data(thread.buffer, &from);
+		int bytes = socket.receive_data(buffer, &from);
 	
 		if (bytes > 0) {
 			handle_current_packet(&from);
@@ -97,7 +93,7 @@ void Server::shutdown() {
 void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	
 	PTCLHEADERDATA header;
-	protocol_get_header_data(thread.buffer, &header);
+	protocol_get_header_data(buffer, &header);
 	
 	if (header.protocol_id != PROTOCOL_ID) {
 		SERVER_PRINT( "dropping packet. Reason: protocol_id mismatch (%x)!\nDump:\n", header.protocol_id);
@@ -136,7 +132,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		if (client_iter != clients.end()) {
 			struct Client &c = client_iter->second;
 			unsigned int embedded_pong_seq_number;
-			thread.copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH);
+			copy_from_buffer(&embedded_pong_seq_number, sizeof(unsigned int), PTCL_HEADER_LENGTH);
 			if (embedded_pong_seq_number == c.active_ping_seq_number) {
 				//SERVER_PRINT( "Received C_PONG from client %d with seq_number %d (took %d us)\n", c.info.id, embedded_pong_seq_number, (int)c.ping_timer.get_us());
 				c.active_ping_seq_number = 0;
@@ -151,7 +147,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 	}
 
 	else if (cmd == C_HANDSHAKE) {
-		std::string name_string(thread.buffer + PTCL_HEADER_LENGTH);
+		std::string name_string(buffer + PTCL_HEADER_LENGTH);
 		static unsigned rename = 0;
 		int needs_renaming = 0;
 		for (auto &name_iter : clients) {
@@ -173,7 +169,7 @@ void Server::Listen::handle_current_packet(_OUT struct sockaddr_in *from) {
 		post_peer_list();
 	}
 	else if (cmd == C_CHAT_MESSAGE) {
-		const std::string msg(thread.buffer + PTCL_HEADER_LENGTH);
+		const std::string msg(buffer + PTCL_HEADER_LENGTH);	// lines like these are rather risky though.. :D
 		SERVER_PRINT( "<%s> %s: %s\n", get_timestamp().c_str(), client_iter->second.info.name.c_str(), msg.c_str());
 		distribute_chat_message(msg, header.sender_id);
 	}
@@ -193,21 +189,21 @@ void Server::Listen::distribute_chat_message(const std::string &msg, const unsig
 	PTCLHEADERDATA CHAT_MESSAGE_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_CHAT_MESSAGE };
 	CHAT_MESSAGE_HEADER.cmd_arg_mask.ch[1] = (unsigned char)msg.length();
 
-	size_t accum_offset = thread.copy_to_buffer(&CHAT_MESSAGE_HEADER, sizeof(CHAT_MESSAGE_HEADER), 0);
+	size_t accum_offset = copy_to_buffer(&CHAT_MESSAGE_HEADER, sizeof(CHAT_MESSAGE_HEADER), 0);
 	
-	accum_offset += thread.copy_to_buffer(&sender_id, sizeof(sender_id), accum_offset);
-	accum_offset += thread.copy_to_buffer(msg.c_str(), msg.length(), accum_offset);
-	send_data_to_all(thread.buffer, accum_offset);
+	accum_offset += copy_to_buffer(&sender_id, sizeof(sender_id), accum_offset);
+	accum_offset += copy_to_buffer(msg.c_str(), msg.length(), accum_offset);
+	send_data_to_all(buffer, accum_offset);
 }
 
 void Server::Listen::post_client_connect(const struct Client &c) {
 	PTCLHEADERDATA CLIENT_CONNECT_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_CONNECT };
-	thread.copy_to_buffer(&CLIENT_CONNECT_HEADER, sizeof(CLIENT_CONNECT_HEADER), 0);
+	copy_to_buffer(&CLIENT_CONNECT_HEADER, sizeof(CLIENT_CONNECT_HEADER), 0);
 	char buffer[128];
 	int bytes= sprintf_s(buffer, 128, "%u/%s/%s/%u", c.info.id, c.info.name.c_str(), c.info.ip_string.c_str(), c.info.color);
 	buffer[bytes-1] = '\0';
-	thread.copy_to_buffer(buffer, bytes, PTCL_HEADER_LENGTH);
-	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH + bytes);
+	copy_to_buffer(buffer, bytes, PTCL_HEADER_LENGTH);
+	send_data_to_all(buffer, PTCL_HEADER_LENGTH + bytes);
 }
 
 unsigned short Server::Listen::add_client(struct sockaddr_in *newclient_saddr, const std::string &name) {
@@ -237,10 +233,10 @@ unsigned short Server::Listen::add_client(struct sockaddr_in *newclient_saddr, c
 void Server::Listen::post_client_disconnect(unsigned short id) {
 	
 	PTCLHEADERDATA CLIENT_DISCONNECT_HEADER = { PROTOCOL_ID, SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_CLIENT_DISCONNECT };
-	thread.copy_to_buffer(&CLIENT_DISCONNECT_HEADER, sizeof(CLIENT_DISCONNECT_HEADER), 0); 
-	thread.copy_to_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
+	copy_to_buffer(&CLIENT_DISCONNECT_HEADER, sizeof(CLIENT_DISCONNECT_HEADER), 0); 
+	copy_to_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 
-	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH + sizeof(id));
+	send_data_to_all(buffer, PTCL_HEADER_LENGTH + sizeof(id));
 }
 
 void Server::send_data_to_all(char *buffer, size_t size) {
@@ -270,17 +266,17 @@ void Server::Listen::handshake(struct Client *client) {
 	PTCLHEADERDATA HANDSHAKE_HEADER = 
 		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_HANDSHAKE_OK, client->info.color);
 	
-	int accum_offset = protocol_copy_header(thread.buffer, &HANDSHAKE_HEADER);
-	accum_offset += thread.copy_to_buffer(&client->info.id, sizeof(client->info.id), accum_offset);
-	accum_offset += thread.copy_to_buffer(client->info.name.c_str(), client->info.name.length(), accum_offset);
-	send_data_to_client(*client, thread.buffer, accum_offset);
+	int accum_offset = protocol_copy_header(buffer, &HANDSHAKE_HEADER);
+	accum_offset += copy_to_buffer(&client->info.id, sizeof(client->info.id), accum_offset);
+	accum_offset += copy_to_buffer(client->info.name.c_str(), client->info.name.length(), accum_offset);
+	send_data_to_client(*client, buffer, accum_offset);
 }
 
 void Server::Listen::post_peer_list() {
 
 	PTCLHEADERDATA PEER_LIST_HEADER = 
 		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_PEER_LIST, clients.size());
-	protocol_copy_header(thread.buffer, &PEER_LIST_HEADER);
+	protocol_copy_header(buffer, &PEER_LIST_HEADER);
 	
 	static const size_t buf_size = PACKET_SIZE_MAX-PTCL_HEADER_LENGTH;
 	char peer_buf[512];	// FIXME: HORRIBLE WORKAROUND (fix intermittent stack corruption errors at sprintf_s)
@@ -296,33 +292,30 @@ void Server::Listen::post_peer_list() {
 		++iter;
 	}
 	peer_buf[offset] = '\0';
-	thread.copy_to_buffer(peer_buf, offset, PTCL_HEADER_LENGTH);
+	copy_to_buffer(peer_buf, offset, PTCL_HEADER_LENGTH);
 
 	SERVER_PRINT( "Server: sending peer list to all clients.\n");
 
-	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH + offset);
+	send_data_to_all(buffer, PTCL_HEADER_LENGTH + offset);
 }
 
 void Server::Listen::broadcast_shutdown_message() {
 	PTCLHEADERDATA SHUTDOWN_HEADER = protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_SHUTDOWN); 
-	protocol_copy_header(thread.buffer, &SHUTDOWN_HEADER);
-	send_data_to_all(thread.buffer, PTCL_HEADER_LENGTH);
+	protocol_copy_header(buffer, &SHUTDOWN_HEADER);
+	send_data_to_all(buffer, PTCL_HEADER_LENGTH);
 }
 void Server::Ping::ping_client(struct Client &c) {
 	//SERVER_PRINT( "Sending S_PING to client %d. (seq = %d)\n", c.info.id, c.seq_number);
 	// THIS IS ASSUMING THE PROTOCOL HEADER HAS BEEN PROPERLY SETUP.
 	c.active_ping_seq_number = c.seq_number;
-	protocol_update_seq_number(thread.buffer, c.seq_number);
-	send_data_to_client(c, thread.buffer, PTCL_HEADER_LENGTH);
-}
-void _NETTASKTHREAD_CALLBACK Server::ping_task() {
-	PingManager.ping_loop();
+	protocol_update_seq_number(buffer, c.seq_number);
+	send_data_to_client(c, buffer, PTCL_HEADER_LENGTH);
 }
 
-void Server::Ping::ping_loop() {
+void Server::Ping::task() {
 
 	PTCLHEADERDATA PING_HEADER = protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_PING);
-	protocol_copy_header(thread.buffer, &PING_HEADER);
+	protocol_copy_header(buffer, &PING_HEADER);
 
 #define PING_SOFT_TIMEOUT_MS 1000
 #define PING_HARD_TIMEOUT_MS 5000
@@ -331,7 +324,7 @@ void Server::Ping::ping_loop() {
 	static _timer ping_timer;
 	ping_timer.begin();
 
-	while (thread.running()) {
+	while (running()) {
 		if (clients.size() < 1) { Sleep(500); }
 		id_client_map::iterator iter = clients.begin();
 		while (iter != clients.end()) {
@@ -370,25 +363,18 @@ void Server::Ping::ping_loop() {
 
 }
 
-
-void _NETTASKTHREAD_CALLBACK Server::state_task() {
-	GameStateManager.state_loop();
-}
-
-
-
-void Server::GameState::state_loop() {
+void Server::GameState::task() {
 	static _timer calculate_timer;
 	calculate_timer.begin();
 
-	while(thread.running()) {
+	while(running()) {
 		if (clients.size() <= 0) { Sleep(500); }
 		else {
 			for (auto &it : clients) { 
 				calculate_state_client(it.second); 
 			}
 			broadcast_state();
-			thread.half_busy_sleep_until(POSITION_UPDATE_GRANULARITY_MS, calculate_timer);	// for more accuracy
+			half_busy_sleep_until(POSITION_UPDATE_GRANULARITY_MS, calculate_timer);	// for more accuracy
 			//fprintf(stderr, "posupd: %f ms from last\n", calculate_timer.get_ms());
 			calculate_timer.begin();
 		}
@@ -400,16 +386,16 @@ void Server::GameState::broadcast_state() {
 	PTCLHEADERDATA POSITION_UPDATE_HEADER = 
 		protocol_make_header( SEQN_ASSIGNED_ELSEWHERE, ID_SERVER, S_POSITION_UPDATE, clients.size());
 
-	protocol_copy_header(thread.buffer, &POSITION_UPDATE_HEADER);
+	protocol_copy_header(buffer, &POSITION_UPDATE_HEADER);
 	size_t total_size = PTCL_HEADER_LENGTH;
 	for (auto &it : clients) {
 		// construct packet to be distributed
 		const struct Client &c = it.second;
-		total_size += thread.copy_to_buffer(&c.info.id, sizeof(c.info.id), total_size);
-		total_size += thread.copy_to_buffer(&c.car.data_serial, sizeof(c.car.data_serial), total_size);
+		total_size += copy_to_buffer(&c.info.id, sizeof(c.info.id), total_size);
+		total_size += copy_to_buffer(&c.car.data_serial, sizeof(c.car.data_serial), total_size);
 
 	}
-	send_data_to_all(thread.buffer, total_size);
+	send_data_to_all(buffer, total_size);
 }
 
 void Server::GameState::calculate_state_client(struct Client &c) {

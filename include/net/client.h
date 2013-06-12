@@ -96,9 +96,7 @@ public:
 };
 
 class LocalClient {
-
-	static NetTaskThread parent;	// hosts all the other threads.
-
+	
 	static Socket socket;
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
@@ -113,35 +111,24 @@ class LocalClient {
 
 	static unsigned latest_posupd_seq_number;
 
-	static class Listen { 
-		NetTaskThread thread;
+	static class Listen : public NetTaskThread { 
 		void handle_current_packet();
 		void pong(unsigned remote_seq_number);
 		void construct_peer_list();
 		void post_quit_message();
-
 		void update_positions();
 	public:
-		void listen();
-		Listen() : thread(listen_task) {}
-		void start() { thread.start(); }
-		void stop() { thread.stop(); }
-
+		void task();
+		Listen(NTTCALLBACK callback) : NetTaskThread(callback) {};
 	} Listener;
-	static void listen_task();
 
-	static class Keystate {
-		NetTaskThread thread;
-		void update_keystate(const bool * keys);
+	static class Keystate : public NetTaskThread {
+		void update_keystate(const bool *keys);
 		void post_keystate();
 	public:
-		void keystate_loop();
-		Keystate() : thread(keystate_task) { }
-		void start() { thread.start(); }
-		void stop() { thread.stop(); }
-
+		void task();
+		Keystate(NTTCALLBACK callback) : NetTaskThread(callback) {};
 	} KeystateManager;
-	static void keystate_task();
 
 	static int send_data_to_server(const char* buffer, size_t size); 
 	static void send_chat_message(const std::string &msg);
@@ -154,12 +141,11 @@ public:
 
 	static void interpolate_positions();
 	static int connected() { return _connected; }
-	static void connect();
+	static int connect(const std::string &ip_port_string);
 	static void disconnect();
 
 	static bool shutdown_requested() { return _shutdown_requested; }
 
-	static int start(const std::string &ip_port_string);
 	static void stop();
 	
 	static unsigned short id() { return client.info.id; }

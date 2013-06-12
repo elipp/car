@@ -45,8 +45,7 @@ class Server {
 	static int _running;
 
 	// these should be grouped and more strictly "bound" in a way other than just grouping them together at the source code level..
-	static class Listen {
-		NetTaskThread thread;
+	static class Listen : public NetTaskThread {
 		void handle_current_packet(struct sockaddr_in *from);
 		void distribute_chat_message(const std::string &msg, const unsigned short sender_id);
 		void post_peer_list();
@@ -56,40 +55,27 @@ class Server {
 		unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
 		void broadcast_shutdown_message();
 	public:
-		void listen_loop();
-		Listen() : thread(listen_task) {};
-		void start() { thread.start(); }
-		void stop() { thread.stop(); }
+		void task();
+		Listen(NTTCALLBACK callback) : NetTaskThread(callback) {};
+
 	} Listener;
 	
-	static void _NETTASKTHREAD_CALLBACK listen_task();
-	
-	// horrible code duplication :(
-	static class Ping {
-		NetTaskThread thread;
+	static class Ping : public NetTaskThread {
 		void ping_client(struct Client &c);
 	public:
-		void ping_loop();
-		Ping() : thread(ping_task) {};
-		void start() { thread.start(); }
-		void stop() { thread.stop(); }
+		void task();
+		Ping(NTTCALLBACK callback) : NetTaskThread(callback) {};
 	} PingManager;
 
-	static _NETTASKTHREAD_CALLBACK void ping_task();
 
-	static class GameState {
-
-		NetTaskThread thread;
+	static class GameState : public NetTaskThread {
 		inline void calculate_state_client(struct Client &c);
 		void broadcast_state();
 	public:
-		GameState() : thread(state_task) {};
-		void state_loop();
-		void start() { thread.start(); }
-		void stop() { thread.stop(); }
+		void task();
+		GameState(NTTCALLBACK callback) : NetTaskThread(callback) {};
 	} GameStateManager;
 	
-	static _NETTASKTHREAD_CALLBACK void state_task();
 
 	static void increment_client_seq_number(struct Client &client);
 	static int send_data_to_client(struct Client &client, const char* buffer, size_t data_size);

@@ -404,8 +404,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	onScreenLog::print("%s\n", cpustr.c_str());
 	
 	LocalClient::set_name("Player");
-	onScreenLog::print("Use /connect <ip>:<port> to connect to a server,\n");
-	onScreenLog::print("or without arguments to connect to default (127.0.0.1:50000).\n");
+	onScreenLog::print("\nUse /connect <ip>:<port> to connect to a server, or /startserver to start one.\n");
+	onScreenLog::print("(/connect without an argument will connect to localhost:50000.)\n");
 	
 	_timer fps_timer;
 	fps_timer.begin();

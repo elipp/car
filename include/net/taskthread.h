@@ -11,20 +11,32 @@
 
 typedef void (*NTTCALLBACK)(void);
 
-// this is not quite the interface i wanted though :P
+int copy_to_ext_buffer(char *dst_buffer, const void* src, size_t src_size, size_t buffer_offset);
+void copy_from_ext_buffer(const char* src_buffer, void* dst, size_t src_size, size_t buffer_offset);
+
 class NetTaskThread {
+	
 	std::thread thread_handle;
 	NTTCALLBACK task_callback;
 	int _running;
 public:
 	char buffer[PACKET_SIZE_MAX];
 
-	int copy_to_buffer(const void* src, size_t length, size_t offset);
-	void copy_from_buffer(void* target, size_t length, size_t offset);
+	static void run_task(NetTaskThread *t) {
+		t->task();	// the derived objects can be passed as NetTaskThreads, no need to static_cast
+	}
+
+	int copy_to_buffer(const void* src, size_t src_size, size_t buffer_offset);
+	void copy_from_buffer(void* dst, size_t src_size, size_t buffer_offset);
 	
 	void start() { 
 		_running = 1;
-		thread_handle = std::thread(task_callback); 
+		if (task_callback != NULL) {
+			thread_handle = std::thread(task_callback); 
+		}
+		else {
+			thread_handle = std::thread(&NetTaskThread::run_task, this);
+		}
 	}
 	void stop() { 
 		_running = 0; 
@@ -47,6 +59,9 @@ public:
 		while (timer.get_ms() < ms);	// just busy wait those last milliseconds
 		return HALF_BUSY_SLEEP_OK;
 	}
+	
+protected:
+	virtual void task() = 0;
 
 };
 
