@@ -29,6 +29,8 @@ extern bool active;
 
 float c_vel_fwd = 0, c_vel_side = 0;
 
+float height_sample_above_camera = 0;
+
 struct meshinfo {
 	GLuint VBOid;
 	GLuint facecount;
@@ -66,7 +68,12 @@ GLuint terrain_texId;
 #define M_PI 3.1415926535
 #endif
 
+float PROJ_FOV_RADIANS = (M_PI/4);
+float PROJ_Z_FAR = 800.0;
+
 static int vsync = 1;
+
+static float height_sample_under_car = 0.0;
 
 void rotatex(float mod) {
 	qy += mod;
@@ -272,9 +279,9 @@ int initGL(void)
 
 	view = mat4::identity();
 
-	projection = mat4::proj_persp(M_PI/4, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, 400.0);
+	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 
-	view_position = vec4(0.0, 0.0, -9.0, 1.0);
+	view_position = vec4(0.0, -150, 0.0, 1.0); // displacement would be a better name
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
@@ -282,7 +289,6 @@ int initGL(void)
 	wglSwapIntervalEXT(vsync);
 
 	VarTracker_track(vec4, view_position);
-	VarTracker_track(mat4, projection);
 
 	return 1;
 
@@ -335,7 +341,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
 		vec4 test_pos = car.position();
-		test_pos(V::y) = map->lookup(test_pos(V::x), test_pos(V::z)) - 200.0;
+		height_sample_under_car =  map->lookup(test_pos(V::x), test_pos(V::z));
+		test_pos(V::y) = height_sample_under_car - 150;
+
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
 		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
 		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
@@ -406,9 +414,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	int k = timeBeginPeriod(1);
+	long wait = 0;
+	double time_per_frame_ms = 0;
 
+	VarTracker_track(double, time_per_frame_ms);
+	VarTracker_track(float, height_sample_under_car);
 
-	onScreenLog::print("timeBeginPeriod(1) returned %s.\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR" : "TIMERR_NOCANDO" );
+	onScreenLog::print("timeBeginPeriod(1) returned %s.\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR (good!)" : "TIMERR_NOCANDO (bad.)" );
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -462,8 +474,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		control();
 		update_c_pos();
 
-
-	//	drawRacetrack();
 		drawTerrain();
 		onScreenLog::draw();
 		VarTracker::draw();
@@ -478,15 +488,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			
 		}
 
-		
-		long wait = 16.666 - fps_timer.get_ms();
-	
+		wait = 16.666 - fps_timer.get_ms();
+
 		if (!vsync) { // then we'll do a "half-busy" wait :P
 			if (wait > 3) { Sleep(wait-1); }	// sleep for those 4 milliseconds
-			while(fps_timer.get_ms() < 16);
+			while(fps_timer.get_ms() < 16.6);	// this is accurate, ie. busy wait
 		}
 
 		window_swapbuffers();
+		time_per_frame_ms = fps_timer.get_ms();
+
 		fps_timer.begin();
 			
 		

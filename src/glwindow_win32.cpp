@@ -357,7 +357,7 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 	glViewport(0,0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
 
 	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
-	projection = mat4::proj_persp(M_PI/4, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, 400.0);
+	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 	onScreenLog::input_field.update_y_pos(WINDOW_HEIGHT - char_spacing_vert - 4);
 	onScreenLog::update_overlay_pos();
 

@@ -37,6 +37,9 @@ unsigned short LocalClient::port = 50001;
 
 static Car local_car;
 
+static int net_bytes_out = 0;
+static int net_bytes_in = 0;
+
 int LocalClient::connect(const std::string &ip_port_string) {
 	
 	// establish what can called a virtual connection :P
@@ -334,7 +337,7 @@ void LocalClient::Listen::update_positions() {
 		auto it = peers.find(id);
 		
 		if (it == peers.end()) {
-			onScreenLog::print( "update_positions: unkno wn peer id included in peer list (%u)\n", id);
+			onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
@@ -443,6 +446,9 @@ int LocalClient::send_data_to_server(const char* buffer, size_t size) {
 
 	int bytes = socket.send_data(&remote_sockaddr, buffer, size);
 	++client.seq_number;
+
+
+
 	return bytes;
 }
 void LocalClient::set_name(const std::string &nick) {

@@ -8,6 +8,7 @@
 
 #include <gl_core_3_2.h>
 
+
 extern bool WM_KEYDOWN_KEYS[];
 extern bool WM_CHAR_KEYS[];
 
@@ -22,6 +23,8 @@ extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
 extern float WINDOW_WIDTH;
 extern float WINDOW_HEIGHT;
+extern float PROJ_FOV_RADIANS;
+extern float PROJ_Z_FAR;
 
 #define HALF_WINDOW_WIDTH (WINDOW_WIDTH/2)
 #define HALF_WINDOW_HEIGHT (WINDOW_HEIGHT/2)

@@ -279,7 +279,8 @@ float HeightMap::lookup(float x, float y) {
 	float r = MM_DPPS_XYZW(c, d);
 	
 	//onScreenLog::print("lookup: z11 = %f, z21 = %f, z12 = %f, z22 = %f, interpolated value = %f\n", z11, z21, z12, z22, r);
-	return r;
+	//return r;
+	return z11;
 }
 
 

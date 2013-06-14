@@ -418,7 +418,10 @@ void onScreenLog::clear() {
 
 GLuint VarTracker::VBOid;
 std::vector<const TrackableBase* const> VarTracker::tracked;
-float VarTracker::pos_x = WINDOW_WIDTH - 32*char_spacing_horiz;
+
+static int tracker_width_chars = 36;
+
+float VarTracker::pos_x = WINDOW_WIDTH - tracker_width_chars*char_spacing_horiz;
 float VarTracker::pos_y = 7;
 int VarTracker::cur_total_length = 0;
 glyph VarTracker::glyph_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
@@ -429,11 +432,12 @@ void VarTracker::init() {
 }
 
 void VarTracker::update() {
-	std::string collect;	// probably faster to just construct a new string 
+	std::string collect = "TEH VARIABLE TRACKER!\n\n";	// probably faster to just construct a new string  
 							// every time, instead of clear()ing a static one
+	static std::string separator = "\n" + std::string(tracker_width_chars - 1, '-') + "\n";
 	collect.reserve(TRACKED_MAX*TRACKED_LEN_MAX);
 	for (auto &it : tracked) {
-		collect += it->name + ":\n" + it->print() + "\n";
+		collect += it->name + ":\n" + it->print() + separator;
 	}
 	
 	VarTracker::update_VBO(collect);
@@ -459,7 +463,7 @@ void VarTracker::update_VBO(const std::string &buffer) {
 			line_beg_index = i;
 		}
 
-		else if (i - line_beg_index >= 32) {
+		else if (i - line_beg_index >= tracker_width_chars) {
 			++current_line_num;
 			y_adjustment = current_line_num*char_spacing_vert;
 			x_adjustment = 0;
