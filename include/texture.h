@@ -9,29 +9,26 @@
 #include <cstring>
 #include "common.h"
 
+#define IS_POWER_OF_TWO(x) ((x) & ((x) - 1))
 
+struct unified_header_data {
+	unsigned width, height;
+	int bpp;
+};
 
 class Texture {
-
 	private:
 		std::string name;
 		GLuint textureId;
-		unsigned short width;
-		unsigned short height;
-		bool hasAlpha;
+		unified_header_data img_info;
 
 		bool _nosuch;
 		bool _badheader;
 		bool _otherbad;
 
-
-	public:
-		
+	public:	
 		std::string getName() const { return name; }
 		GLuint id() const { return textureId; }
-		unsigned short getWidth() const { return width; }
-		unsigned short getHeight() const { return height; }
-		bool getAlpha() const { return hasAlpha; }
 		
 		bool bad() const { return _nosuch || _badheader || _otherbad; }
 		bool nosuch() const { return _nosuch; }
@@ -43,7 +40,7 @@ class Texture {
 	
 };
 
-
+// this is pretty gay though :DDDd
 class TextureBank {
 	static std::vector<Texture> textures;
 public:
@@ -53,30 +50,23 @@ public:
 	static bool validate();
 };
 
-typedef struct BMPHEADER {
+class HeightMap {
+	int dim;	// pixels
+	int bitdepth;
+	unsigned char *pixels;
+	bool _bad;
+	const float scale; // units
+	double dim_per_scale;
+	double half_scale;
+	int dim_minus_one;
+	int dim_squared_minus_one;
+public:
+	bool bad() const { return _bad; }
+	float lookup(float x, float y);
+	HeightMap(const std::string &filename, float _scale);
+	~HeightMap() { if (pixels != NULL) { free(pixels); } }
 
-	// the first two bytes of a bmp file contain the letters "B" and "M".
-	// Adding a "signature" element of size 2 to the beginning of this structure
-	// would force us to use a struct packing pragma directive
-	unsigned int filesize;
-	unsigned int dummy0;		// two reserved 2-byte fields, must be zero
-	unsigned int dataoffset;
-	unsigned int headersize;
-	unsigned int width;
-	unsigned int height;
-	unsigned short dummy1;
-	unsigned short bpp;		
-	unsigned int compression;	
-	unsigned int size;			
-	int hres;				
-	int vres;					
-	unsigned int colors;	
-	unsigned int impcolors;	
-
-	BMPHEADER() {
-		memset(this, 0, sizeof(BMPHEADER));
-	}
-} BMPHEADER;
+};
 
 
 #endif

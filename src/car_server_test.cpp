@@ -24,7 +24,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE );
 	timeEndPeriod(1);
 	while (1) {
-		Sleep(1000);	
+		Sleep(2500);	
 	}// do nothing in main thread :P
 	return 0;
 }

@@ -3,6 +3,7 @@
 #include "net/protocol.h"
 #include "net/client_funcs.h"
 #include "lin_alg.h"
+#include "texture.h"
 
 #include <string>
 
@@ -16,6 +17,8 @@ static const vec4 colors[8] = {
 	vec4(1.0, 1.0, 1.0, 1.0),
 	vec4(0.0, 0.8, 0.2, 1.0)
 };
+
+extern HeightMap *map;
 
 LocalClient::Listen LocalClient::Listener(NULL);
 LocalClient::Keystate LocalClient::KeystateManager(NULL);

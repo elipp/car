@@ -39,6 +39,8 @@ static Model *chassis = NULL,
 			 *racetrack = NULL,
 			 *terrain = NULL;
 
+HeightMap *map = NULL;
+
 GLuint IBOid, FBOid, FBO_textureId;
 
 bool mouseLocked = false;
@@ -199,6 +201,7 @@ int initGL(void)
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	
 	onScreenLog::init();
+	VarTracker::init();
 	
 	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
@@ -224,7 +227,7 @@ int initGL(void)
 	chassis = new Model("models/chassis.bobj", regular_shader);
 	wheel = new Model("models/wheel.bobj", regular_shader);
 	racetrack = new Model("models/racetrack.bobj", racetrack_shader);
-	terrain = new Model("models/terrain.bobj", racetrack_shader);
+	terrain = new Model("models/mappi.bobj", racetrack_shader);
 
 	if (chassis->bad() || wheel->bad() || racetrack->bad() || terrain->bad()) {
 		messagebox_error("initGL error: model load error.\n");
@@ -246,6 +249,11 @@ int initGL(void)
 		return 0;
 	}
 
+	map = new HeightMap("textures/heightmap_grayscale.jpg", 512);
+	if (map->bad()) {
+		onScreenLog::print("heightmap failure. .\n");
+	}
+
 	racetrack->bind_texture(road_texId);
 	terrain->bind_texture(terrain_texId);
 
@@ -257,7 +265,6 @@ int initGL(void)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(int)(0xFFFF), indices, GL_STATIC_DRAW);
 
 	delete [] indices;	
-	
 	
 	glEnableVertexAttribArray(ATTRIB_POSITION);
 	glEnableVertexAttribArray(ATTRIB_NORMAL);
@@ -274,6 +281,9 @@ int initGL(void)
 	
 	wglSwapIntervalEXT(vsync);
 
+	VarTracker_track(vec4, view_position);
+	VarTracker_track(mat4, projection);
+
 	return 1;
 
 }
@@ -287,7 +297,7 @@ void drawRacetrack() {
 
 	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
-	static const mat4 racetrack_model = mat4::translate(5.0, 0.0, 0.0)*mat4::scale(2,2,2) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
+	static const mat4 racetrack_model = mat4::translate(5.0, 0.0, 0.0)*mat4::scale(32,32,32) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
 
 	mat4 racetrack_modelview = view * racetrack_model;
 	racetrack->use_ModelView(racetrack_modelview);
@@ -302,7 +312,7 @@ void drawTerrain() {
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
-	static const mat4 racetrack_model = mat4::translate(0.0, -20, 0.0)*mat4::scale(25, 25, 25) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
+	static const mat4 racetrack_model = mat4::scale(32, 32, 32) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
 
 	mat4 terrain_modelview = view * racetrack_model;
 	terrain->use_ModelView(terrain_modelview);
@@ -324,7 +334,9 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
-		mat4 modelview = view * mat4::translate(car.position()) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
+		vec4 test_pos = car.position();
+		test_pos(V::y) = map->lookup(test_pos(V::x), test_pos(V::z)) - 200.0;
+		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
 		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
 		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
 		vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
@@ -454,7 +466,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//	drawRacetrack();
 		drawTerrain();
 		onScreenLog::draw();
-		
+		VarTracker::draw();
 
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();

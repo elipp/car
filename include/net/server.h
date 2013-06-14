@@ -44,7 +44,6 @@ class Server {
 	
 	static int _running;
 
-	// these should be grouped and more strictly "bound" in a way other than just grouping them together at the source code level..
 	static class Listen : public NetTaskThread {
 		void handle_current_packet(struct sockaddr_in *from);
 		void distribute_chat_message(const std::string &msg, const unsigned short sender_id);
@@ -55,7 +54,7 @@ class Server {
 		unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
 		void broadcast_shutdown_message();
 	public:
-		void task();
+		void task(); // override pure virtual
 		Listen(NTTCALLBACK callback) : NetTaskThread(callback) {};
 
 	} Listener;

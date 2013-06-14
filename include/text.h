@@ -125,6 +125,54 @@ private:
 	onScreenLog() {};
 };
 
+// all this template bullcrap will generate huge amounts of code for us ^^
+
+class TrackableBase {
+public:
+	const std::string name;
+	const void *const data;
+	virtual std::string print() const = 0;
+	TrackableBase(const void* const _data, const std::string &_name) : data(_data), name(_name) {};
+};
+
+template <typename T> class Trackable : public TrackableBase {
+
+public:
+	Trackable<T>(const T* const data, const std::string &_name) 
+		: TrackableBase((const void* const)data, _name) {};
+	
+	std::string print() const {
+		std::ostringstream stream;
+		stream << *(static_cast<const T*>(data));
+		return stream.str();
+	}
+};
+
+// remember: THE VARIABLES BEING TRACKED MUST HAVE STATIC LIFETIME, else -> guaranteed segfault
+
+#define VarTracker_track(TYPENAME, VARNAME)\
+	VarTracker::track(new Trackable<TYPENAME>(&VARNAME,\
+	std::string(#TYPENAME) + std::string(" ") + std::string(#VARNAME)))
+
+class VarTracker {
+#define TRACKED_MAX 16
+#define TRACKED_LEN_MAX 64
+	static float pos_x, pos_y;
+	static int cur_total_length;
+
+	static glyph glyph_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
+	static GLuint VBOid;
+	static std::vector<const TrackableBase* const> tracked;
+	static void update_VBO(const std::string &buffer);
+
+public:
+	static void init();
+	static void update();
+	static void draw();
+	static void track(const TrackableBase *const var);
+	static void untrack(const TrackableBase *const var);
+
+};
 
 
 #endif

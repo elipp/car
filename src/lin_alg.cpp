@@ -27,12 +27,10 @@ const vec4 vec4::zero_const = vec4(ZERO);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
 
-std::ostream &operator<<(std::ostream &out, const __m128 &m) {
-	out.precision(4);
-	out << "(" << m.m128_f32[0] << ", " 
-		<< m.m128_f32[1] << ", "
-		<< m.m128_f32[2] << ", "
-		<< m.m128_f32[3] << ")\n";
+inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
+	char buffer[128];
+	sprintf_s(buffer, 128, "(%4.2f, %4.2f, %4.2f, %4.2f)", m.m128_f32[0], m.m128_f32[1], m.m128_f32[2], m.m128_f32[3]);
+	out << buffer;
 	return out;
 }
 
@@ -71,12 +69,12 @@ static float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 	return _mm_dp_ps(a, b, xyzw_dot_mask).m128_f32[0];
 }
 
-static float MM_DPPS_XYZ(__m128 a, __m128 b) {
+float MM_DPPS_XYZ(__m128 a, __m128 b) {
 	const __m128 mul = _mm_mul_ps(a, b);
 	return mul.m128_f32[0]+mul.m128_f32[1]+mul.m128_f32[2];
 }
 
-static float MM_DPPS_XYZW(__m128 a, __m128 b) {
+float MM_DPPS_XYZW(__m128 a, __m128 b) {
 	const __m128 mul = _mm_mul_ps(a, b);
 	return mul.m128_f32[0]+mul.m128_f32[1]+mul.m128_f32[2] + mul.m128_f32[3];
 }
@@ -506,15 +504,14 @@ std::ostream &operator<< (std::ostream& out, const mat4 &M) {
 	// the mat4 class operates on a column-major basis, so in order to see
 	// the matrix data output quickly enough and in a familiar format, we need to 
 	// transpose it first. This occurs throughout, because row() is much, much slower :P
-	out << T.column(0).getData() << T.column(1).getData() << T.column(2).getData() << T.column(3).getData();
+	out << T.column(0).getData() << "\n"
+		<< T.column(1).getData() << "\n"
+		<< T.column(2).getData() << "\n"
+		<< T.column(3).getData();
 	return out;
 }
 
 mat4 mat4::proj_ortho(float left, float right, float bottom, float top, float zNear, float zFar) {
-
-	// We could just assume here that the matrix is "clean",
-	// i.e. that any matrix elements other than the ones used in
-	// a pure orthographic projection matrix are zero.
 		
 	mat4 M = mat4::identity();
 	
@@ -532,7 +529,7 @@ mat4 mat4::proj_ortho(float left, float right, float bottom, float top, float zN
 mat4 mat4::proj_persp(float left, float right, float bottom, float top, float zNear, float zFar) {
 		
 	mat4 M = mat4::identity();
-	//M.identity();
+
 	M(0,0) = (2*zNear)/(right-left);
 	M(1,1) = (2*zNear)/(top-bottom);
 	M(2,0) = (right+left)/(right-left);

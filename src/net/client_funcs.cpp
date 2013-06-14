@@ -69,7 +69,7 @@ int startserver(const std::vector<std::string> &args) {
 int stopserver(const std::vector<std::string> &args) {
 	if (Server::running()) {
 		onScreenLog::print("Client: stopping local server.\n");
-		Server::shutdown();
+		Server::shutdown();	// should look for a way to do this without blocking the rendering thread
 	}
 	return 1;
 }

@@ -173,9 +173,6 @@ void onScreenLog::draw() {
 	static const vec4 overlay_rect_color(0.02, 0.02, 0.02, 0.6);
 	static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
 
-	static float running = 0;
-	running += 0.015;
-
 	static const mat4 overlay_modelview = mat4::identity();
 
 	text_shader->update_uniform_mat4("Projection", text_Projection);
@@ -373,9 +370,8 @@ void onScreenLog::print(const char* fmt, ...) {
 	va_start(args, fmt);
 	SYSTEMTIME st;
     GetSystemTime(&st);
-	std::size_t timestamp_len = 0; //sprintf(buffer, "%02d:%02d:%02d.%03d > ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-	std::size_t msg_len = vsprintf_s(buffer + timestamp_len, OSL_BUFFER_SIZE, fmt, args);
-	std::size_t total_len = timestamp_len + msg_len;
+	std::size_t msg_len = vsprintf_s(buffer, OSL_BUFFER_SIZE, fmt, args);
+	std::size_t total_len = msg_len;
 	buffer[total_len] = '\0';
 	va_end(args);
 
@@ -410,14 +406,113 @@ void onScreenLog::set_y_translation(float new_y) {
 	onScreenLog::modelview(3,1) = new_y;
 }
 
-
-
 void onScreenLog::clear() {
 	current_index = 1;
 	current_line_num = 0;
-	num_characters_drawn = 1;	// there's the overlay glyph in the beginning of the vbo =)
+	num_characters_drawn = 1;	// there's the overlay glyph at the beginning of the vbo =)
 	onScreenLog::modelview = mat4::identity();
 }
+
+
+ // *** STATIC VAR DEFS FOR VARTRACKER ***
+
+GLuint VarTracker::VBOid;
+std::vector<const TrackableBase* const> VarTracker::tracked;
+float VarTracker::pos_x = WINDOW_WIDTH - 32*char_spacing_horiz;
+float VarTracker::pos_y = 7;
+int VarTracker::cur_total_length = 0;
+glyph VarTracker::glyph_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
+
+
+void VarTracker::init() {
+	VarTracker::VBOid = generate_empty_VBO(TRACKED_MAX * TRACKED_LEN_MAX * sizeof(glyph), GL_DYNAMIC_DRAW);
+}
+
+void VarTracker::update() {
+	std::string collect;	// probably faster to just construct a new string 
+							// every time, instead of clear()ing a static one
+	collect.reserve(TRACKED_MAX*TRACKED_LEN_MAX);
+	for (auto &it : tracked) {
+		collect += it->name + ":\n" + it->print() + "\n";
+	}
+	
+	VarTracker::update_VBO(collect);
+}
+
+void VarTracker::update_VBO(const std::string &buffer) {
+	
+	int i = 0;
+	
+	float x_adjustment = 0, y_adjustment = 0;
+	int line_beg_index = 0;
+	int length = buffer.length();
+	int current_line_num = 0;
+
+	for (i = 0; i < length; ++i) {
+
+		char c = buffer[i];
+
+		if (c == '\n') {
+			++current_line_num;
+			y_adjustment = current_line_num*char_spacing_vert;
+			x_adjustment = -char_spacing_horiz;	// workaround, is incremented at the bottom of the lewp
+			line_beg_index = i;
+		}
+
+		else if (i - line_beg_index >= 32) {
+			++current_line_num;
+			y_adjustment = current_line_num*char_spacing_vert;
+			x_adjustment = 0;
+			line_beg_index = i;
+		}
+	
+		glyph_buffer[i] = glyph_from_char(VarTracker::pos_x + x_adjustment, VarTracker::pos_y + y_adjustment, c);
+		
+		x_adjustment += char_spacing_horiz;
+	}
+	VarTracker::cur_total_length = buffer.length();
+	glBindBuffer(GL_ARRAY_BUFFER, VarTracker::VBOid);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, VarTracker::cur_total_length*(sizeof(glyph)), (const GLvoid*)glyph_buffer);
+
+}
+
+void VarTracker::draw() {
+	
+	VarTracker::update();
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_DEPTH_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VarTracker::VBOid);
+	
+	glVertexAttribPointer(ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
+	glUseProgram(text_shader->getProgramHandle());
+	
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, text_texId);
+	text_shader->update_uniform_1i("texture_color", 0);
+	
+	static const vec4 tracker_text_color(0.91, 0.91, 0.91, 1.0);
+	
+	static const mat4 tracker_modelview = mat4::identity();
+
+	text_shader->update_uniform_mat4("Projection", text_Projection);
+	text_shader->update_uniform_vec4("text_color", tracker_text_color);
+	text_shader->update_uniform_mat4("ModelView", tracker_modelview);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);
+	
+	glDrawElements(GL_TRIANGLES, 6*VarTracker::cur_total_length, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+
+}
+
+void VarTracker::track(const TrackableBase *const var) {
+	VarTracker::tracked.push_back(var);
+	//onScreenLog::print("Tracker: added %s with value %s.\n", var->name.c_str(), var->print().c_str());
+}
+
+
 
 
 

@@ -25,6 +25,8 @@ std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 #include "glwindow_win32.h"
 #include "text.h"
 
+float MM_DPPS_XYZ(__m128 a, __m128 b);
+float MM_DPPS_XYZW(__m128 a, __m128 b);
 
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
 
