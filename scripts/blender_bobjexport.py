@@ -1,6 +1,6 @@
 bl_info = {
 	"name": "Export Binary memcpy-obj (.bobj)",
-	"author": "kaido kuukap & voimlemise karpsed",
+	"author": "Kaido Kuukap & voimlemise karpsed =)",
 	"version": (0, 0, 1),
 	"blender": (2, 6, 7),
 	"location": "File > Import-Export",
@@ -19,6 +19,9 @@ import time
 from array import array
 import struct
 
+import os
+import subprocess
+	
 from bpy_extras.io_utils import ExportHelper
 
 		
@@ -42,7 +45,12 @@ def do_export(context, filepath):
 	
 	bpy.ops.object.mode_set(mode="OBJECT")
 	
+	print("Note: using (0.0, 0.0, 0.0) as object origin.")
+	bpy.context.scene.cursor_location = (0.0, 0.0, 0.0)
+	bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+	
 	mesh = context.selected_objects[0].to_mesh(scene, APPLY_MODIFIERS, "PREVIEW")
+	print("Triangulating mesh...")
 	mesh_triangulate(mesh)
 	mesh.calc_tessface()
 	
@@ -52,7 +60,8 @@ def do_export(context, filepath):
 	data = []
 	for face in mesh.tessfaces:
 		face_uv = mesh.tessface_uv_textures.active.data[face.index]
-		face_uv = face_uv.uv1, face_uv.uv2, face_uv.uv3	# a triangulated mesh shouldn't have uv4 in the first place :P
+		face_uv = face_uv.uv1, face_uv.uv2, face_uv.uv3	
+		# a triangulated mesh shouldn't have a (meaningful) uv4.
 		i = 0
 		for index in face.vertices:
 			vert = mesh.vertices[index]
@@ -80,19 +89,25 @@ def do_export(context, filepath):
 	data_arr = array('f', data)
 	data_arr.tofile(out_fp)
 	out_fp.close()
-	import os
-	import subprocess
-	lzmacommand = ["lzma.exe", "e", tmpfilename, filepath]
-	print("Compressing with LZMA (lzma.exe), command:")
-	print(lzmacommand)
-	r = subprocess.call(["lzma", "e", tmpfilename, filepath])
+	
+	uncompressed_size = int(os.path.getsize(tmpfilename)/1024)
+
+	lzmacommand = ["lzma", "e", tmpfilename, filepath]
+	print("Compressing with LZMA (lzma.exe)...")
+	r = 1
+	with open(os.devnull, "w") as fnull:
+		r = subprocess.call(lzmacommand, stdout = fnull, stderr = fnull)
 	if r != 0:
 		print("lzma.exe returned error (code " + str(r) + ").\n")
 		return "Error: lzma compression failed (lzma.exe)."
-	print("Done.")
+	print("Compression completed successfully.")
 	print("Deleting temporary file " + tmpfilename)
 	os.remove(tmpfilename)
-	print("Output file size: " + str(os.path.getsize(filepath)))
+	
+	compressed_size = int(os.path.getsize(filepath)/1024)
+	ratio = compressed_size / uncompressed_size
+	print("Output file size: " + str(compressed_size) + " kB")
+	print("(uncompressed: " + str(uncompressed_size) + " kB -> ratio = " + "{0:.3f}".format(ratio) + ")")
 	return "OK"
 	
 
@@ -115,8 +130,8 @@ class Export_bobj(bpy.types.Operator, ExportHelper):
 			return {'CANCELLED'}	
 
 		else:		
-			print('finished export in %s seconds' %((time.time() - start_time)) )
-			print(filepath)
+			print('Bobj export took {0:.3f} seconds'.format((time.time() - start_time)) )
+			print("\nFinished baking output file " + filepath + "!")
 			return {'FINISHED'}
 		
 		
