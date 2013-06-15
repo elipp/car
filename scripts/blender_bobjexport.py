@@ -34,7 +34,9 @@ def mesh_triangulate(me):
     bm.free()	
 	
 def do_export(context, filepath):
-	#meshify currently selected objects, triangulate, compile and dump to file.
+	#meshify currently selected objects, triangulate, compile, compress and dump to file.
+	
+	print("\nStarting .bobj export.\n")
 	
 	scene = context.scene
 	
@@ -45,17 +47,39 @@ def do_export(context, filepath):
 	
 	bpy.ops.object.mode_set(mode="OBJECT")
 	
-	print("Note: using (0.0, 0.0, 0.0) as object origin.")
+	print("using (0.0, 0.0, 0.0) as object origin.")
 	bpy.context.scene.cursor_location = (0.0, 0.0, 0.0)
 	bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+
+	ob = context.active_object
+	dims = ob.bound_box.data.dimensions
 	
-	mesh = context.selected_objects[0].to_mesh(scene, APPLY_MODIFIERS, "PREVIEW")
+	print("Object bounding box dimensions: (" + ", ".join("{0:.3f}".format(c) for c in dims) + ").")
+	
+	highest_z = 0
+	lowest_z = 0
+	
+	for coord in ob.bound_box:
+		curr_z = coord[2]
+		if curr_z > highest_z:
+			highest_z = curr_z
+		elif curr_z < lowest_z:
+			lowest_z = curr_z
+			
+	print("Lowest point: " + "{0:.4f}".format(lowest_z) + ", highest point: " + "{0:.4f}".format(highest_z))
+	
+	mesh = ob.to_mesh(scene, APPLY_MODIFIERS, "PREVIEW")
 	print("Triangulating mesh...")
 	mesh_triangulate(mesh)
+	print("done.")
 	mesh.calc_tessface()
 	
 	if(len(mesh.uv_textures) <= 0):
-		return "Error: mesh doesnt have uv-coordinates. Exiting."
+		#add option to generate at least some uv coordinates :P
+		print("bobj-export: error: mesh doesnt seem to have a uv-layer.")
+		return "bobj-export: error: mesh doesnt seem to have a uv-layer."
+		
+	# blender actually uses the z-coordinate to represent height, as opposed to y in opengl :P
 		
 	data = []
 	for face in mesh.tessfaces:
@@ -65,22 +89,24 @@ def do_export(context, filepath):
 		i = 0
 		for index in face.vertices:
 			vert = mesh.vertices[index]
-			for c in vert.co:
+			coords_rearranged = [vert.co[0], vert.co[2], vert.co[1]]
+			for c in coords_rearranged:
 				data.append(c)
-			for n in vert.normal:
+			normal_rearranged = [vert.normal[0], vert.normal[2], vert.normal[1]]
+			for n in normal_rearranged:
 				data.append(n)
 			for uv in face_uv[i]:
 				data.append(uv)
 			i += 1
 			
 	
-	print("Constructed vertex data structure with a V3FN3FT2F arrangement\nin a flat python list.\nOutput file statistics:")
+	print("Constructed a flat float list with a V3F N3F T2F arrangement (y-z swapped! *).\n")
 	print("len(data) = " + str(len(data)) + " <=> " +
 	"num_vertices = " + str(int(len(data)/8)) + " <=> " +
 	"num_faces = " + str(int((len(data)/8)/3)) + ".")
 	print("len(mesh.tessfaces): " + str(len(mesh.tessfaces)))
 	print("len(tessface_uv_textures.active.data) : " + str(len(mesh.tessface_uv_textures.active.data)))
-	print("")
+	print("\n(* Blender uses the z-coordinate to store height, whereas OpenGL uses y.)\n")
 	tmpfilename = filepath + ".tmpuncompressed"
 	
 	out_fp = open(tmpfilename, "wb")
@@ -101,13 +127,12 @@ def do_export(context, filepath):
 		print("lzma.exe returned error (code " + str(r) + ").\n")
 		return "Error: lzma compression failed (lzma.exe)."
 	print("Compression completed successfully.")
-	print("Deleting temporary file " + tmpfilename)
+	print("(deleting temporary file " + tmpfilename + ".)")
 	os.remove(tmpfilename)
 	
 	compressed_size = int(os.path.getsize(filepath)/1024)
 	ratio = compressed_size / uncompressed_size
-	print("Output file size: " + str(compressed_size) + " kB")
-	print("(uncompressed: " + str(uncompressed_size) + " kB -> ratio = " + "{0:.3f}".format(ratio) + ")")
+	print("Output file size: " + str(compressed_size) + " kB (uncompressed: " + str(uncompressed_size) + " kB -> ratio = " + "{0:.3f}".format(ratio) + ")")
 	return "OK"
 	
 
@@ -119,7 +144,6 @@ class Export_bobj(bpy.types.Operator, ExportHelper):
 	
 	def execute(self, context):
 		start_time = time.time()
-		print("\nStarting .bobj export.	")
 		filepath = self.filepath
 		props=self.properties
 		filepath = bpy.path.ensure_ext(filepath, self.filename_ext)
@@ -131,7 +155,7 @@ class Export_bobj(bpy.types.Operator, ExportHelper):
 
 		else:		
 			print('Bobj export took {0:.3f} seconds'.format((time.time() - start_time)) )
-			print("\nFinished baking output file " + filepath + "!")
+			print("\nFinished baking output file " + filepath + " :D")
 			return {'FINISHED'}
 		
 		
