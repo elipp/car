@@ -80,6 +80,8 @@ def do_export(context, filepath):
 		return "bobj-export: error: mesh doesnt seem to have a uv-layer."
 		
 	# blender actually uses the z-coordinate to represent height, as opposed to y in opengl :P
+	# also, since "into the screen" in a identity view transformation means _NEGATIVE-Z_ in opengl,
+	# the sign of the swapped z-coordinate will have to be negated
 		
 	data = []
 	for face in mesh.tessfaces:
@@ -89,10 +91,10 @@ def do_export(context, filepath):
 		i = 0
 		for index in face.vertices:
 			vert = mesh.vertices[index]
-			coords_rearranged = [vert.co[0], vert.co[2], vert.co[1]]
+			coords_rearranged = [vert.co[0], vert.co[2], -vert.co[1]]
 			for c in coords_rearranged:
 				data.append(c)
-			normal_rearranged = [vert.normal[0], vert.normal[2], vert.normal[1]]
+			normal_rearranged = [vert.normal[0], vert.normal[2], -vert.normal[1]]
 			for n in normal_rearranged:
 				data.append(n)
 			for uv in face_uv[i]:
