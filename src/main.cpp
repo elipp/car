@@ -25,6 +25,8 @@
 static GLint PMODE = GL_FILL;	// polygon mode toggle
 static LPPOINT cursorPos = new POINT;	/* holds cursor position */
 
+static const float map_scale = 32;
+
 extern bool active;
 
 float c_vel_fwd = 0, c_vel_side = 0;
@@ -59,6 +61,8 @@ static float qx = 0, qy = 0;
 mat4 projection;
 vec4 view_position;
 vec4 cameraVel;
+
+static vec4 camera_position;
 
 
 GLuint road_texId;
@@ -99,8 +103,8 @@ void update_c_pos() {
 
 void control()
 {
-	static const float fwd_modifier = 0.012;
-	static const float side_modifier = 0.012;
+	static const float fwd_modifier = 0.024;
+	static const float side_modifier = 0.020;
 	static const float mouse_modifier = 0.0006;
 
 	static float dx, dy;
@@ -158,7 +162,9 @@ void control()
 			onScreenLog::toggle_visibility();
 			WM_KEYDOWN_KEYS['L'] = false;
 	}
-		
+	
+	camera_position = -view_position;
+	camera_position(V::z) *= -1;
 
 }
 
@@ -256,7 +262,7 @@ int initGL(void)
 		return 0;
 	}
 
-	map = new HeightMap("textures/heightmap_grayscale.jpg", 512);
+	map = new HeightMap("textures/heightmap_grayscale.jpg", map_scale, 3.6978, -2.2509); // the top/bottom values were calculated by blender
 	if (map->bad()) {
 		onScreenLog::print("heightmap failure. .\n");
 	}
@@ -281,15 +287,13 @@ int initGL(void)
 
 	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 
-	view_position = vec4(0.0, -150, 0.0, 1.0); // displacement would be a better name
+	view_position = vec4(0.0, -80, 0.0, 1.0); // displacement would be a better name
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
 	wglSwapIntervalEXT(vsync);
-
-	VarTracker_track(vec4, view_position);
-
+	
 	return 1;
 
 }
@@ -318,7 +322,7 @@ void drawTerrain() {
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
-	static const mat4 racetrack_model = mat4::scale(32, 32, 32) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
+	static const mat4 racetrack_model = mat4::scale(map_scale, map_scale, map_scale);
 
 	mat4 terrain_modelview = view * racetrack_model;
 	terrain->use_ModelView(terrain_modelview);
@@ -341,8 +345,8 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
 		vec4 test_pos = car.position();
-		height_sample_under_car =  map->lookup(test_pos(V::x), test_pos(V::z));
-		test_pos(V::y) = height_sample_under_car - 150;
+		//height_sample_under_car = map->lookup(test_pos(V::x), -test_pos(V::z));
+		//test_pos(V::y) = height_sample_under_car;
 
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
 		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
@@ -414,13 +418,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	int k = timeBeginPeriod(1);
+	
+	onScreenLog::print("timeBeginPeriod(1) returned %s\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR (good!)" : "TIMERR_NOCANDO (bad.)" );
+
 	long wait = 0;
-	double time_per_frame_ms = 0;
+	static double time_per_frame_ms = 0;
 
 	VarTracker_track(double, time_per_frame_ms);
 	VarTracker_track(float, height_sample_under_car);
+	VarTracker_track(vec4, camera_position);
 
-	onScreenLog::print("timeBeginPeriod(1) returned %s.\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR (good!)" : "TIMERR_NOCANDO (bad.)" );
 	
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
@@ -473,11 +480,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		control();
 		update_c_pos();
-
-		drawTerrain();
-		onScreenLog::draw();
-		VarTracker::draw();
-
+		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
 		
@@ -487,19 +490,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			drawCars(LocalClient::get_peers());
 			
 		}
+		
+		drawTerrain();
+		onScreenLog::draw();
+		VarTracker::draw();
 
 		wait = 16.666 - fps_timer.get_ms();
 
 		if (!vsync) { // then we'll do a "half-busy" wait :P
-			if (wait > 3) { Sleep(wait-1); }	// sleep for those 4 milliseconds
-			while(fps_timer.get_ms() < 16.6);	// this is accurate, ie. busy wait
+			if (wait > 3) { Sleep(wait-1); }
+			while(fps_timer.get_ms() < 16.6666);	// this is the accurate, ie. busy, part
 		}
-
-		window_swapbuffers();
+		
 		time_per_frame_ms = fps_timer.get_ms();
+		window_swapbuffers(); // calls wglSwapBuffers on the current context. if vsync is enabled, the current thread is blocked
 
 		fps_timer.begin();
-			
 		
 	}
 	timeEndPeriod(1);

@@ -72,9 +72,9 @@ public:
 	int num_peers() { return map.size(); }
 	
 	std::unordered_map<unsigned short, struct Peer> get_map_copy() { return map; }
-	void insert(const std::pair<unsigned short, struct Peer> &peer) { 
+	void insert(std::pair<unsigned short, struct Peer> &p) { 
 		mutex.lock();
-		map.insert(peer);
+		map.insert(p);
 		mutex.unlock();
 	}
 	void erase(unsigned short id) {
@@ -101,6 +101,8 @@ class LocalClient {
 	static struct Client client;
 	static struct sockaddr_in remote_sockaddr;
 	
+	static std::string preferred_name;
+
 	static mutexed_peer_map peers;
 	
 	static unsigned short port;
@@ -109,11 +111,12 @@ class LocalClient {
 	
 	static _timer posupd_timer;
 
+	static double _latency;
+
 	static unsigned latest_posupd_seq_number;
 
 	static class Listen : public NetTaskThread { 
 		void handle_current_packet();
-		void pong(unsigned remote_seq_number);
 		void construct_peer_list();
 		void post_quit_message();
 		void update_positions();
@@ -121,6 +124,16 @@ class LocalClient {
 		void task();
 		Listen(NTTCALLBACK callback) : NetTaskThread(callback) {};
 	} Listener;
+
+	static class PingManager : public NetTaskThread {
+		void ping();	
+		_timer timer;
+	public:
+		unsigned _latest_ping_seq_number;
+		double time_since_last_ping_ms() { return timer.get_ms(); }
+		void task();
+		PingManager(NTTCALLBACK callback) : NetTaskThread(callback) {};
+	} Ping;
 
 	static class Keystate : public NetTaskThread {
 		void update_keystate(const bool *keys);
@@ -139,6 +152,8 @@ public:
 	
 	static inline double time_since_last_posupd_ms() { return posupd_timer.get_ms(); }
 
+	static void request_shutdown() { _connected = 0; _shutdown_requested = true; }
+
 	static void interpolate_positions();
 	static int connected() { return _connected; }
 	static int connect(const std::string &ip_port_string);
@@ -155,6 +170,9 @@ public:
 	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers.get_map_copy(); }
 	static void quit();
+
+	static double latency() { return _latency; }
+
 private:
 	LocalClient() {}
 };

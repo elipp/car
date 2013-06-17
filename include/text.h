@@ -70,7 +70,7 @@ public:
 		
 		void refresh();
 
-		void update_y_pos(float new_y) { textfield_pos_y = new_y; }
+		void update_position() { textfield_pos_y = WINDOW_HEIGHT - char_spacing_vert - 4; }
 
 		void insert_char_to_cursor_pos(char c);
 		void delete_char_before_cursor_pos();
@@ -130,20 +130,24 @@ private:
 class TrackableBase {
 public:
 	const std::string name;
+	const std::string unit_string;
 	const void *const data;
 	virtual std::string print() const = 0;
-	TrackableBase(const void* const _data, const std::string &_name) : data(_data), name(_name) {};
+	TrackableBase(const void* const _data, const std::string &_name, const std::string &_unit) 
+		: data(_data), name(_name), unit_string(_unit) {};
+
 };
 
 template <typename T> class Trackable : public TrackableBase {
 
 public:
-	Trackable<T>(const T* const data, const std::string &_name) 
-		: TrackableBase((const void* const)data, _name) {};
+	Trackable<T>(const T* const data, const std::string &_name, const std::string &_unit = "") 
+		: TrackableBase((const void* const)data, _name, _unit) {};
 	
 	std::string print() const {
 		std::ostringstream stream;
-		stream << *(static_cast<const T*>(data));
+		stream.precision(3);
+		stream << *(static_cast<const T*>(data)) << unit_string;
 		return stream.str();
 	}
 };
@@ -153,6 +157,14 @@ public:
 #define VarTracker_track(TYPENAME, VARNAME)\
 	VarTracker::track(new Trackable<TYPENAME>(&VARNAME,\
 	std::string(#TYPENAME) + std::string(" ") + std::string(#VARNAME)))
+
+#define VarTracker_track_unit(TYPENAME, VARNAME, UNIT)\
+	VarTracker::track(new Trackable<TYPENAME>(&VARNAME,\
+	std::string(#TYPENAME) + std::string(" ") + std::string(#VARNAME),\
+	std::string(" ") + (UNIT)))
+
+#define VarTracker_untrack(VARNAME)\
+	VarTracker::untrack(&(VARNAME))
 
 class VarTracker {
 #define TRACKED_MAX 16
@@ -169,8 +181,9 @@ public:
 	static void init();
 	static void update();
 	static void draw();
+	static void update_position();	// according to window geometry changes
 	static void track(const TrackableBase *const var);
-	static void untrack(const TrackableBase *const var);
+	static void untrack(const void *const data_ptr);
 
 };
 

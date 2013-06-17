@@ -35,6 +35,7 @@ bool active = TRUE;
 extern int initGL();
 extern mat4 projection;
 
+
 static bool _main_loop_running=true;
 bool main_loop_running() { return _main_loop_running; }
 void stop_main_loop() { _main_loop_running = false; }
@@ -347,9 +348,7 @@ static std::string *convertLF_to_CRLF(const char *buf) {
 
 GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize The GL Window
 {
-	if (height == 0) { 	
-		height = 1;		
-	}
+	height = max(height, 1);
 
 	WINDOW_WIDTH = width;
 	WINDOW_HEIGHT = height;
@@ -358,7 +357,8 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 
 	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
 	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
-	onScreenLog::input_field.update_y_pos(WINDOW_HEIGHT - char_spacing_vert - 4);
+	onScreenLog::input_field.update_position();
 	onScreenLog::update_overlay_pos();
+	VarTracker::update_position();
 
 }

@@ -50,20 +50,38 @@ public:
 	static bool validate();
 };
 
+#define LIMIT_VALUE_BETWEEN(VAL, MIN, MAX) max((MIN), min((VAL), (MAX)))
+
 class HeightMap {
-	int dim;	// pixels
+	int img_dim_pixels;	// pixels
 	int bitdepth;
 	unsigned char *pixels;
 	bool _bad;
+
+	const float real_map_dim;
 	const float scale; // units
+	const float top;	// maximum elevation
+	const float bottom; // minimum elevation
 	double dim_per_scale;
-	double half_scale;
+	double half_real_map_dim;
 	int dim_minus_one;
 	int dim_squared_minus_one;
+	float max_elevation_real_y;
+	float min_elevation_real_y;
+	float elevation_real_diff;
+
+	inline unsigned char get_pixel(int x, int y) { 
+		// (0,0) => LOWER LEFT CORNER OF HEIGHT MAP, (img_dim_pixels-1, img_dim_pixels-1) => UPPER RIGHT
+		int index_x = LIMIT_VALUE_BETWEEN((x+half_real_map_dim), 0, dim_minus_one);
+		int index_y = LIMIT_VALUE_BETWEEN((y+half_real_map_dim), 0, dim_minus_one);
+		
+		return pixels[index_x + (dim_minus_one - index_y)*img_dim_pixels];
+	}
+
 public:
 	bool bad() const { return _bad; }
 	float lookup(float x, float y);
-	HeightMap(const std::string &filename, float _scale);
+	HeightMap(const std::string &filename, float _scale, float _top, float _bottom);
 	~HeightMap() { if (pixels != NULL) { free(pixels); } }
 
 };

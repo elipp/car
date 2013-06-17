@@ -53,7 +53,7 @@ public:
 		_running = 0;
 	}
 
-	inline int half_busy_sleep_until(double ms, const _timer &timer) {
+	inline int semi_busy_sleep_until(double ms, const _timer &timer) {
 		if (timer.get_ms() > ms) { return HALF_BUSY_SLEEP_LAGGING_BEHIND; }
 		if (ms > 4) { Sleep((int)ms - 2); } // a ~2 ms timer resolution is implied, which is ideally given by timeBeginPeriod(1)
 		while (timer.get_ms() < ms);	// just busy wait those last milliseconds

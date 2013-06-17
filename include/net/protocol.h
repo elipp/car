@@ -18,7 +18,7 @@ struct PTCLHEADERDATA {
 };
 
 
-const int PROTOCOL_ID = 0xABACABAD;	// can't use a #define here; memcpy.
+const int PROTOCOL_ID = 0xABACABAD;	// can't use a #define here <- memcpy.
 const unsigned short ID_SERVER = 0x0000; 
 const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 
@@ -30,11 +30,13 @@ const unsigned short ID_CLIENT_UNASSIGNED = 0xFFFF;
 #define S_CLIENT_CONNECT (unsigned char) 0xE4
 #define S_CLIENT_DISCONNECT (unsigned char) 0xE5
 #define S_PING (unsigned char) 0xE6
-#define S_CLIENT_CHAT_MESSAGE (unsigned char) 0xE7
+#define S_PONG (unsigned char) 0xE7
+#define S_CLIENT_CHAT_MESSAGE (unsigned char) 0xE8
 #define S_SHUTDOWN (unsigned char) 0xEF
 
 #define C_HANDSHAKE (unsigned char) 0xF1
 #define C_KEYSTATE (unsigned char) 0xF2
+#define C_PING (unsigned char) 0xF3
 #define C_PONG (unsigned char) 0xF4
 #define C_CHAT_MESSAGE (unsigned char) 0xF5
 #define C_TERMINATE (unsigned char) 0xF6
@@ -58,6 +60,9 @@ inline PTCLHEADERDATA protocol_make_header(unsigned int seq_n, unsigned short se
 	r.cmd_arg_mask.ch[1] = cmd_am_ch1;
 	return r;
 }
+
+#define VAR_SZ(VARNAME) &VARNAME, sizeof(VARNAME) // to be used with NetTaskThread::copy_from/to_buffer; have had some very elusive bugs because of wrong sizeofs
+
 int protocol_copy_header(char *buffer, const PTCLHEADERDATA *header);
 void protocol_get_header_data(const char* buffer, PTCLHEADERDATA *out_data);
 void protocol_update_seq_number(char *buffer, unsigned int seq_number);
@@ -81,7 +86,7 @@ byte offset		content
 8-10		(unsigned short) sender_id. ID_SERVER for server, ID_CLIENT_UNASSIGNED for unassigned client
 10-11			(unsigned char) command byte. see above
 11-12			(unsigned char) command byte arg (mostly unused). for example, S_PEER_LIST would have the number of peers here
-12-limit		<varies by command>
+12-max		<varies by command>
 
 */
 

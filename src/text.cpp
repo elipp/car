@@ -355,7 +355,7 @@ void onScreenLog::update_VBO(const char* buffer, unsigned length) {
 	}
 
 	if (_autoscroll) {
-		float d = (y_adjustment + pos_y + log_bottom_margin + char_spacing_vert) - WINDOW_HEIGHT;
+		float d = (y_adjustment + pos_y + log_bottom_margin) - WINDOW_HEIGHT;
 		if (d > onScreenLog::modelview(3,1)) { 
 			set_y_translation(-d);
 		}
@@ -387,7 +387,7 @@ void onScreenLog::print_string(const std::string &s) {
 
 void onScreenLog::scroll(float ds) {
 	float y_adjustment = current_line_num * char_spacing_vert;
-	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y + char_spacing_vert - WINDOW_HEIGHT;
+	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y - WINDOW_HEIGHT;
 	
 	onScreenLog::modelview(3, 1) += ds;
 	
@@ -432,13 +432,14 @@ void VarTracker::init() {
 }
 
 void VarTracker::update() {
-	std::string collect = "TEH VARIABLE TRACKER!\n\n";	// probably faster to just construct a new string  
+	std::string collect = "Tracked variables:\n";	// probably faster to just construct a new string  
 							// every time, instead of clear()ing a static one
-	static std::string separator = "\n" + std::string(tracker_width_chars - 1, '-') + "\n";
+	static const std::string separator = "\n" + std::string(tracker_width_chars - 1, '-') + "\n";
 	collect.reserve(TRACKED_MAX*TRACKED_LEN_MAX);
 	for (auto &it : tracked) {
-		collect += it->name + ":\n" + it->print() + separator;
+		collect += separator + it->name + ":\n" + it->print();
 	}
+	collect += separator;
 	
 	VarTracker::update_VBO(collect);
 }
@@ -514,6 +515,24 @@ void VarTracker::draw() {
 void VarTracker::track(const TrackableBase *const var) {
 	VarTracker::tracked.push_back(var);
 	//onScreenLog::print("Tracker: added %s with value %s.\n", var->name.c_str(), var->print().c_str());
+}
+
+void VarTracker::untrack(const void *const data_ptr) {
+	// search tracked vector for an entity with this data address
+	auto iter = tracked.begin();
+
+	while (iter != tracked.end()) {
+		if ((*iter)->data == data_ptr) { 
+			tracked.erase(iter);
+			break;
+		}
+		++iter;
+	}
+
+}
+
+void VarTracker::update_position() {
+	VarTracker::pos_x = WINDOW_WIDTH - tracker_width_chars*char_spacing_horiz;
 }
 
 

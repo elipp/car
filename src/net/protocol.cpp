@@ -1,7 +1,7 @@
 #include "net/protocol.h"
 
 #include "net/socket.h"
-
+#include "net/server.h"
 #include "common.h"
 
 
@@ -15,28 +15,29 @@ std::string get_dot_notation_ipv4(const struct sockaddr_in *saddr) {
 }
 
 int protocol_copy_header(char *buffer, const PTCLHEADERDATA *header) {
-	memcpy(buffer, header, sizeof(*header));
-	return sizeof(*header);
+	memcpy(buffer, header, sizeof(PTCLHEADERDATA));
+	return sizeof(PTCLHEADERDATA);
 }
 
 void protocol_update_seq_number(char *buffer, unsigned int seq_number) {
 	memcpy(buffer+4, &seq_number, sizeof(seq_number)); 
 }
 
-void protocol_get_header_data(const char* buffer, PTCLHEADERDATA *out_data) {
+void protocol_get_header_data(const char* buffer, _OUT PTCLHEADERDATA *out_data) {
 	memcpy(out_data, buffer, sizeof(PTCLHEADERDATA));
 }
 
 void buffer_print_raw(const char* buffer, size_t size) {
-	fprintf(stderr, "buffer_print_raw: printing %u bytes of data.\n", size);
+	
+	SERVER_PRINT("buffer_print_raw: printing %u bytes of data.\n", size);
 	for (size_t i = 0; i < size; ++i) {
 		if ((unsigned char)buffer[i] < 0x7F && (unsigned char)buffer[i] > 0x1F) {
-			fprintf(stderr, "%c  ", buffer[i]);
+			SERVER_PRINT("%c  ", buffer[i]);
 		}
 		else {
-			fprintf(stderr, "%02x ", (unsigned char)buffer[i]);
+			SERVER_PRINT("%02x ", (unsigned char)buffer[i]);
 		}
-		if (i % 16 == 15) { fprintf(stderr, "\n"); }
+		if (i % 16 == 15) { SERVER_PRINT("\n"); }
 	}
-	fprintf(stderr, "\n");
+	SERVER_PRINT("\n");
 }

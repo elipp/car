@@ -22,12 +22,16 @@ extern HeightMap *map;
 
 LocalClient::Listen LocalClient::Listener(NULL);
 LocalClient::Keystate LocalClient::KeystateManager(NULL);
+LocalClient::PingManager LocalClient::Ping(NULL);
 
 Socket LocalClient::socket;
 struct Client LocalClient::client;
 struct sockaddr_in LocalClient::remote_sockaddr;
 mutexed_peer_map LocalClient::peers;
+
+std::string LocalClient::preferred_name = "Player";
 int LocalClient::_connected = 0;
+double LocalClient::_latency = 0;
 _timer LocalClient::posupd_timer;
 bool LocalClient::_shutdown_requested = false;
 
@@ -70,7 +74,7 @@ int LocalClient::connect(const std::string &ip_port_string) {
 
 	if (socket.bad()) { 
 		onScreenLog::print( "LocalClient: socket init failed.\n");
-		_shutdown_requested = true;
+		LocalClient::request_shutdown();
 		return 0;
 	}
 	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
@@ -78,12 +82,13 @@ int LocalClient::connect(const std::string &ip_port_string) {
 
 	int success = handshake();
 	if (!success) { 
-		_shutdown_requested = true;
+		LocalClient::request_shutdown();
 		return 0; 
 	}
 
 	Listener.start();
 	KeystateManager.start();
+	Ping.start();
 
 	return 1;
 
@@ -99,11 +104,12 @@ void LocalClient::stop() {
 	socket.send_data(&socket.get_own_addr(), (const char*)&TERMINATE_PACKET, sizeof(TERMINATE_PACKET));
 	KeystateManager.stop();
 	Listener.stop();
+	Ping.stop();
 
+	VarTracker_untrack(LocalClient::_latency);
 	peers.clear();
 	_connected = 0;
 	socket.close();
-	_connected = 0;
 	_shutdown_requested = false;
 }
 
@@ -112,7 +118,7 @@ void LocalClient::Keystate::task() {
 	#define KEYSTATE_GRANULARITY_MS 46.66	// aiming for as low a rate as possible
 	static _timer keystate_timer;
 	keystate_timer.begin();
-	while (running() && _connected) {
+	while (running() && connected()) {
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
 			update_keystate(WM_KEYDOWN_KEYS);
 			post_keystate();
@@ -129,6 +135,8 @@ int LocalClient::handshake() {
 
 	PTCLHEADERDATA HANDSHAKE_HEADER
 		= protocol_make_header(client.seq_number, ID_CLIENT_UNASSIGNED, C_HANDSHAKE);
+
+	client.info.name = preferred_name;
 
 	protocol_copy_header(handshake_buffer, &HANDSHAKE_HEADER);
 	copy_to_ext_buffer(handshake_buffer, client.info.name.c_str(), client.info.name.length(), PTCL_HEADER_LENGTH);
@@ -158,7 +166,7 @@ int LocalClient::handshake() {
 
 	if (!received_data) {
 		onScreenLog::print("Handshake timed out.\n");
-		_shutdown_requested = true;
+		LocalClient::request_shutdown();
 		return 0;
 	}
 	
@@ -170,7 +178,7 @@ int LocalClient::handshake() {
 
 	if (header.protocol_id != PROTOCOL_ID) {
 		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
-		_shutdown_requested = true;
+		LocalClient::request_shutdown();
 		return 0;
 	}
 
@@ -178,7 +186,7 @@ int LocalClient::handshake() {
 
 	if (cmd != S_HANDSHAKE_OK) {
 		onScreenLog::print("LocalClient: handshake: received cmdbyte != S_HANDSHAKE_OK (%x). Handshake failed.\n", cmd);
-		_shutdown_requested = true;
+		LocalClient::request_shutdown();
 		return 0;
 	}
 
@@ -187,22 +195,43 @@ int LocalClient::handshake() {
 
 	// get player name received from server
 	client.info.name = std::string(handshake_buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
-	onScreenLog::print( "Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
+	onScreenLog::print("Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
 	_connected = true;
+
+	VarTracker_track_unit(double, LocalClient::_latency, "ms");
 	return 1;
 
 }
 
-void LocalClient::Listen::pong(unsigned seq_number) {
-	//onScreenLog::print("Received S_PING from remote (seq_number = %u)\n", seq_number);
-	PTCLHEADERDATA PONG_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_PONG };
-	copy_to_buffer(&PONG_HEADER, sizeof(PONG_HEADER), 0);
-	copy_to_buffer(&seq_number, sizeof(seq_number), PTCL_HEADER_LENGTH);
-	send_data_to_server(buffer, PTCL_HEADER_LENGTH + sizeof(seq_number));
+void LocalClient::PingManager::ping() {
+	PTCLHEADERDATA PING_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_PING };
+	copy_to_buffer(VAR_SZ(PING_HEADER), 0);
+	_latest_ping_seq_number = client.seq_number;
+	send_data_to_server(buffer, PTCL_HEADER_LENGTH);
 }
 
-static inline std::vector<struct peer_info_t> process_peer_list_string(const char* buffer) {
+void LocalClient::PingManager::task() {
+
+#define PING_GRANULARITY_MS 2000
+#define TIMEOUT_MS 5000
+	timer.begin();
+
+	while(running() && connected()) {
+		if (time_since_last_ping_ms() > TIMEOUT_MS) {
+
+		}
+		ping();
+		long wait = PING_GRANULARITY_MS - timer.get_ms();
+		Sleep(wait);	// this needn't be precise
+		timer.begin();
+	}
+
+}
+
+
+
+static std::vector<struct peer_info_t> process_peer_list_string(const char* buffer) {
 	std::vector<struct peer_info_t> peers;
 	std::vector<std::string> sub = split(buffer, '|');
 	auto it = sub.begin();
@@ -257,66 +286,74 @@ void LocalClient::Listen::handle_current_packet() {
 
 	switch (cmd) {
 
-	case S_POSITION_UPDATE:
+		case S_POSITION_UPDATE:
 		// don't apply older pupd-package data. we also have an interpolation mechanism :P
-		if (header.seq_number > latest_posupd_seq_number) {
-			update_positions();
-			latest_posupd_seq_number = header.seq_number;
-		}
-		break;
+			if (header.seq_number > latest_posupd_seq_number) {
+				update_positions();
+				latest_posupd_seq_number = header.seq_number;
+			}
+			break;
 
-	case S_PING:
-		pong(header.seq_number);
-		break;
-	case S_CLIENT_CHAT_MESSAGE: {
-		// the sender id is embedded into the datafield (bytes 12-14) of the packet
-		unsigned short sender_id = 0;
-		copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
-		auto it = peers.find(sender_id);
-		if (it != peers.end()) {
+		case S_PONG: {
+			_latency = LocalClient::Ping.time_since_last_ping_ms();
+			unsigned embedded_seq_number;
+			copy_from_buffer(&embedded_seq_number, sizeof(embedded_seq_number), PTCL_HEADER_LENGTH);
+			if (embedded_seq_number != Ping._latest_ping_seq_number) {
+				onScreenLog::print("Received S_PONG from server, but the embedded seq_number (%u) doesn't match with the expected one (%d).\n", embedded_seq_number, Ping._latest_ping_seq_number);
+			}
+			Ping._latest_ping_seq_number = 0; 
+			break;
+		}
+		case S_CLIENT_CHAT_MESSAGE: {
+			// the sender id is embedded into the datafield (bytes 12-14) of the packet
+			unsigned short sender_id = 0;
+			copy_from_buffer(&sender_id, sizeof(sender_id), PTCL_HEADER_LENGTH);
+			auto it = peers.find(sender_id);
+			if (it != peers.end()) {
 			std::string chatmsg(buffer + PTCL_HEADER_LENGTH + sizeof(sender_id));
-			onScreenLog::print("<%s> %s: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
-		}
-		else {
-			// perhaps request a new peer list from the server. :P
-			onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
-		}
-		break;
+				if (!Server::running()) {
+				onScreenLog::print("[%s] <%s>: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
+				}
+			}
+				else {
+				// perhaps request a new peer list from the server. :P
+				onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
+			}
+			break;
 		}
 
-	case S_SHUTDOWN:
-		onScreenLog::print( "Client: Received S_SHUTDOWN from server (server going down).\n");
-		_connected = 0; // this will break from the recvfrom loop gracefully
-		_shutdown_requested = true;	// this will cause LocalClient::stop() to be called from the main (rendering) thread
-		break;
+		case S_SHUTDOWN:
+			onScreenLog::print( "Client: Received S_SHUTDOWN from server (server going down).\n");
+			LocalClient::request_shutdown(); // this will break from the recvfrom loop gracefully
+			// this will cause LocalClient::stop() to be called from the main (rendering) thread
+			break;
 
-	case C_TERMINATE:
-		onScreenLog::print("Client:Received C_TERMINATE from self. Stopping.\n");
-		_connected = 0;
-		_shutdown_requested = true;
-		break;
+		case C_TERMINATE:
+			onScreenLog::print("Client:Received C_TERMINATE from self. Stopping.\n");
+			LocalClient::request_shutdown();
+			break;
 	
-	case S_PEER_LIST:
-		construct_peer_list();
+		case S_PEER_LIST:
+			construct_peer_list();
 		break;
 
-	case S_CLIENT_DISCONNECT: {
-		unsigned short id;
-		copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
-		auto it = peers.find(id);
-		if (it == peers.end()) {
-			//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
-		}
-		else {
-			onScreenLog::print( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
-			peers.erase(id);
-		}
-		break;
+		case S_CLIENT_DISCONNECT: {
+			unsigned short id;
+			copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
+			auto it = peers.find(id);
+			if (it == peers.end()) {
+				//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
+			}
+			else {
+				onScreenLog::print( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
+				peers.erase(id);
+			}
+			break;
 		}
 	
-	default:
-		onScreenLog::print("Warning: received unknown command char %u from server.\n", cmd);
-		break;
+			default:
+			onScreenLog::print("Warning: received unknown command char %u from server.\n", cmd);
+			break;
 	}
 
 }
@@ -381,10 +418,15 @@ void LocalClient::interpolate_positions() {
 void LocalClient::Listen::task() {
 	
 	struct sockaddr_in from;
+
+	static _timer ping_timer;	// seems like a waste to actually create another thread for this
+	ping_timer.begin();
+
+#define PING_GRANULARITY_MS 2000
 	
 	while (running() && _connected) {
 		int bytes = socket.receive_data(buffer, &from);
-		if (bytes >= 0) { handle_current_packet(); }
+		if (bytes > 0) { handle_current_packet(); }
 	}
 
 	post_quit_message();
@@ -394,7 +436,7 @@ void LocalClient::Listen::task() {
 void LocalClient::Keystate::post_keystate() {
 	PTCLHEADERDATA KEYSTATE_HEADER = { PROTOCOL_ID, client.seq_number, client.info.id, C_KEYSTATE };
 	KEYSTATE_HEADER.cmd_arg_mask.ch[1] = client.keystate;
-	copy_to_buffer(&KEYSTATE_HEADER, sizeof(KEYSTATE_HEADER), 0);
+	copy_to_buffer(VAR_SZ(KEYSTATE_HEADER), 0);
 	send_data_to_server(buffer, PTCL_HEADER_LENGTH);
 }
 
@@ -453,7 +495,7 @@ int LocalClient::send_data_to_server(const char* buffer, size_t size) {
 }
 void LocalClient::set_name(const std::string &nick) {
 	if (!_connected) {
-		client.info.name = nick;
+		preferred_name = nick;
 		onScreenLog::print("Name set to %s.\n", nick.c_str());
 	} else {
 		onScreenLog::print("set_name: cannot change name while connected to server.\n");
@@ -468,7 +510,7 @@ void LocalClient::Listen::construct_peer_list() {
 		//onScreenLog::print( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());
 		auto map_iter = peers.find(it.id);
 		if (map_iter == peers.end()) {
-			peers.insert(std::pair<unsigned short, struct Peer>(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
+			peers.insert(std::make_pair(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
 			onScreenLog::print("Client \"%s\" (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
 		}
 		else {

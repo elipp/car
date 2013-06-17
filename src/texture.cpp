@@ -214,8 +214,11 @@ bool TextureBank::validate() {
 			return all_good;
 }
 
-HeightMap::HeightMap(const std::string &filename, float _scale) : scale(_scale) {
+HeightMap::HeightMap(const std::string &filename, float _scale, float _top, float _bottom) 
+	: scale(_scale), top(_top*_scale), bottom(_bottom*_scale), real_map_dim(16 * _scale) {
 	
+	// the heightmaps are 16-by-16 meshes, which are scaled by the _scale parm
+
 	pixels = NULL;
 	_bad = false;
 	unsigned width = 0, height = 0;
@@ -236,51 +239,56 @@ HeightMap::HeightMap(const std::string &filename, float _scale) : scale(_scale) 
 		return;
 	}
 
-	dim = img_info.width;
+	img_dim_pixels = img_info.width;
 	
-	dim_per_scale = dim/scale;
-	half_scale = scale/2.0;
-	dim_minus_one = dim-1;
-	dim_squared_minus_one = dim*dim - 1;
+	dim_per_scale = img_dim_pixels/real_map_dim;
+	half_real_map_dim = real_map_dim/2.0;
+	dim_minus_one = img_dim_pixels-1;
+	dim_squared_minus_one = img_dim_pixels*img_dim_pixels - 1;
 
+	max_elevation_real_y = _top * _scale;
+	min_elevation_real_y = _bottom * _scale;
+
+	elevation_real_diff = max_elevation_real_y - min_elevation_real_y;
+
+	onScreenLog::print("HeightMap (filename: %s):\n", filename.c_str());
+	onScreenLog::print("img_dim_pixels = %d, max_elevation_real_y = %f,\nmin_elevation_real_y = %f, elevation_real_diff = %f\n",
+						img_dim_pixels, max_elevation_real_y, min_elevation_real_y, elevation_real_diff);
 }
 
-#define Z_VALUE(x, y) ((float)pixels[min((int)(x), dim_minus_one) +\
-									 min((int)(y)*dim, dim_squared_minus_one)])
-
 float HeightMap::lookup(float x, float y) {
-	// the actual map is this->scale - by - this->scale wide
-	x = min(x, scale - 1);	// limit sampled pos-values to scale - 1
-	y = min(y, scale - 1);
 
 	// perform bilinear interpolation on the heightmap ^^
 
-	float x_index; float x_frac;
-	x_frac = modf((x + half_scale)*dim_per_scale, &x_index);
+	int x_index; 
+	float x_frac, one_minus_x_frac;
+	x_index = floor(x);
+	x_frac = x - x_index;
+	one_minus_x_frac = 1.0 - x_frac;
 	
-	float y_index; float y_frac;
-	y_frac = modf((y + half_scale)*dim_per_scale, &y_index);
+	int y_index; 
+	float y_frac, one_minus_y_frac;
+	y_index = floor(y);
+	y_frac = y - y_index;
+	one_minus_y_frac = 1.0 - y_frac;
 
-	float z11 = Z_VALUE(x_index, y_index);
-	float z21 = Z_VALUE(x_index + 1, y_index);
-	float z12 = Z_VALUE(x_index, y_index + 1);
-	float z22 = Z_VALUE(x_index + 1, y_index + 1);
+	float z11 = get_pixel(x_index, y_index);
+	float z21 = get_pixel(x_index + 1, y_index);
+	float z12 = get_pixel(x_index, y_index + 1);
+	float z22 = get_pixel(x_index + 1, y_index + 1);
 
-	
-	float one_minus_x_frac = 1.0 - x_frac;
-	float one_minus_y_frac = 1.0 - y_frac;
+	static const __m128 FF_recip = _mm_set1_ps((1.0)/(255.0));
 
-	__m128 c = _mm_setr_ps(z11, z21, z12, z22);
+	__m128 c = _mm_mul_ps(_mm_setr_ps(z11, z21, z12, z22), FF_recip);
 	__m128 d = _mm_setr_ps(x_frac * y_frac, 
-						  one_minus_x_frac*y_frac, 
-						  x_frac*one_minus_y_frac, 
-						  one_minus_x_frac*one_minus_y_frac);
+						  one_minus_x_frac * y_frac, 
+						  x_frac * one_minus_y_frac, 
+						  one_minus_x_frac * one_minus_y_frac);
 
 	float r = MM_DPPS_XYZW(c, d);
 	
 	//onScreenLog::print("lookup: z11 = %f, z21 = %f, z12 = %f, z22 = %f, interpolated value = %f\n", z11, z21, z12, z22, r);
-	//return r;
-	return z11;
+	return min_elevation_real_y + c.m128_f32[0] * elevation_real_diff;
 }
 
 

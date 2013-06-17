@@ -91,7 +91,7 @@ def do_export(context, filepath):
 		i = 0
 		for index in face.vertices:
 			vert = mesh.vertices[index]
-			coords_rearranged = [vert.co[0], vert.co[2], -vert.co[1]]
+			coords_rearranged = [vert.co[0], vert.co[2], -vert.co[1]]	# see comment above ^^
 			for c in coords_rearranged:
 				data.append(c)
 			normal_rearranged = [vert.normal[0], vert.normal[2], -vert.normal[1]]
@@ -102,13 +102,12 @@ def do_export(context, filepath):
 			i += 1
 			
 	
-	print("Constructed a flat float list with a V3F N3F T2F arrangement (y-z swapped! *).\n")
+	print("Constructed a flat float list with a V3F N3F T2F arrangement.\n")
 	print("len(data) = " + str(len(data)) + " <=> " +
 	"num_vertices = " + str(int(len(data)/8)) + " <=> " +
 	"num_faces = " + str(int((len(data)/8)/3)) + ".")
 	print("len(mesh.tessfaces): " + str(len(mesh.tessfaces)))
 	print("len(tessface_uv_textures.active.data) : " + str(len(mesh.tessface_uv_textures.active.data)))
-	print("\n(* Blender uses the z-coordinate to store height, whereas OpenGL uses y.)\n")
 	tmpfilename = filepath + ".tmpuncompressed"
 	
 	out_fp = open(tmpfilename, "wb")

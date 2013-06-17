@@ -7,6 +7,14 @@
 #include "socket.h"
 #include "net/taskthread.h"
 
+#ifdef SERVER_CLI
+#define SERVER_PRINT(fmt, ... ) fprintf(stderr, fmt, __VA_ARGS__)
+#else
+#include "net/client.h"
+#include "text.h"
+#define SERVER_PRINT(fmt, ...) onScreenLog::print(fmt, __VA_ARGS__)
+#endif
+
 typedef std::unordered_map<unsigned short, struct Client> id_client_map;
 typedef std::pair<unsigned short, struct Client> id_client_pair;
 
@@ -50,8 +58,9 @@ class Server {
 		void post_peer_list();
 		void post_client_connect(const struct Client &newclient);
 		void post_client_disconnect(unsigned short id);
-		void handshake(struct Client *client);
-		unsigned short add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
+		void pong(struct Client &c, unsigned seq_number);
+		void confirm_handshake(struct Client &client);
+		id_client_map::iterator add_client(struct sockaddr_in *newclient_saddr, const std::string &name);
 		void broadcast_shutdown_message();
 	public:
 		void task(); // override pure virtual
