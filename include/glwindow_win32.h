@@ -1,13 +1,17 @@
 #ifndef GLWINDOW_WIN32_H
 #define GLWINDOW_WIN32_H
 
+#pragma warning(disable: 4244)
+#pragma warning(disable: 4267)
+#pragma warning(disable: 4305)
+
 #include <Winsock2.h>
 #include <Windows.h>
+#include <GL\GL.h>
 #include <wingdi.h>
 #include <mutex>
 
-#include <gl_core_3_2.h>
-
+#include "glfunc_loader_minimal.h"
 
 extern bool WM_KEYDOWN_KEYS[];
 extern bool WM_CHAR_KEYS[];
@@ -18,8 +22,8 @@ extern void messagebox_error(const std::string &msg);
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
-extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+//typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
+//extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
 extern float WINDOW_WIDTH;
 extern float WINDOW_HEIGHT;
@@ -35,7 +39,6 @@ extern void window_swapbuffers();
 extern bool mouse_locked;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK WndProc_child(HWND, UINT, WPARAM, LPARAM);
 
 BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE hInstance, int nCmdShow);
 void KillGLWindow(void);

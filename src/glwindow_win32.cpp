@@ -136,11 +136,10 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void messagebox_error(const std::string &msg) {
 	MessageBox(NULL, msg.c_str(), "Error (fatal)", MB_OK | MB_ICONEXCLAMATION);
 }
-
 BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE _hInstance, int nCmdShow)
 {
 	hInstance = _hInstance;
-	
+
 	GLuint PixelFormat;
 	WNDCLASS wc;
 	DWORD dwExStyle;
@@ -282,14 +281,14 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 		MessageBox(NULL, "Can't activate the gl rendering context.", "ERAIX", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
-	
+
 	// apparently, the WINAPI ShowWindow calls some opengl functions and causes a crash if the funcptrs aren't loaded
-	if (ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
-		messagebox_error("error: ogl_LoadFunctions() pheyled!");
+	if (load_functions() > 0) {
+		messagebox_error("error: load_functions() pheyled!");
 		return 0;
 	}
 
-	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
+//	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
 	ShowWindow(hWnd, nCmdShow);
 	//SetForegroundWindow(hWnd);

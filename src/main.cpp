@@ -202,8 +202,6 @@ if (uniform == -1) { \
 }\
 } while(0)
 
-PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
-
 int initGL(void)
 {	
 
@@ -288,7 +286,7 @@ int initGL(void)
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
-	wglSwapIntervalEXT(vsync);
+	//wglSwapIntervalEXT(vsync);
 	
 	return 1;
 
@@ -397,31 +395,16 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	}
 }
 
-void MyInvalidParameterHandler(
-   const wchar_t * expression,
-   const wchar_t * function, 
-   const wchar_t * file, 
-   unsigned int line,
-   uintptr_t pReserved
-) {
-	fprintf(stderr, "PASKAEINN\n");
-   fprintf(stderr, "Invalid parameter detected in function %s.\n File: %s Line: %d\n", function, file, line);
-   fprintf(stderr, "Expression: %s\n", expression);
-   abort();
-}
-
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
 	
-	_set_invalid_parameter_handler(MyInvalidParameterHandler);
-
 	//if(AllocConsole()) {
 	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
-	//	freopen_s("CONOUT$", "wt", stderr);
+	//	freopen("CONOUT$", "wt", stderr);
 
-		//SetConsoleTitle("debug output");
+	//	SetConsoleTitle("debug output");
 		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-//	} 
+	//} 
 
 	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
 	if (!initGL()) {

@@ -44,6 +44,8 @@ struct glyph {
 	vertex2 vertices[4];
 };
 
+#define _RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
+#define _RGBA(r,g,b,a) ((r)/255.0), ((g)/255.0), ((b)/255.0), ((a)/255.0)
 
 #define OSL_BUFFER_SIZE 8096	// only the GLushort-based index buffer poses a limit to this
 #define OSL_LINE_LEN 96

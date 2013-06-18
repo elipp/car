@@ -19,8 +19,6 @@ onScreenLog::InputField onScreenLog::input_field;
 onScreenLog::PrintQueue onScreenLog::print_queue;
 
 #define CURSOR_GLYPH 0x7F	// is really DEL though in utf8
-#define RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
-#define RGBA(r,g,b,a) ((r)/255.0), ((g)/255.0), ((b)/255.0), ((a)/255.0)
 
 float onScreenLog::pos_x = 7.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview = mat4::identity();
@@ -208,7 +206,7 @@ if (!_enabled) { return; }
 	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 16, BUFFER_OFFSET(2*sizeof(float)));
 	glUseProgram(text_shader->getProgramHandle());
 	
-	static const vec4 input_field_text_color(RGB(243, 248, 111), 1.0);
+	static const vec4 input_field_text_color(_RGB(243, 248, 111), 1.0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, text_texId);
