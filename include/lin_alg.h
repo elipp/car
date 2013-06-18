@@ -10,6 +10,7 @@
 #endif
 
 #include <cstdio>
+#include <iostream>
 #include <cstring>
 #include <cmath>
 #include <ostream>
@@ -17,6 +18,15 @@
 class vec4;
 class mat4;
 class Quaternion;
+
+inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
+	char buffer[128];
+	__declspec(align(16)) float tmp[4];
+	_mm_store_ps(tmp, m);
+	sprintf_s(buffer, 128, "(%4.2f, %4.2f, %4.2f, %4.2f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	out << buffer;
+	return out;
+}
 
 std::ostream &operator<< (std::ostream& out, const vec4 &v);
 std::ostream &operator<< (std::ostream& out, const mat4 &M);
@@ -59,6 +69,27 @@ namespace V {
 	enum { x = 0, y = 1, z = 2, w = 3 };
 }
 
+// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go ^^_^^
+inline void assign_to_field(__m128 &a, int index, float val) {
+	__declspec(align(16)) float tmp[4];
+	_mm_store_ps(tmp, a);
+	tmp[index] = val;
+	a = _mm_load_ps(tmp);
+}
+
+inline float get_field(const __m128 &a, int index) {
+	__declspec(align(16)) float tmp[4];
+	_mm_store_ps(tmp, a);
+	return tmp[index];
+}
+
+inline float get_first_field(const __m128 &a) {
+	float r;
+	_mm_store_ss(&r, a);
+	//std::cerr << "get_first_field: returning " << r << "\n";
+	return r;
+}
+
 #ifdef _WIN32
 __declspec(align(16)) // to ensure 16-byte alignment in memory
 #endif
@@ -73,8 +104,12 @@ public:
 	vec4(float _x, float _y, float _z, float _w);	
 	vec4(const float * const a);
 
-	inline float& operator() (int row) { return data.m128_f32[row]; }
-	inline float element(int row) const { return data.m128_f32[row]; }
+	inline void assign(int col, const float val) {
+		assign_to_field(data, col, val);
+	}
+	inline float operator()(int col) const { 
+		return get_field(data, col);
+	}
 
 	// see also: vec4 operator*(const float& scalar, vec4& v);
 
@@ -97,9 +132,7 @@ public:
 	void normalize();
 	vec4 normalized() const;
 	void zero();
-	
-	void print() { fprintf(stderr, "(%4.2f, %4.2f, %4.2f)\n", data.m128_f32[0], data.m128_f32[1], data.m128_f32[2]); }
-	
+		
 	friend std::ostream &operator<< (std::ostream& out, const vec4 &v);
 
 	void *rawData() const;
@@ -191,8 +224,8 @@ public:
 	static mat4 translate(float x, float y, float z);
 	static mat4 translate(const vec4 &v);
 
-	inline float& operator()(int column, int row) { return data[column].m128_f32[row]; }
-	inline float elementAt(int column, int row) const { return data[column].m128_f32[row]; }
+	inline void assign(int col, int row, float val) { assign_to_field(data[col], row, val); }
+	inline float operator()(int col, int row) const { return get_field(data[col], row); }
 	
 	mat4 operator* (const mat4 &R) const;
 	vec4 operator* (const vec4 &R) const;
@@ -287,8 +320,8 @@ public:
 	Quaternion(const __m128 d) { data = d;};
 	Quaternion();
 	
-	inline float element(int i) const { return data.m128_f32[i]; }
-	inline float& operator()(int i) { return data.m128_f32[i]; }
+	inline void assign(int col, float val) { assign_to_field(data, col, val); }
+	inline float operator()(int col) const { return get_field(data, col); }
 	
 	inline __m128 getData() const { return data; }
 
@@ -308,7 +341,7 @@ public:
 
 	vec4 operator*(const vec4& b) const;
 	
-	static Quaternion fromAxisAngle(float x, float y, float z, float angle);
+	static Quaternion fromAxisAngle(float x, float y, float z, float angle_radians);
 	mat4 toRotationMatrix() const;
 
 	friend Quaternion operator*(float scalar, const Quaternion &q);

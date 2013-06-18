@@ -389,7 +389,7 @@ void onScreenLog::scroll(float ds) {
 	float y_adjustment = current_line_num * char_spacing_vert;
 	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y - WINDOW_HEIGHT;
 	
-	onScreenLog::modelview(3, 1) += ds;
+	onScreenLog::modelview.assign(3, 1, onScreenLog::modelview(3,1) + ds);
 	
 	if (bottom_scroll_displacement + onScreenLog::modelview(3,1) >= 0) {
 		_autoscroll = false;
@@ -403,7 +403,7 @@ void onScreenLog::scroll(float ds) {
 }
 
 void onScreenLog::set_y_translation(float new_y) {
-	onScreenLog::modelview(3,1) = new_y;
+	onScreenLog::modelview.assign(3, 1, new_y);
 }
 
 void onScreenLog::clear() {

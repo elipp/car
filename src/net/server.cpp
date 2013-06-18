@@ -323,7 +323,7 @@ void Server::Ping::task() {
 	
 		}
 		long wait = TIMEOUT_CHECK_GRANULARITY - ping_timer.get_ms();
-		if (wait > 1) { Sleep(wait); }	// probably in the order of 999 ms, usually :P
+		if (wait > 1) { Sleep(wait); }
 		ping_timer.begin();
 	}
 

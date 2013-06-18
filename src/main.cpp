@@ -164,7 +164,7 @@ void control()
 	}
 	
 	camera_position = -view_position;
-	camera_position(V::z) *= -1;
+	camera_position.assign(V::z, camera_position(V::z)*(-1));
 
 }
 
@@ -206,17 +206,13 @@ PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
 int initGL(void)
 {	
-	
-	if(ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
-		return 0;
-	}
+
 	ResizeGLScene(WINDOW_WIDTH, WINDOW_HEIGHT);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	
 	onScreenLog::init();
 	VarTracker::init();
 	
-	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
 	glEnable(GL_DEPTH_TEST);
 	
@@ -401,18 +397,33 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	}
 }
 
+void MyInvalidParameterHandler(
+   const wchar_t * expression,
+   const wchar_t * function, 
+   const wchar_t * file, 
+   unsigned int line,
+   uintptr_t pReserved
+) {
+	fprintf(stderr, "PASKAEINN\n");
+   fprintf(stderr, "Invalid parameter detected in function %s.\n File: %s Line: %d\n", function, file, line);
+   fprintf(stderr, "Expression: %s\n", expression);
+   abort();
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
 	
-	/* if(AllocConsole()) {
-	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
-		freopen("CONOUT$", "wt", stderr);
-		SetConsoleTitle("debug output");
-		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	} */
+	_set_invalid_parameter_handler(MyInvalidParameterHandler);
 
-	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE)) { return 1; }
+	//if(AllocConsole()) {
+	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
+	//	freopen_s("CONOUT$", "wt", stderr);
+
+		//SetConsoleTitle("debug output");
+		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+//	} 
+
+	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
 	if (!initGL()) {
 		return 1; 
 	}

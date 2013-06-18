@@ -37,7 +37,7 @@ extern bool mouse_locked;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK WndProc_child(HWND, UINT, WPARAM, LPARAM);
 
-BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag);
+BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE hInstance, int nCmdShow);
 void KillGLWindow(void);
 GLvoid ResizeGLScene(GLsizei width, GLsizei height);
 

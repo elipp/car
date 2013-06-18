@@ -133,22 +133,14 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 }
 
 
-LRESULT CALLBACK WndProc_child(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) { 
-	switch(uMsg)
-	{
-	case WM_VSCROLL:
-		   SendMessage(hWnd, EM_LINESCROLL, (WPARAM)wParam, (LPARAM)lParam);
-			break;
-	}
-	return DefWindowProc(hWnd, uMsg, wParam, lParam); 
-}
-
 void messagebox_error(const std::string &msg) {
 	MessageBox(NULL, msg.c_str(), "Error (fatal)", MB_OK | MB_ICONEXCLAMATION);
 }
 
-BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag)
+BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE _hInstance, int nCmdShow)
 {
+	hInstance = _hInstance;
+	
 	GLuint PixelFormat;
 	WNDCLASS wc;
 	DWORD dwExStyle;
@@ -160,9 +152,10 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	WindowRect.top=(long)0;
 	WindowRect.bottom=(long)height;
 
+
 	fullscreen = fullscreenflag;
 
-	hInstance = GetModuleHandle(NULL);
+	//hInstance = GetModuleHandle(NULL);
 	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	wc.lpfnWndProc = (WNDPROC) WndProc;
 	wc.cbClsExtra = 0;
@@ -246,7 +239,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 		0,
 		0,
 		0, 0, 0, 0,
-		16,
+		24,
 		0,
 		0,
 		PFD_MAIN_PLANE,
@@ -289,10 +282,18 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 		MessageBox(NULL, "Can't activate the gl rendering context.", "ERAIX", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
+	
+	// apparently, the WINAPI ShowWindow calls some opengl functions and causes a crash if the funcptrs aren't loaded
+	if (ogl_LoadFunctions() == ogl_LOAD_FAILED) { 
+		messagebox_error("error: ogl_LoadFunctions() pheyled!");
+		return 0;
+	}
 
-	ShowWindow(hWnd, SW_SHOW);
-	SetForegroundWindow(hWnd);
-	SetFocus(hWnd);
+	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
+
+	ShowWindow(hWnd, nCmdShow);
+	//SetForegroundWindow(hWnd);
+	//SetFocus(hWnd);
 
 	return TRUE;
 }
