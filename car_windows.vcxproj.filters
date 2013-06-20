@@ -66,9 +66,6 @@
     <ClCompile Include="src\net\socket.cpp">
       <Filter>Source Files\net</Filter>
     </ClCompile>
-    <ClCompile Include="src\gl_core_3_2.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\net\taskthread.cpp">
       <Filter>Source Files\net</Filter>
     </ClCompile>
@@ -89,6 +86,9 @@
     </ClCompile>
     <ClCompile Include="src\lzma\7zStream.c">
       <Filter>Source Files\lzma</Filter>
+    </ClCompile>
+    <ClCompile Include="src\glfunc_loader_minimal.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -119,9 +119,6 @@
     <ClInclude Include="include\vertex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lodepng.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\net\client.h">
       <Filter>Header Files\net</Filter>
     </ClInclude>
@@ -133,9 +130,6 @@
     </ClInclude>
     <ClInclude Include="include\net\socket.h">
       <Filter>Header Files\net</Filter>
-    </ClInclude>
-    <ClInclude Include="include\gl_core_3_2.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\net\taskthread.h">
       <Filter>Header Files\net</Filter>
@@ -160,6 +154,12 @@
     </ClInclude>
     <ClInclude Include="include\lzma\mylzma.h">
       <Filter>Header Files\lzma</Filter>
+    </ClInclude>
+    <ClInclude Include="include\glfunc_loader_minimal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\lodepng.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

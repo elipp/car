@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "car_windows", "car_windows.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "car_server_test", "..\car_server_test\car_server_test.vcxproj", "{32E9A31A-DF54-45E6-8265-4B4C704F9CC6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lin_alg_test", "..\lin_alg_test\lin_alg_test.vcxproj", "{3225A615-9512-4EE5-8937-10A5C908033D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -29,6 +31,13 @@ Global
 		{32E9A31A-DF54-45E6-8265-4B4C704F9CC6}.Release|Win32.Build.0 = Release|Win32
 		{32E9A31A-DF54-45E6-8265-4B4C704F9CC6}.Release|x64.ActiveCfg = Release|x64
 		{32E9A31A-DF54-45E6-8265-4B4C704F9CC6}.Release|x64.Build.0 = Release|x64
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Debug|Win32.Build.0 = Debug|Win32
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Debug|x64.ActiveCfg = Debug|Win32
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Release|Win32.ActiveCfg = Release|Win32
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Release|Win32.Build.0 = Release|Win32
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Release|x64.ActiveCfg = Release|x64
+		{3225A615-9512-4EE5-8937-10A5C908033D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
