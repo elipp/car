@@ -437,7 +437,7 @@ void VarTracker::update() {
 	for (auto &it : tracked) {
 		collect += separator + it->name + ":\n" + it->print();
 	}
-	collect += separator;
+	//collect += separator;
 	
 	VarTracker::update_VBO(collect);
 }
@@ -451,9 +451,9 @@ void VarTracker::update_VBO(const std::string &buffer) {
 	int length = buffer.length();
 	int current_line_num = 0;
 
-	for (i = 0; i < length; ++i) {
+	for (i = 1; i < length+1; ++i) {
 
-		char c = buffer[i];
+		char c = buffer[i-1];
 
 		if (c == '\n') {
 			++current_line_num;
@@ -470,10 +470,12 @@ void VarTracker::update_VBO(const std::string &buffer) {
 		}
 	
 		glyph_buffer[i] = glyph_from_char(VarTracker::pos_x + x_adjustment, VarTracker::pos_y + y_adjustment, c);
-		
 		x_adjustment += char_spacing_horiz;
-	}
-	VarTracker::cur_total_length = buffer.length();
+	}		
+	
+	glyph_buffer[0] = solid_rectangle_glyph(VarTracker::pos_x - 5, VarTracker::pos_y - 5, tracker_width_chars * char_spacing_horiz, y_adjustment + 4*char_spacing_vert);
+
+	VarTracker::cur_total_length = buffer.length() + 1;
 	glBindBuffer(GL_ARRAY_BUFFER, VarTracker::VBOid);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, VarTracker::cur_total_length*(sizeof(glyph)), (const GLvoid*)glyph_buffer);
 
@@ -486,6 +488,7 @@ void VarTracker::draw() {
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDisable(GL_DEPTH_TEST);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
 
 	glBindBuffer(GL_ARRAY_BUFFER, VarTracker::VBOid);
 	
@@ -497,20 +500,34 @@ void VarTracker::draw() {
 	glBindTexture(GL_TEXTURE_2D, text_texId);
 	text_shader->update_uniform_1i("texture_color", 0);
 	
+	static const vec4 tracker_overlay_color(0.02, 0.02, 0.02, 0.6);
 	static const vec4 tracker_text_color(0.91, 0.91, 0.91, 1.0);
 	
 	static const mat4 tracker_modelview = mat4::identity();
 
 	text_shader->update_uniform_mat4("Projection", text_Projection);
-	text_shader->update_uniform_vec4("text_color", tracker_text_color);
+	text_shader->update_uniform_vec4("text_color", tracker_overlay_color);
 	text_shader->update_uniform_mat4("ModelView", tracker_modelview);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_shared_IBOid);
 	
-	glDrawElements(GL_TRIANGLES, 6*VarTracker::cur_total_length, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	
+	text_shader->update_uniform_vec4("text_color", tracker_text_color);
+	glDrawElements(GL_TRIANGLES, 6*(VarTracker::cur_total_length - 1), GL_UNSIGNED_SHORT, BUFFER_OFFSET(6*sizeof(GLushort)));
 
+	glDisable(GL_BLEND);
 }
 
 void VarTracker::track(const TrackableBase *const var) {
+	auto iter = tracked.begin();
+
+	while (iter != tracked.end()) {
+		if ((*iter)->data == var->data) {
+			// don't add, we already are tracking this var
+			return;
+		}
+		++iter;
+	}
 	VarTracker::tracked.push_back(var);
 	//onScreenLog::print("Tracker: added %s with value %s.\n", var->name.c_str(), var->print().c_str());
 }

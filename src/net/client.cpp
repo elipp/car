@@ -351,7 +351,7 @@ void LocalClient::Listen::handle_current_packet() {
 			break;
 		}
 	
-			default:
+		default:
 			onScreenLog::print("Warning: received unknown command char %u from server.\n", cmd);
 			break;
 	}

@@ -210,16 +210,11 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 
 	AdjustWindowRectEx(&WindowRect, dwStyle, FALSE, dwExStyle);
 
-	if(!(hWnd=CreateWindowEx( dwExStyle, "OpenGL", title,
-							  WS_CLIPSIBLINGS | WS_CLIPCHILDREN | dwStyle,
-							  0, 0,
-							  WindowRect.right-WindowRect.left,
-							  WindowRect.bottom-WindowRect.top,
-							  NULL,
-							  NULL,
-							  hInstance,
-							  NULL)))
-	{
+	hWnd = CreateWindowEx(dwExStyle, "OpenGL", title, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | dwStyle, 0, 0, 
+		WindowRect.right-WindowRect.left, WindowRect.bottom-WindowRect.top,
+		NULL, NULL, hInstance, NULL);
+
+	if (hWnd == NULL) {
 		KillGLWindow();
 		MessageBox(NULL, "window creation error.", "ERROR", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;

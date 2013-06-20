@@ -7,6 +7,7 @@
 
 #include <Winsock2.h>
 #include <Windows.h>
+#include <lmcons.h>
 #include <GL\GL.h>
 #include <wingdi.h>
 #include <mutex>

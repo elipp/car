@@ -17,7 +17,7 @@ static std::string get_file_extension(const std::string &filename) {
 	return ext;
 }
 
-static int loadJPEG(const std::string &filename, unsigned char **out_buffer, unified_header_data *out_header) {
+static int loadJPEG(const std::string &filename, unsigned char **out_buffer, unified_header_data *out_header, int *total_bytes) {
 
   struct jpeg_decompress_struct cinfo;
 
@@ -52,8 +52,8 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uni
 
   /* JSAMPLEs per row in output buffer */
   row_stride = cinfo.output_width * cinfo.output_components;
-  unsigned total_bytes = (cinfo.output_width*cinfo.output_components)*(cinfo.output_height*cinfo.output_components);
-  *out_buffer = new unsigned char[total_bytes];
+  *total_bytes = (cinfo.output_width*cinfo.output_components)*(cinfo.output_height*cinfo.output_components);
+  *out_buffer = new unsigned char[*total_bytes];
   /* Make a one-row-high sample array that will go away when done with image */
   buffer = (*cinfo.mem->alloc_sarray)
 		((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
@@ -76,12 +76,12 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uni
   /* Step 7: Finish decompression */
   (void) jpeg_finish_decompress(&cinfo);
 
-  /* Step 8: Release JPEG decompression object */
   
   out_header->width = cinfo.image_width;
   out_header->height = cinfo.image_height;
   out_header->bpp = cinfo.output_components * 8;	// safe assumption
  
+  /* Step 8: Release JPEG decompression object */
   jpeg_destroy_decompress(&cinfo);
 
   fclose(infile);
@@ -90,29 +90,36 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uni
 }
 
 
-static int loadPNG(const std::string &filename, unsigned char **out, unified_header_data *out_header) {
-	out_header->bpp = 32;	// the below function always decodes to 32-bit RGBA :P
-	return (lodepng_decode32_file(out, &out_header->width, &out_header->height, filename.c_str()) == 0); // 0 means no error
+static int loadPNG(const std::string &filename, std::vector<unsigned char> &pixels, unified_header_data *out_header, LodePNGColorType colortype) {
+	unsigned e = lodepng::decode(pixels, out_header->width, out_header->height, filename, colortype);
+	if (colortype == LCT_RGBA) { out_header->bpp = 32; }
+	else if (colortype == LCT_GREY) { out_header->bpp = 8; }
+	return (e == 0);
 }
 
-static int load_pixels(const std::string& filename, unsigned char** pixels, unified_header_data *img_info) {
+static int load_pixels(const std::string& filename, std::vector<unsigned char> &pixels, unified_header_data *img_info, LodePNGColorType colortype = LCT_RGBA) {
 	unsigned width = 0, height = 0;
 
 	memset(img_info, 0x0, sizeof(*img_info));
 	
+	
 	std::string ext = get_file_extension(filename);
 	if (ext == "jpg" || ext == "jpeg") {
-		if (!loadJPEG(filename, pixels, img_info)) {
+		unsigned char* pixel_buf;
+		int total_bytes;
+		if (!loadJPEG(filename, &pixel_buf, img_info, &total_bytes)) {
 			fprintf(stderr, "load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
 			return 0;
 		}
 		else {
+			pixels.assign(pixel_buf, pixel_buf + total_bytes);
+			delete [] pixel_buf;
 			return 1;
 		}
 	
 	}
 	else if (ext == "png") {
-		if(!loadPNG(filename, pixels, img_info)) {
+		if(!loadPNG(filename, pixels, img_info, colortype)) {
 			fprintf(stderr, "load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
 			return 0;
 		}
@@ -120,7 +127,7 @@ static int load_pixels(const std::string& filename, unsigned char** pixels, unif
 			return 1;
 		}
 	} else {
-		fprintf(stderr, "load_pixels: fatal error: unsupported image format \"%s\" (only PNG/JPG are supported)\n", ext.c_str());
+		fprintf(stderr, "load_pixels: fatal error: unsupported image file extension \"%s\" (only .png, .jpg, .jpeg are supported)\n", ext.c_str());
 		return 0;
 	}
 }
@@ -132,8 +139,8 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	
 	unified_header_data img_info;
 
-	unsigned char* pixels;
-	if (!load_pixels(filename, &pixels, &img_info)) { fprintf(stderr, "Loading texture %s failed.\n", filename.c_str()); _otherbad = true; }
+	std::vector<unsigned char> pixels;
+	if (!load_pixels(filename, pixels, &img_info)) { fprintf(stderr, "Loading texture %s failed.\n", filename.c_str()); _otherbad = true; }
 
 	_badheader = _nosuch = _otherbad = false;
 
@@ -162,7 +169,6 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 			_otherbad = true;
 		}
 		
-		free(pixels);
 }
 
 	/*****
@@ -219,22 +225,19 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 	
 	// the heightmaps are 16-by-16 meshes, which are scaled by the _scale parm
 
-	pixels = NULL;
 	_bad = false;
 	unsigned width = 0, height = 0;
 	unified_header_data img_info;
 
-	if (!load_pixels(filename, &this->pixels, &img_info)) {
+	if (!load_pixels(filename, this->pixels, &img_info, LCT_GREY)) {
 		fprintf(stderr, "HeightMap: loading file %s pheyled.\n", filename.c_str()); 
-		pixels = NULL;
 		_bad = true; 
 		return; 
 	}
 
 	else if (img_info.bpp != 8) {
-		fprintf(stderr, "HeightMap: only 8-bit grayscale (jpg) accepted! :(\n", filename.c_str());
-	
-		pixels = NULL;
+		fprintf(stderr, "HeightMap: only 8-bit grayscale accepted! :(\n", filename.c_str());
+
 		_bad = true;
 		return;
 	}
@@ -252,42 +255,54 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 	elevation_real_diff = max_elevation_real_y - min_elevation_real_y;
 
 	onScreenLog::print("HeightMap (filename: %s):\n", filename.c_str());
-	onScreenLog::print("img_dim_pixels = %d, max_elevation_real_y = %f,\nmin_elevation_real_y = %f, elevation_real_diff = %f\n",
-						img_dim_pixels, max_elevation_real_y, min_elevation_real_y, elevation_real_diff);
+	onScreenLog::print("img_dim_pixels = %d, dim_per_scale = %f, max_elevation_real_y = %f,\nmin_elevation_real_y = %f, elevation_real_diff = %f\n",
+						img_dim_pixels, dim_per_scale, max_elevation_real_y, min_elevation_real_y, elevation_real_diff);
+	onScreenLog::print("pixel buffer size: %u\n", this->pixels.size());
+
+}
+
+inline unsigned char HeightMap::get_pixel(int x, int y) {
+		int index_x = dim_per_scale*LIMIT_VALUE_BETWEEN((x+half_real_map_dim), 0, real_map_dim);
+		int index_y = dim_per_scale*LIMIT_VALUE_BETWEEN((y+half_real_map_dim), 0, real_map_dim);
+		
+		return pixels[index_x + (dim_minus_one - index_y)*img_dim_pixels];
 }
 
 float HeightMap::lookup(float x, float y) {
 
 	// perform bilinear interpolation on the heightmap ^^
 
-	int x_index; 
-	float x_frac, one_minus_x_frac;
-	x_index = floor(x);
-	x_frac = x - x_index;
-	one_minus_x_frac = 1.0 - x_frac;
+	int xi; 
+	float xf, xf_r;
+	xi = floor(x);
+	xf = x - xi;
+	xf_r = 1.0 - xf;
 	
-	int y_index; 
-	float y_frac, one_minus_y_frac;
-	y_index = floor(y);
-	y_frac = y - y_index;
-	one_minus_y_frac = 1.0 - y_frac;
-
-	float z11 = get_pixel(x_index, y_index);
-	float z21 = get_pixel(x_index + 1, y_index);
-	float z12 = get_pixel(x_index, y_index + 1);
-	float z22 = get_pixel(x_index + 1, y_index + 1);
-
-	static const __m128 FF_recip = _mm_set1_ps((1.0)/(255.0));
-
-	__m128 c = _mm_mul_ps(_mm_setr_ps(z11, z21, z12, z22), FF_recip);
-	__m128 d = _mm_setr_ps(x_frac * y_frac, 
-						  one_minus_x_frac * y_frac, 
-						  x_frac * one_minus_y_frac, 
-						  one_minus_x_frac * one_minus_y_frac);
-
-	float r = MM_DPPS_XYZW(c, d);
+	int yi; 
+	float yf, yf_r;
+	yi = floor(y);
+	yf = y - yi;
+	yf_r = 1.0 - yf;
 	
-	//onScreenLog::print("lookup: z11 = %f, z21 = %f, z12 = %f, z22 = %f, interpolated value = %f\n", z11, z21, z12, z22, r);
+	// this is a simple scalar implementation
+	//float R1 = xf_r * z11 + xf * z21;
+	//float R2 = xf_r * z12 + xf * z22;
+	//float r = (yf_r * R1 + yf * R2)/255.0;
+	
+	__declspec(align(16)) float zs[4] = { get_pixel(xi,		yi), 
+										  get_pixel(xi+1,	yi), 
+										  get_pixel(xi,		yi+1), 
+										  get_pixel(xi+1,	yi+1) };
+
+	const __m128 z = _mm_load_ps(zs);
+
+	__declspec(align(16)) float weights[4] = { xf_r * yf_r, 
+											   xf * yf_r, 
+											   xf_r * yf, 
+											   xf * yf };
+	const __m128 w = _mm_load_ps(weights);
+
+	float r = MM_DPPS_XYZW(z, w)/255.0;
 	return min_elevation_real_y + r * elevation_real_diff;
 }
 

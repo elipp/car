@@ -55,7 +55,7 @@ public:
 class HeightMap {
 	int img_dim_pixels;	// pixels
 	int bitdepth;
-	unsigned char *pixels;
+	std::vector<unsigned char> pixels;
 	bool _bad;
 
 	const float real_map_dim;
@@ -70,19 +70,12 @@ class HeightMap {
 	float min_elevation_real_y;
 	float elevation_real_diff;
 
-	inline unsigned char get_pixel(int x, int y) { 
-		// (0,0) => LOWER LEFT CORNER OF HEIGHT MAP, (img_dim_pixels-1, img_dim_pixels-1) => UPPER RIGHT
-		int index_x = LIMIT_VALUE_BETWEEN((x+half_real_map_dim), 0, dim_minus_one);
-		int index_y = LIMIT_VALUE_BETWEEN((y+half_real_map_dim), 0, dim_minus_one);
-		
-		return pixels[index_x + (dim_minus_one - index_y)*img_dim_pixels];
-	}
+	inline unsigned char get_pixel(int x, int y);
 
 public:
 	bool bad() const { return _bad; }
 	float lookup(float x, float y);
 	HeightMap(const std::string &filename, float _scale, float _top, float _bottom);
-	~HeightMap() { if (pixels != NULL) { free(pixels); } }
 
 };
 

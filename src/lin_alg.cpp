@@ -164,8 +164,7 @@ vec4 vec4::operator*(float scalar) const{
 }
 
 void vec4::operator/=(float scalar) {
-	// _mm_rcp_ps returns a rough approximation
-	const __m128 scalar_recip = _mm_rcp_ps(_mm_set1_ps(scalar));
+	const __m128 scalar_recip = _mm_set1_ps(1.0/scalar);
 	this->data = _mm_mul_ps(this->data, scalar_recip);
 
 }
@@ -235,7 +234,7 @@ void vec4::normalize() {
 	//this->data = _mm_mul_ps(this->data, _mm_rcp_ps(_mm_sqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)))));
 	const float dot3 = MM_DPPS_XYZ(this->data, this->data);
 	const __m128 factor = _mm_rsqrt_ps(_mm_set1_ps(dot3));	// rsqrtps = approximation :P
-	const __m128 orig_data = this->data;
+	//const __m128 orig_data = this->data;
 	this->data = _mm_mul_ps(factor, this->data);
 	//std::cerr << "\nat vec4::normalize: factor = " << factor << "\norig data = " << orig_data << "\n data = " << this->data << ", dot3 = " << dot3 << "\n";
 
@@ -365,7 +364,7 @@ vec4 mat4::operator* (const vec4& R) const {
 
 	
 	// try with temporary mat4? :P
-	// result: performs better!
+	// result: performs better (with optimizations disabled at least)
 	const mat4 M = (*this).transposed();
 	__declspec(align(16)) float tmp[4];
 	for (int i = 0; i < 4; i++) {
@@ -373,21 +372,6 @@ vec4 mat4::operator* (const vec4& R) const {
 	}
 
 	return vec4(tmp);
-
-/* #elif __linux	// deprecated
-	vec4 v;
-	const mat4 &L = (*this);
-
-	for (int i = 0; i < 4; i++)
-		v(i) = L.elementAt(0, i)*R.elementAt(0)
-		       + L.elementAt(1, i)*R.elementAt(1)
-		       + L.elementAt(2, i)*R.elementAt(2)
-		       + L.elementAt(3, i)*R.elementAt(3);
-
-	return v;
-#endif */
-
-
 }
 
 void mat4::operator*=(const mat4 &R) {
@@ -726,7 +710,6 @@ Quaternion Quaternion::fromAxisAngle(float x, float y, float z, float angle_radi
 	//std::cerr << "\n axis.getData(): " << axis.getData();
 
 	q.data = _mm_mul_ps(sin_half_angle, axis.getData());
-	//q(Q::w) = cos(half_angle);
 	assign_to_field(q.data, Q::w, cos(half_angle));
 	
 	return q;
@@ -812,10 +795,6 @@ vec4 Quaternion::operator*(const vec4& b) const {
 
 mat4 Quaternion::toRotationMatrix() const {
 	
-	// using SSE, the initial combinatorics could be done with
-	// 2 multiplications, two shuffles, and one regular
-	// multiplication. not sure it's quite worth it though :P
-
 	// ASSUMING *this is a NORMALIZED QUATERNION!
 
 	const Quaternion &q = *this;

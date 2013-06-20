@@ -41,7 +41,8 @@ struct meshinfo {
 static Model *chassis = NULL, 
 			 *wheel = NULL, 
 			 *racetrack = NULL,
-			 *terrain = NULL;
+			 *terrain = NULL,
+			 *skybox = NULL;
 
 HeightMap *map = NULL;
 
@@ -53,7 +54,8 @@ GLfloat running = 0.0;
 
 static ShaderProgram *regular_shader = NULL,
 					 *normal_plot_shader = NULL,
-					 *racetrack_shader = NULL;
+					 *racetrack_shader = NULL,
+					 *skybox_shader = NULL;
 
 mat4 view;
 Quaternion viewq;
@@ -67,17 +69,19 @@ static vec4 camera_position;
 
 GLuint road_texId;
 GLuint terrain_texId;
+GLuint skybox_texId;
 
 #ifndef M_PI
 #define M_PI 3.1415926535
 #endif
 
 float PROJ_FOV_RADIANS = (M_PI/4);
-float PROJ_Z_FAR = 800.0;
+float PROJ_Z_FAR = 2000.0;
 
 static int vsync = 1;
 
 static float height_sample_under_car = 0.0;
+static vec4 car_pos;
 
 void rotatex(float mod) {
 	qy += mod;
@@ -206,37 +210,50 @@ int initGL(void)
 {	
 
 	ResizeGLScene(WINDOW_WIDTH, WINDOW_HEIGHT);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
 	
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	
+	text_shader = new ShaderProgram("shaders/text_shader");
+	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
+
 	onScreenLog::init();
 	VarTracker::init();
 	
 
 	glEnable(GL_DEPTH_TEST);
 	
+
 	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
 	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 		
 	regular_shader = new ShaderProgram("shaders/regular"); 
-	text_shader = new ShaderProgram("shaders/text_shader");
 	racetrack_shader = new ShaderProgram("shaders/racetrack");
+	skybox_shader = new ShaderProgram("shaders/skybox");
 
 	if (regular_shader->is_bad() ||
 		text_shader->is_bad() ||
-		racetrack_shader->is_bad()) { 
+		racetrack_shader->is_bad() ||
+		skybox_shader->is_bad() ) { 
 
 		messagebox_error("Error: shader error. See shader.log.\n");
 		return 0; 
 	}
 	
-	onScreenLog::print( "Loading models...\n");
+	onScreenLog::print( "Loading all sorts of stuff...\n");
+
+	onScreenLog::draw();
+	window_swapbuffers();
 	
 	chassis = new Model("models/chassis.bobj", regular_shader);
 	wheel = new Model("models/wheel.bobj", regular_shader);
 	racetrack = new Model("models/racetrack.bobj", racetrack_shader);
 	terrain = new Model("models/mappi.bobj", racetrack_shader);
+	skybox = new Model("models/skybox.bobj", skybox_shader);
 
-	if (chassis->bad() || wheel->bad() || racetrack->bad() || terrain->bad()) {
+	if (chassis->bad() || wheel->bad() || racetrack->bad() || terrain->bad() || skybox->bad()) {
 		messagebox_error("initGL error: model load error.\n");
 		return 0; 
 	}
@@ -246,9 +263,9 @@ int initGL(void)
 	GLushort *indices = generateIndices();
 	
 	onScreenLog::print( "Loading textures...");
-	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
 	road_texId = TextureBank::add(Texture("textures/road.jpg", GL_LINEAR_MIPMAP_LINEAR));
 	terrain_texId = TextureBank::add(Texture("textures/grass.jpg", GL_LINEAR_MIPMAP_LINEAR));
+	skybox_texId = TextureBank::add(Texture("textures/skybox.jpg", GL_NEAREST));
 	onScreenLog::print( "done.\n");
 	
 	if (!TextureBank::validate()) {
@@ -256,13 +273,15 @@ int initGL(void)
 		return 0;
 	}
 
-	map = new HeightMap("textures/heightmap_grayscale.jpg", map_scale, 3.6978, -2.2509); // the top/bottom values were calculated by blender
+	map = new HeightMap("textures/heightmap_grayscale.png", map_scale, 3.4330, -2.3679); // the top/bottom values were calculated by blender
 	if (map->bad()) {
 		onScreenLog::print("heightmap failure. .\n");
 	}
 
+
 	racetrack->bind_texture(road_texId);
 	terrain->bind_texture(terrain_texId);
+	skybox->bind_texture(skybox_texId);
 
 	onScreenLog::draw();
 	window_swapbuffers();
@@ -281,7 +300,7 @@ int initGL(void)
 
 	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 
-	view_position = vec4(0.0, -80, 0.0, 1.0); // displacement would be a better name
+	view_position = vec4(0.0, -45, 0.0, 1.0); // displacement would be a better name
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
@@ -324,6 +343,19 @@ void drawTerrain() {
 	terrain->draw();
 }
 
+void drawSkybox() {
+	glDisable(GL_DEPTH_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, PMODE);
+
+	static const mat4 skybox_model = mat4::scale(250, 250, 250);
+
+	mat4 skybox_modelview = view * skybox_model;
+	skybox->use_ModelView(skybox_modelview);
+
+	skybox->draw();
+	glClear(GL_DEPTH_BUFFER_BIT);
+}
+
 void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	for (auto &iter : peers) {
 		const Car &car =  iter.second.car;
@@ -338,9 +370,10 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 		static const vec4 wheel_color(0.07, 0.07, 0.07, 1.0);
 
+		car_pos = car.position();
 		vec4 test_pos = car.position();
-		//height_sample_under_car = map->lookup(test_pos(V::x), -test_pos(V::z));
-		//test_pos(V::y) = height_sample_under_car;
+		height_sample_under_car = map->lookup(test_pos(V::x), -test_pos(V::z));
+		test_pos.assign(V::y, height_sample_under_car+0.90);
 
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
 		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
@@ -421,6 +454,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	VarTracker_track(double, time_per_frame_ms);
 	VarTracker_track(float, height_sample_under_car);
 	VarTracker_track(vec4, camera_position);
+	VarTracker_track(vec4, car_pos);
 
 	
 	std::string cpustr(checkCPUCapabilities());
@@ -428,7 +462,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	onScreenLog::print("%s\n", cpustr.c_str());
 	
-	LocalClient::set_name("Player");
+	char name_buf[UNLEN+1];
+	DWORD len = UNLEN+1;
+	GetUserName(name_buf, &len);
+
+	LocalClient::set_name(std::string(name_buf));
 	onScreenLog::print("\nUse /connect <ip>:<port> to connect to a server, or /startserver to start one.\n");
 	onScreenLog::print("(/connect without an argument will connect to localhost:50000.)\n");
 	
@@ -472,6 +510,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
+		drawSkybox();
+
 		control();
 		update_c_pos();
 		
