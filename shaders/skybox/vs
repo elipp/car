@@ -1,0 +1,20 @@
+#version 150 core
+
+
+precision highp float;
+
+in vec3 Position_VS_in;
+in vec3 Normal_VS_in;
+in vec2 TexCoord_VS_in;
+
+uniform mat4 ModelView;
+uniform mat4 Projection;
+
+out vec2 TexCoord_FS_in;
+
+void main(void)
+{
+	TexCoord_FS_in = TexCoord_VS_in;
+	gl_Position = Projection*ModelView*vec4(Position_VS_in, 1.0);
+}
+

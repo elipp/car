@@ -64,6 +64,7 @@ class HeightMap {
 	const float bottom; // minimum elevation
 	double dim_per_scale;
 	double half_real_map_dim;
+	float real_map_dim_minus_one;
 	int dim_minus_one;
 	int dim_squared_minus_one;
 	float max_elevation_real_y;

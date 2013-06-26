@@ -20,7 +20,7 @@ vec3 light3 = normalize(vec3(light_direction));
 vec4 lightColor = vec4( 0.8, 0.3, 0.3, 1.0);
 
 void main(void) {
-	vec4 col = texture2D(texture_color, TexCoord_FS_in);
+	vec4 col = texture2D(texture_color, 16*TexCoord_FS_in);
 	vec4 ambient = 0.1*col;
 	vec3 normal_transformed = normalize(ModelView3_inv_T*Normal_FS_in);
 

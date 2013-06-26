@@ -273,7 +273,7 @@ int initGL(void)
 		return 0;
 	}
 
-	map = new HeightMap("textures/heightmap_grayscale.png", map_scale, 3.4330, -2.3679); // the top/bottom values were calculated by blender
+	map = new HeightMap("textures/heightmap_grayscale.png", map_scale, 2.7475, -2.7475); // the top/bottom values were calculated by blender
 	if (map->bad()) {
 		onScreenLog::print("heightmap failure. .\n");
 	}
@@ -375,6 +375,14 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		height_sample_under_car = map->lookup(test_pos(V::x), -test_pos(V::z));
 		test_pos.assign(V::y, height_sample_under_car+0.90);
 
+		vec4 test_pos_neg = -test_pos;
+		
+		view = mat4::translate(0.0, 0.0, -12.0);
+		view *= mat4::rotate(M_PI/8, -1.0, 0.0, 0.0);
+		view *= mat4::rotate(car.state.direction + PI_PER_TWO, 0.0, 1.0, 0.0);
+		view *= (test_pos_neg).toTranslationMatrix();
+
+
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
 		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
 		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
@@ -455,6 +463,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	VarTracker_track(float, height_sample_under_car);
 	VarTracker_track(vec4, camera_position);
 	VarTracker_track(vec4, car_pos);
+	//VarTracker_track(mat4, view);
 
 	
 	std::string cpustr(checkCPUCapabilities());
@@ -512,8 +521,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		drawSkybox();
 
-		control();
-		update_c_pos();
+	//	control();
+		//update_c_pos();
 		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();

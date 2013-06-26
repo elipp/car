@@ -1,0 +1,17 @@
+#version 150 core
+
+precision highp float;
+
+in vec2 TexCoord_FS_in;
+
+out vec4 out_frag_color;
+
+uniform mat4 ModelView;
+uniform sampler2D texture_color;
+uniform vec4 light_direction;
+
+
+void main(void)
+{
+	out_frag_color = texture2D(texture_color, vec2(TexCoord_FS_in.x, 1.0 - TexCoord_FS_in.y));
+}

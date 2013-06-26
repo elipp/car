@@ -243,6 +243,8 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 	}
 
 	img_dim_pixels = img_info.width;
+
+	real_map_dim_minus_one = real_map_dim - 1;
 	
 	dim_per_scale = img_dim_pixels/real_map_dim;
 	half_real_map_dim = real_map_dim/2.0;
@@ -262,9 +264,8 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 }
 
 inline unsigned char HeightMap::get_pixel(int x, int y) {
-		int index_x = dim_per_scale*LIMIT_VALUE_BETWEEN((x+half_real_map_dim), 0, real_map_dim);
-		int index_y = dim_per_scale*LIMIT_VALUE_BETWEEN((y+half_real_map_dim), 0, real_map_dim);
-		
+		int index_x = dim_per_scale*LIMIT_VALUE_BETWEEN((x+half_real_map_dim), 0, real_map_dim_minus_one);
+		int index_y = dim_per_scale*LIMIT_VALUE_BETWEEN((y+half_real_map_dim), 0, real_map_dim_minus_one);	
 		return pixels[index_x + (dim_minus_one - index_y)*img_dim_pixels];
 }
 

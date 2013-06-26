@@ -2,7 +2,7 @@
 #include "text.h"
 
 static const __m128 ZERO = _mm_setzero_ps();
-static const __m128 MINUS_ONES = _mm_set_ps(-1.0, -1.0, -1.0, -1.0);
+static const __m128 MINUS_ONES = _mm_set_ps(1.0, -1.0, -1.0, -1.0);
 static const __m128 QUAT_CONJUGATE = _mm_set_ps(1.0, -1.0, -1.0, -1.0);	// in reverse order!
 static const __m128 QUAT_NO_ROTATION = _mm_set_ps(1.0, 0.0, 0.0, 0.0);
 static const int mask3021 = 0xC9, // 11 00 10 01_2
