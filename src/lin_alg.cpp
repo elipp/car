@@ -23,7 +23,8 @@ static const float zero_arr[16] = { 0.0, 0.0, 0.0, 0.0,
 									0.0, 0.0, 0.0, 0.0 };
 								
 
-const vec4 vec4::zero_const = vec4(ZERO);
+const vec4 vec4::zero4 = vec4(ZERO);
+const vec4 vec4::zero3 = vec4(0.0, 0.0, 0.0, 1.0);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
 
@@ -70,12 +71,12 @@ inline float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 	return get_first_field(_mm_dp_ps(a, b, xyzw_dot_mask));
 }
 
-float MM_DPPS_XYZ(__m128 a, __m128 b) {
+inline float MM_DPPS_XYZ(__m128 a, __m128 b) {
 	// http://stackoverflow.com/questions/6996764/fastest-way-to-do-horizontal-float-vector-sum-on-x86 ^^
 	return MM_DPPS_XYZ_SSE(a, b);
 }
 
-float MM_DPPS_XYZW(__m128 a, __m128 b) {
+inline float MM_DPPS_XYZW(__m128 a, __m128 b) {
 	return MM_DPPS_XYZW_SSE(a, b);
 }
 
@@ -131,20 +132,13 @@ vec4::vec4(float _x, float _y, float _z, float _w) {
 }
 
 
-vec4::vec4() {
-	data = ZERO;
-}
-
 // obviously enough, this requires a 4-float array as argument
 vec4::vec4(const float* const a) {
 	data = _mm_loadu_ps(a);		// not assuming 16-byte alignment for a.
 }
 
 void vec4::operator*=(float scalar) {
-
-	// use xmmintrin
-	// data = _mm_mul_ps(data, _mm_load1_ps(&scalar)); // not quite sure this works
-	data = _mm_mul_ps(data, _mm_set1_ps(scalar));	// the disassembly is pretty much identical between the two though
+	data = _mm_mul_ps(data, _mm_set1_ps(scalar));
 }
 
 vec4 operator*(float scalar, const vec4& v) {
@@ -204,6 +198,23 @@ vec4 vec4::operator-() const {
 	return vec4(_mm_mul_ps(MINUS_ONES, this->data));
 }
 
+
+vec4 vec4::applyQuatRotation(const Quaternion &q) const {
+	
+	vec4 v(*this);
+	v.normalize();
+ 	Quaternion vec_q(this->getData()), res_q;
+	vec_q.assign(Q::w, 0);
+
+	res_q = vec_q * q.conjugate();
+	res_q = q*res_q;
+
+	vec4 r(res_q.getData());
+	r.assign(V::w, 1.0);
+	
+	return r;
+}
+
 float vec4::length3() const {
 	//return sqrt(_mm_dp_ps(this->data, this->data, xyz_dot_mask).m128_f32[0]);
 	return sqrt(MM_DPPS_XYZ(this->data, this->data));
@@ -248,7 +259,7 @@ vec4 vec4::normalized() const {
 }
 
 void vec4::zero() {
-	(*this) = vec4::zero_const;
+	(*this) = vec4::zero4;
 }
 
 std::ostream &operator<< (std::ostream& out, const vec4 &v) {
@@ -261,8 +272,17 @@ void* vec4::rawData() const {
 }
 
 
-float dot(const vec4 &a, const vec4 &b) {
+float dot3(const vec4 &a, const vec4 &b) {
 	return MM_DPPS_XYZ(a.data, b.data);
+}
+
+float dot4(const vec4 &a, const vec4 &b) {
+	return MM_DPPS_XYZW(a.data, b.data);
+}
+
+vec4 abs(const vec4 &a) {
+	static const __m128 mask = _mm_set1_ps(-0.f);	// 1 << 31
+	return vec4(_mm_andnot_ps(mask, a.getData()));
 }
 
 vec4 cross(const vec4 &a, const vec4 &b) {
@@ -343,12 +363,9 @@ mat4 mat4::operator* (const mat4& R) const {
 	
 	// we'll choose to transpose the other matrix, and instead of calling the perhaps
 	// more intuitive row(), we'll be calling column(), which is a LOT faster in comparison.
-	
-	// FIXME: too many assign():s! will be very slow
-
-	__declspec(align(16)) float tmp[4];	// represents a temporary column
 
 	for (int i = 0; i < 4; i++) {
+		__declspec(align(16)) float tmp[4];	// represents a temporary column
 		for (int j = 0; j < 4; j++) {
 			tmp[j] = MM_DPPS_XYZW(L.data[j], R.data[i]);
 		}
@@ -362,11 +379,11 @@ mat4 mat4::operator* (const mat4& R) const {
 
 vec4 mat4::operator* (const vec4& R) const {
 
-	
 	// try with temporary mat4? :P
 	// result: performs better (with optimizations disabled at least)
 	const mat4 M = (*this).transposed();
 	__declspec(align(16)) float tmp[4];
+#pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
 	}
@@ -685,6 +702,16 @@ mat4 mat4::translate(const vec4 &v) {
 }
 
 
+mat4 abs(const mat4 &m) {
+	// might seem a bit funny, but it's actually used in the OBB coll.g detection code
+	static const __m128 mask = _mm_set1_ps(-0.f);	// == 1 << 31
+	return mat4(vec4(_mm_andnot_ps(mask, m.column(0).getData())),
+				vec4(_mm_andnot_ps(mask, m.column(1).getData())),
+				vec4(_mm_andnot_ps(mask, m.column(2).getData())),
+				vec4(_mm_andnot_ps(mask, m.column(3).getData()))
+				);
+}
+
 // i'm not quite sure why anybody would ever want to construct a quaternion like this :-XD
 Quaternion::Quaternion(float x, float y, float z, float w) { 
 	data = _mm_set_ps(w, z, y, x);	// in reverse order
@@ -779,19 +806,6 @@ void Quaternion::operator+=(const Quaternion &b) {
 // a name such as "applyQuaternionRotation" would be much more fitting,
 // since quaternion-vector multiplication doesn't REALLY exist
 
-vec4 Quaternion::operator*(const vec4& b) const {
-
-	vec4 v(b);
-	v.normalize();
- 	Quaternion vec_q(b.getData()), res_q;
-	//vec_q(Q::w) = 0.0;
-	assign_to_field(vec_q.data, Q::w, 0.0);
-
-	res_q = vec_q * (*this).conjugate();
-	res_q = (*this)*res_q;
-	
-	return vec4(res_q.data);	// the w component probably contains some garbage, but it's not used anyway
-}
 
 mat4 Quaternion::toRotationMatrix() const {
 	

@@ -59,7 +59,6 @@ static ShaderProgram *regular_shader = NULL,
 
 mat4 view;
 Quaternion viewq;
-static float qx = 0, qy = 0;
 mat4 projection;
 vec4 view_position;
 vec4 cameraVel;
@@ -83,23 +82,19 @@ static int vsync = 1;
 static float height_sample_under_car = 0.0;
 static vec4 car_pos;
 
-void rotatex(float mod) {
-	qy += mod;
-	Quaternion xq = Quaternion::fromAxisAngle(1.0, 0.0, 0.0, qx);
-	Quaternion yq = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, qy);
-	viewq = yq * xq;
-}
-
-void rotatey(float mod) {
-	qx -= mod;
-	Quaternion xq = Quaternion::fromAxisAngle(1.0, 0.0, 0.0, qx);
-	Quaternion yq = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, qy);
-	viewq = yq * xq;
+void rotateview(float modx, float mody) {
+	static float qx = 0;
+	static float qy = 0;
+	qx += modx;
+	qy -= mody;
+	Quaternion xq = Quaternion::fromAxisAngle(1.0, 0.0, 0.0, qy);
+	Quaternion yq = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, qx);
+	viewq = yq*xq;
 }
 
 void update_c_pos() {
-	view_position -= viewq * vec4(c_vel_side, 0.0, 0.0, 1.0);
-	view_position += viewq * vec4(0.0, 0.0, c_vel_fwd, 1.0);
+	view_position -= vec4(c_vel_side, 0.0, 0.0, 1.0).applyQuatRotation(viewq);
+	view_position += vec4(0.0, 0.0, c_vel_fwd, 1.0).applyQuatRotation(viewq);
 	viewq.normalize();
 	view = viewq.toRotationMatrix();
 	view = view*mat4::translate(view_position);
@@ -145,13 +140,7 @@ void control()
 		WM_KEYDOWN_KEYS['V'] = false;
 	}
 
-	if (dy != 0) {
-		rotatey(mouse_modifier*dy);
-	}
-	if (dx != 0) {
-		rotatex(mouse_modifier*dx);
-	}
-
+	rotateview(mouse_modifier*dx, mouse_modifier*dy);
 
 	// these are active regardless of mouse_locked status
 	if (WM_KEYDOWN_KEYS[VK_PRIOR]) {
@@ -249,11 +238,10 @@ int initGL(void)
 	
 	chassis = new Model("models/chassis.bobj", regular_shader);
 	wheel = new Model("models/wheel.bobj", regular_shader);
-	racetrack = new Model("models/racetrack.bobj", racetrack_shader);
 	terrain = new Model("models/mappi.bobj", racetrack_shader);
 	skybox = new Model("models/skybox.bobj", skybox_shader);
 
-	if (chassis->bad() || wheel->bad() || racetrack->bad() || terrain->bad() || skybox->bad()) {
+	if (chassis->bad() || wheel->bad() || terrain->bad() || skybox->bad()) {
 		messagebox_error("initGL error: model load error.\n");
 		return 0; 
 	}
@@ -279,7 +267,6 @@ int initGL(void)
 	}
 
 
-	racetrack->bind_texture(road_texId);
 	terrain->bind_texture(terrain_texId);
 	skybox->bind_texture(skybox_texId);
 
@@ -375,12 +362,12 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		height_sample_under_car = map->lookup(test_pos(V::x), -test_pos(V::z));
 		test_pos.assign(V::y, height_sample_under_car+0.90);
 
-		vec4 test_pos_neg = -test_pos;
+		//vec4 test_pos_neg = -test_pos;
 		
-		view = mat4::translate(0.0, 0.0, -12.0);
-		view *= mat4::rotate(M_PI/8, -1.0, 0.0, 0.0);
-		view *= mat4::rotate(car.state.direction + PI_PER_TWO, 0.0, 1.0, 0.0);
-		view *= (test_pos_neg).toTranslationMatrix();
+		//view = mat4::translate(0.0, 0.0, -12.0);
+		//view *= mat4::rotate(M_PI/8, -1.0, 0.0, 0.0);
+		//view *= mat4::rotate(car.state.direction + PI_PER_TWO, 0.0, 1.0, 0.0);
+		//view *= (test_pos_neg).toTranslationMatrix();
 
 
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
@@ -521,8 +508,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		drawSkybox();
 
-	//	control();
-		//update_c_pos();
+		control();
+		update_c_pos();
 		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
@@ -542,7 +529,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if (!vsync) { // then we'll do a "half-busy" wait :P
 			if (wait > 3) { Sleep(wait-1); }
-			while(fps_timer.get_ms() < 16.6666);	// this is the accurate, ie. busy, part
+			while(fps_timer.get_ms() < 16.7);	// this is the accurate, ie. busy, part
 		}
 		
 		time_per_frame_ms = fps_timer.get_ms();

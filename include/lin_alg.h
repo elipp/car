@@ -69,7 +69,7 @@ namespace V {
 	enum { x = 0, y = 1, z = 2, w = 3 };
 }
 
-// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go ^^_^^
+// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go ^^_^^.
 inline void assign_to_field(__m128 &a, int index, float val) {
 	__declspec(align(16)) float tmp[4];
 	_mm_store_ps(tmp, a);
@@ -95,12 +95,15 @@ __declspec(align(16)) // to ensure 16-byte alignment in memory
 #endif
 class vec4 {		
 	__m128 data;
-	static const vec4 zero_const;
 public:
+	
+	static const vec4 zero4;
+	static const vec4 zero3;
+
 	vec4(const __m128 a) { data = a; }
 	// this is necessary for the mat4 class calls
 	inline __m128 getData() const { return data; }
-	vec4();	
+	vec4() {};
 	vec4(float _x, float _y, float _z, float _w);	
 	vec4(const float * const a);
 
@@ -126,6 +129,8 @@ public:
 	vec4 operator-(const vec4& b) const;
 	vec4 operator-() const; // unary -
 
+	vec4 applyQuatRotation(const Quaternion &q) const;
+
 	float length3() const;
 	float length4() const;
 
@@ -137,7 +142,11 @@ public:
 
 	void *rawData() const;
 
-	friend float dot(const vec4 &a, const vec4 &b);
+	friend float dot3(const vec4 &a, const vec4 &b);
+	friend float dot4(const vec4 &a, const vec4 &b);
+
+	friend vec4 abs(const vec4 &a);
+
 	friend vec4 cross(const vec4 &a,  const vec4 &b);
 	friend vec4 operator*(float scalar, const vec4& v);
 
@@ -191,11 +200,10 @@ vec4 operator*(float scalar, const vec4& v);	// convenience overload :P
 // no operator/ for <scalar>/<vec4>, since the operation doesn't exist
 
 
-// NOTE: the dot function doesn't perform an actual dot product computation of two R^4 vectors,
-// as the type of the arguments misleadingly suggests. Instead it computes a truncated dot product,
-// including only the first 3 components (i.e. x,y,z).
+float dot3(const vec4 &a, const vec4 &b);
+float dot4(const vec4 &a, const vec4 &b);
+vec4 abs(const vec4 &a);
 
-float dot(const vec4 &a, const vec4 &b);
 // dot benchmarks for 100000000 iterations:
 // naive:			20.9s
 // DPPS:			2.9s
@@ -254,7 +262,7 @@ public:
 	void printRaw() const;	// prints elements in actual memory order.
 		
 
-
+	friend mat4 abs(const mat4 &m); // perform fabs on all elements of argument matrix
 	friend mat4 operator*(float scalar, const mat4& m);
 	
 	void *operator new(size_t size) {
@@ -299,6 +307,7 @@ __attribute__((aligned(16))) // to ensure 16-byte alignment in memory
 #endif
 ;
 
+mat4 abs(const mat4 &m);
 mat4 operator*(float scalar, const mat4& m);
 
 inline float det(const mat4 &m);
@@ -339,7 +348,7 @@ public:
 	void operator+=(const Quaternion &b);
 	Quaternion operator+(const Quaternion& b) const;
 
-	vec4 operator*(const vec4& b) const;
+	//vec4 operator*(const vec4& b) const;
 	
 	static Quaternion fromAxisAngle(float x, float y, float z, float angle_radians);
 	mat4 toRotationMatrix() const;
