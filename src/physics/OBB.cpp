@@ -40,13 +40,11 @@ struct Simplex {
 
 
 
-int OBB::collision_test_SAT(const OBB &b) {
+int collision_test_SAT(const OBB &a, const OBB &b) {
 
 	// test for collision between two OBBs using the Separating Axis Theorem (SAT).
 	// http://www.geometrictools.com/Documentation/DynamicCollisionDetection.pdf
-
-	const OBB &a = *this;
-
+	
 	// assume axes reflect the orientation of the actual body (ie. have already been multiplied by the orientation quaternion)
 
 	// this is an awful lot of initialization code, considering that the function could actually terminate on the first test :D
@@ -331,33 +329,45 @@ static bool tetrahedron_simplexfunc(Simplex *S, vec4 *dir) {
 	vec4 AC = C-A;
 	vec4 ABxAC = cross(AB, AC);
 	if (dot3(ABxAC, A) < 0) { 
+		// at least one of these dot products was negative, 
+		// so the origin is not enclosed by the tetrahedron.
+		// -> use the ABC triangle as our next simplex, and -ABxAC as direction
+		S->current_num_points = 3;
+		S->points[0] = A;	// after this, p0 = A, p1 = C, p2 = B
+		*dir = -ABxAC;
 		return false;
 	}
 
 	vec4 AD = D-A;
-	vec4 AB = B-A;
+//	vec4 AB = B-A;	// already computed
 	vec4 ADxAB = cross(AD, AB);
 	if (dot3(ADxAB, A) < 0) {
+		S->current_num_points = 3;
+		S->points[1] = A;	// p0 = D, p1 = A, p2 = B
+		*dir = -ADxAB;
 		return false;
 	}
 	
-	vec4 AC = C-A;
-	vec4 AD = D-A;
+//	vec4 AC = C-A; // already computed
+//	vec4 AD = D-A; // also already computed :D
 	vec4 ACxAD = cross(AC,AD);
 	if (dot3(ACxAD, A) < 0) {
+		S->current_num_points = 3;
+		S->points[2] = A; // p0 = D, p1 = C, p2 = A
+		*dir = -ACxAD;
 		return false;
 	}
 	
-	// we already know that the BCD-triangle normal will have a negative dot product
-	// with OA, so no need to check that.
-
-
+	// we already know that the (inward-facing) BCD-triangle normal will have a negative dot product
+	// with OA, so there's no need to recheck that. So if we reached this point, we can conclude that
+	// the origin was in fact contained within the tetrahedron, and thus in the Minkowski difference as well,
+	// ie. the objects share at least one point => collision.
 
 	return true;
 
 	
 }
-// jump tablez :P
+// jump table :P
 static const simplexfunc_t simplexfuncs[5] = { 
 	null_simplexfunc,	
 	null_simplexfunc,
@@ -369,98 +379,10 @@ static const simplexfunc_t simplexfuncs[5] = {
 
 
 static bool DoSimplex(Simplex *S, vec4 *D) {
-	if (S->current_num_points == 2) {
-		vec4 A = S->points[1];
-		vec4 AO = -A;	// ie (0,0,0) - A
-		vec4 AB = S->points[0] - A;
-		if (dot3(AB, AO) > 0) {
-			*D = cross(cross(AB, AO), AB);	// use the edge as next simplex
-		}
-		else {
-			S->clear();
-			S->add(A);	// use A as our next simplex
-			*D = AO;
-		}
-	}
-	else if (S->current_num_points == 3) {
-		// gets a tad more complicated here :P
-		vec4 A = S->points[2];
-		vec4 B = S->points[1];
-		vec4 C = S->points[0];
-
-		vec4 AO = -A;
-		vec4 AB = B-A;
-		vec4 AC = C-A;
-
-		vec4 ABC = cross(AB,AC);	// triangle normal
-		vec4 ABCxAC = cross(ABC, AC);	// edge normal
-		vec4 ABxABC = cross(AB, ABC);
-
-		if (dot3(ABCxAC, AO) > 0) {
-			if (dot3(AC, AO) > 0) {
-				// use AC as next simplex
-				S->clear();
-				S->add(A);
-				S->add(C);
-				*D = cross(cross(AC, AO), AC);
-			}
-			else {
-				goto resolve;
-			}
-		}
-		else {
-			if (dot3(ABxABC, AO) > 0) {
-				goto resolve;
-			}
-			else {
-				if (dot3(ABC, AO) > 0) {
-					// use triangle as next simplex
-					*D = ABC;
-				}
-				else {
-					S->points[1] = C;
-					S->points[2] = B;
-					*D = -ABC;
-				}
-			}
-		}
-
-		return;
-
-resolve:
-		if (dot3(AB, AO) > 0) {
-			S->clear();
-			S->add(A);
-			S->add(B);
-			*D = cross(cross(AB, AO), AB);
-		}
-		else {
-			S->clear();
-			S->add(A);
-			*D = AO;
-		}
-		return;
-
-	}
-
-	else if (S->current_num_points == 4) {
-		// find which triangle face of the tetrahedron is closest to the 
-		// newly added point (A, = S->points[3]), then treat it as triangle
-		vec4 A = S->points[3];
-		vec4 B = S->points[2];
-		vec4 C = S->points[1];
-		vec4 D = S->points[0];
-
-	}
-
-	else {
-		// wtf :D:DD
-	}
-
+	return simplexfuncs[S->current_num_points](S, D);
 }
 
-int OBB::collision_test_GJK(const OBB &b) {
-	const OBB &a = *this;
+int collision_test_GJK(const OBB &a, const OBB &b) {
 	
 	vec4 D(1.0, 0.0, 0.0, 0.0);	// initial direction (could be more "educated")
 
@@ -502,14 +424,16 @@ int OBB::collision_test_GJK(const OBB &b) {
 	Simplex simplex;
 	simplex.add(S);
 
+	// perhaps add a limit to the number of iterations
 	while (1) {
 		vec4 A = GJK_support(D, VA, VB);
-		if (dot3(A, D) < 0) { 
+		if (dot3(A, D) < 0) {
+			return 0;
 			// we can conclude that there can be no intersection between the two shapes (boxes)
 		}
 		simplex.add(A);
 		if (DoSimplex(&simplex, &D)) { // updates our simplex and the direction
-			
+			return 1;
 		}
 	}
 
