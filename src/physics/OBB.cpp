@@ -25,19 +25,17 @@ struct float_arr_mat4 {
 	inline float operator()(int col, int row) const { return f[4*col + row]; }
 };
 
-struct Simplex {
-	vec4 points[4];
-	int current_num_points;
 
-	void add(const vec4 &p) {
-		points[current_num_points] = p;
-		++current_num_points;
-	}
-	void clear() {
-		current_num_points = 0; // :D
-	}
-};
+static vec4 simplex_points[4];
+static int simplex_current_num_points = 0;
 
+static void simplex_add(const vec4 &v) {
+	simplex_points[simplex_current_num_points] = v;
+	++simplex_current_num_points;
+}
+static void simplex_clear() {
+	simplex_current_num_points = 0;
+}
 
 
 int collision_test_SAT(const OBB &a, const OBB &b) {
@@ -237,30 +235,30 @@ static vec4 GJK_support(const vec4 &D, const vec4 *const VA, const vec4 *const V
 	return max_A - max_B;	// minkowski difference, or negative addition
 }
 
-typedef bool (*simplexfunc_t)(Simplex*, vec4*);
+typedef bool (*simplexfunc_t)(vec4*);
 
-static bool null_simplexfunc(Simplex *S, vec4 *dir) { return false; }	
+static bool null_simplexfunc(vec4 *dir) { return false; }	
 
-static bool line_simplexfunc(Simplex *S, vec4 *dir) {
-	vec4 A = S->points[1];
+static bool line_simplexfunc(vec4 *dir) {
+	vec4 A = simplex_points[1];
 	vec4 AO = -A;	// ie (0,0,0) - A
-	vec4 AB = S->points[0] - A;
+	vec4 AB = simplex_points[0] - A;
 	if (dot3(AB, AO) > 0) {
 		*dir = cross(cross(AB, AO), AB);	// use the edge as next simplex
 	}
 	else {
-		S->clear();
-		S->add(A);	// use A as our next simplex
+		simplex_clear();
+		simplex_add(A);	// use A as our next simplex
 		*dir = AO;
 	}
 	return true;
 }
 
-static bool triangle_simplexfunc(Simplex *S, vec4 *dir) {
+static bool triangle_simplexfunc(vec4 *dir) {
 		// gets a tad more complicated here :P
-		vec4 A = S->points[2];
-		vec4 B = S->points[1];
-		vec4 C = S->points[0];
+		vec4 A = simplex_points[2];
+		vec4 B = simplex_points[1];
+		vec4 C = simplex_points[0];
 
 		vec4 AO = -A;
 		vec4 AB = B-A;
@@ -273,9 +271,9 @@ static bool triangle_simplexfunc(Simplex *S, vec4 *dir) {
 		if (dot3(ABCxAC, AO) > 0) {
 			if (dot3(AC, AO) > 0) {
 				// use AC as next simplex
-				S->clear();
-				S->add(A);
-				S->add(C);
+				simplex_clear();
+				simplex_add(A);
+				simplex_add(C);
 				*dir = cross(cross(AC, AO), AC);
 			}
 			else {
@@ -293,8 +291,8 @@ static bool triangle_simplexfunc(Simplex *S, vec4 *dir) {
 				}
 				else {
 					// permute these (not 100% sure why though)
-					S->points[1] = C;
-					S->points[2] = B;
+					simplex_points[1] = C;
+					simplex_points[2] = B;
 					*dir = -ABC;
 				}
 			}
@@ -304,66 +302,172 @@ static bool triangle_simplexfunc(Simplex *S, vec4 *dir) {
 
 resolve:
 		if (dot3(AB, AO) > 0) {
-			S->clear();
-			S->add(A);
-			S->add(B);
+			simplex_clear();
+			simplex_add(A);
+			simplex_add(B);
 			*dir = cross(cross(AB, AO), AB);
 		}
 		else {
-			S->clear();
-			S->add(A);
+			simplex_clear();
+			simplex_add(A);
 			*dir = AO;
 		}
 		return true;
 
 }
-static bool tetrahedron_simplexfunc(Simplex *S, vec4 *dir) {
-	vec4 A = S->points[3];
-	vec4 B = S->points[2];
-	vec4 C = S->points[1];
-	vec4 D = S->points[0];
+static bool tetrahedron_simplexfunc(vec4 *dir) {
+	vec4 A = simplex_points[3];
+	vec4 B = simplex_points[2];
+	vec4 C = simplex_points[1];
+	vec4 D = simplex_points[0];
 
 	// redundant, but easy to read
-
+	
+	vec4 AO = -A;
 	vec4 AB = B-A;
 	vec4 AC = C-A;
-	vec4 ABxAC = cross(AB, AC);
-	if (dot3(ABxAC, A) < 0) { 
-		// at least one of these dot products was negative, 
-		// so the origin is not enclosed by the tetrahedron.
-		// -> use the ABC triangle as our next simplex, and -ABxAC as direction
-		S->current_num_points = 3;
-		S->points[0] = A;	// after this, p0 = A, p1 = C, p2 = B
-		*dir = -ABxAC;
-		return false;
-	}
-
 	vec4 AD = D-A;
-//	vec4 AB = B-A;	// already computed
-	vec4 ADxAB = cross(AD, AB);
-	if (dot3(ADxAB, A) < 0) {
-		S->current_num_points = 3;
-		S->points[1] = A;	// p0 = D, p1 = A, p2 = B
-		*dir = -ADxAB;
+	vec4 ABxAC = cross(AB, AC);
+	vec4 ADxAB = cross(AD, AB);	// a cross product is 7 instructions in the current SSE implementation, so not too bad
+	vec4 ACxAD = cross(AC, AD);	// inward-facing normals for each of the triangles
+
+	if (dot3(ABxAC, AO) < 0) { 
+		// at least one of these dot products was negative
+		// so the origin was not enclosed by the tetrahedron.
+		
+		// now figure out which part of the ABC triangle simplex is closest to the origin,
+		// and construct the new search direction and simplex accordingly
+
+		// the BC-edge, points B and C and the 
+		// "inward to the tetrahedron"-regions can all be ruled out before hand
+
+		// check if edge AB is closest to the origin
+		vec4 _ABxAC_xAB = cross(ABxAC, AB);	// this vector points inside the triangle, perpendicular to edge AB and is in the triangle plane.
+		if (dot3(_ABxAC_xAB, AO) < 0) {	// then the origin is not towards the inside of the triangle (from edge AB)
+			if (dot3(AB, AO) > 0) {
+				// the edge AB is the closest to the origin.
+				simplex_current_num_points = 2;
+				simplex_points[0] = B;
+				simplex_points[1] = A;
+				*dir = cross(cross(AB, AO), AB);
+			}
+			else { // FIXME: needs to be verified whether this is actually true or not :D
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+				*dir = AO;
+			}
+		}
+
+		else if (dot3(cross(AC, ABxAC), AO) < 0) { // then the origin is also towards the outside of the triangle from edge AC
+			if (dot3(AC, AO) > 0) {
+				// -> AC is closest to the origin
+				simplex_current_num_points = 2;
+				simplex_points[0] = C;
+				simplex_points[1] = A;
+				*dir = cross(cross(AC, AO), AC);
+			}
+			else {
+				// the point A is closest to the origin
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+		
+			}
+		
+		}
+		else { // the origin must be within the triangle area ABC ("outwards" from the tetrahedron)
+				simplex_current_num_points = 3;
+				simplex_points[0] = C;
+				simplex_points[1] = B;
+				simplex_points[2] = A;
+				*dir = -ABxAC;
+			}
+
 		return false;
 	}
 	
-//	vec4 AC = C-A; // already computed
-//	vec4 AD = D-A; // also already computed :D
-	vec4 ACxAD = cross(AC,AD);
-	if (dot3(ACxAD, A) < 0) {
-		S->current_num_points = 3;
-		S->points[2] = A; // p0 = D, p1 = C, p2 = A
-		*dir = -ACxAD;
+	// FACE 2
+	else if (dot3(ADxAB, AO) < 0) {	// ADxAB = inward (to the tetrahedron) pointing normal for face ABD
+		vec4 _ADxAB_xAB = cross(ADxAB, AB);
+		if (dot3(_ADxAB_xAB, AO) < 0) {
+			if (dot3(AB, AO) > 0) {
+				simplex_current_num_points = 2;
+				simplex_points[0] = B;
+				simplex_points[1] = A;
+				*dir = cross(cross(AB, AO), AB);
+			}
+			else {
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+				*dir = AO;
+			}
+		}
+		else if (dot3(cross(AD, _ADxAB_xAB), AO) < 0) {
+			if (dot3(AD, AO) > 0) {
+				simplex_current_num_points = 2;
+				simplex_points[0] = D;
+				simplex_points[1] = A;
+				*dir = cross(cross(AD, AO), AD);
+			}
+			else {
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+				*dir = AO;
+			}
+		}
+		else {	// neither one of the edges, or A
+			simplex_current_num_points = 3;
+			simplex_points[0] = D;
+			simplex_points[1] = B;
+			simplex_points[2] = A;
+			*dir = -ADxAB;
+		}
+		return false;
+		
+	}
+	// FACE 3. this should use some of the information gathered from all the above tests tho
+	else if (dot3(ACxAD, AO) < 0) {
+		if (dot3(cross(ACxAD,AC), AO) < 0) {
+			if (dot3(AC,AO) > 0) {
+				simplex_current_num_points = 2;
+				simplex_points[0] = C;
+				simplex_points[1] = A;
+				*dir = cross(cross(AC, AO), AC);
+			}
+			else {
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+				*dir = AO;
+			}
+		}
+		else if (dot3(cross(AD, ACxAD), AO) < 0) {
+			if (dot3(AD, AO) > 0) {
+				simplex_current_num_points = 2;
+				simplex_points[0] = D;
+				simplex_points[1] = A;
+				*dir = cross(cross(AD, AO), AD);
+			}
+			else {
+				simplex_current_num_points = 1;
+				simplex_points[0] = A;
+				*dir = AO;
+			}
+		}
+		else {
+			simplex_current_num_points = 3;
+			simplex_points[0] = D;
+			simplex_points[1] = C;
+			simplex_points[2] = A;
+			*dir = -ACxAD;
+		}
 		return false;
 	}
-	
-	// we already know that the (inward-facing) BCD-triangle normal will have a negative dot product
-	// with OA, so there's no need to recheck that. So if we reached this point, we can conclude that
+		
+	// if we reached this point, we can conclude that
 	// the origin was in fact contained within the tetrahedron, and thus in the Minkowski difference as well,
 	// ie. the objects share at least one point => collision.
-
-	return true;
+	else {
+		return true;
+	}
 
 	
 }
@@ -378,8 +482,8 @@ static const simplexfunc_t simplexfuncs[5] = {
 
 
 
-static bool DoSimplex(Simplex *S, vec4 *D) {
-	return simplexfuncs[S->current_num_points](S, D);
+static bool DoSimplex(vec4 *D) {
+	return simplexfuncs[simplex_current_num_points](D);
 }
 
 int collision_test_GJK(const OBB &a, const OBB &b) {
@@ -421,8 +525,8 @@ int collision_test_GJK(const OBB &a, const OBB &b) {
 	vec4 S = GJK_support(D, VA, VB);
 	D = -S;
 
-	Simplex simplex;
-	simplex.add(S);
+	simplex_clear();
+	simplex_add(S);
 
 	// perhaps add a limit to the number of iterations
 	while (1) {
@@ -431,8 +535,8 @@ int collision_test_GJK(const OBB &a, const OBB &b) {
 			return 0;
 			// we can conclude that there can be no intersection between the two shapes (boxes)
 		}
-		simplex.add(A);
-		if (DoSimplex(&simplex, &D)) { // updates our simplex and the direction
+		simplex_add(A);
+		if (DoSimplex(&D)) { // updates our simplex and the direction
 			return 1;
 		}
 	}

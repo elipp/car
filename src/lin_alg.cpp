@@ -287,6 +287,7 @@ vec4 abs(const vec4 &a) {
 
 vec4 cross(const vec4 &a, const vec4 &b) {
 
+	// "vec4 cross" in quotes, since the cross product only really exists for vec3 (and vec7 I think :D)
 	// See: http://fastcpp.blogspot.fi/2011/04/vector-cross-product-using-sse-code.html.
 	// Absolutely beautiful! (the exact same recipe can be found at
 	// http://neilkemp.us/src/sse_tutorial/sse_tutorial.html#E, albeit in assembly.)

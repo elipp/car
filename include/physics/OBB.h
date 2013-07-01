@@ -8,8 +8,13 @@ struct OBB {
 	vec4 A0, A1, A2;	// orthonormal, right-handed axes. 
 						// Always updated to reflect the rotation of the host body.
 	vec4 e;	// corresponding extents.
-	Quaternion rot_q;	// rotation quaternion, normalized
 	vec4 C;	// center point
+	void rotate(Quaternion q) {
+		// this sux, tbh :P
+		A0 = vec4(1.0, 0.0, 0.0, 0.0).applyQuatRotation(q);
+		A1 = vec4(0.0, 1.0, 0.0, 0.0).applyQuatRotation(q);
+		A2 = vec4(0.0, 0.0, 1.0, 0.0).applyQuatRotation(q);
+	}
 };
 
 int collision_test_SAT(const OBB &a, const OBB &b);
