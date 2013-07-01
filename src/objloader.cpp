@@ -99,8 +99,8 @@ void Model::bind_texture(GLuint _texId) {
 	this->texId = _texId;
 }
 
-void Model::use_ModelView(const mat4 &mw) {
-	ModelView = mw;
+void Model::use_ModelView(const mat4 &mv) {
+	ModelView = mv;
 }
 
 void Model::draw() {

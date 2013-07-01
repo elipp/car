@@ -78,33 +78,33 @@ int collision_test_SAT(const OBB &a, const OBB &b) {
 	R0 = a_e(0);
 	R1 = dot3(absC_T.column(0), b.e);	
 	R = abs_dp_Ai_D(0);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	R0 = a_e(1);
 	R1 = dot3(absC_T.column(1), b.e);	
 	R = abs_dp_Ai_D(1);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	R0 = a_e(2);
 	R1 = dot3(absC_T.column(2), b.e);
 	R = abs_dp_Ai_D(2);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = Bi
 	R0 = dot3(absC.column(0), a.e);
 	R1 = b_e(0);
 	R = abs_dp_Bi_D(0);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	R0 = dot3(absC.column(1), a.e);
 	R1 = b_e(1);
 	R = abs_dp_Bi_D(1);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	R0 = dot3(absC.column(2), a.e);
 	R1 = b_e(2);
 	R = abs_dp_Bi_D(2);
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// various cross products
 	
@@ -112,13 +112,13 @@ int collision_test_SAT(const OBB &a, const OBB &b) {
 	R0 = a_e(1)*absC_T_f(2, 0) + a_e(2)*absC_T_f(1,0);
 	R1 = b_e(1)*absC_T_f(0, 2) + b_e(2)*absC_T_f(0,1);
 	R = fabs(C_f(0,1)*dp_Ai_D(2) - C_f(0,2)*dp_Ai_D(1));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A0 x B1
 	R0 = a_e(1)*absC_T_f(2,1) + a_e(2)*absC_T_f(1,1);
 	R1 = b_e(1)*absC_T_f(0,2) + b_e(2)*absC_T_f(0,0);
 	R = fabs(C_f(1,1)*dp_Ai_D(2) - C_f(1,2)*dp_Ai_D(1));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A0 x B2
 	R0 = a_e(1)*absC_T_f(2,0) + a_e(2)*absC_T_f(1,0);
@@ -130,37 +130,37 @@ int collision_test_SAT(const OBB &a, const OBB &b) {
 	R0 = a_e(0)*absC_T_f(2,0) + a_e(2)*absC_T_f(0,0);
 	R1 = b_e(1)*absC_T_f(1,2) + b_e(2)*absC_T_f(1,1);
 	R = fabs(C_f(0,2)*dp_Ai_D(0) - C_f(0,0)*dp_Ai_D(2));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A1 x B1
 	R0 = a_e(0)*absC_T_f(2,1) + a_e(2)*absC_T_f(0,1);
 	R1 = b_e(0)*absC_T_f(1,2) + b_e(2)*absC_T_f(1,0);
 	R = fabs(C_f(1,2)*dp_Ai_D(0) - C_f(0,0)*dp_Ai_D(2));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A1 x B2
 	R0 = a_e(0)*absC_T_f(2,2) + a_e(2)*absC_T_f(0,2);
 	R1 = b_e(0)*absC_T_f(1,1) + b_e(1)*absC_T_f(1,0);
 	R = fabs(C_f(2,2)*dp_Ai_D(0) - C_f(2,0)*dp_Ai_D(2));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 	
 	// L = A2 x B0
 	R0 = a_e(0)*absC_T_f(1,0) + a_e(1)*absC_T_f(0,0);
 	R1 = b_e(1)*absC_T_f(2,2) + b_e(2)*absC_T_f(2,1);
 	R = fabs(C_f(0,0)*dp_Ai_D(1) - C_f(0,1)*dp_Ai_D(0));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A2 x B1
 	R0 = a_e(0)*absC_T_f(1,1) + a_e(1)*absC_T_f(0,1);
 	R1 = b_e(0)*absC_T_f(2,2) + b_e(2)*absC_T_f(2,0);
 	R = fabs(C_f(1,0)*dp_Ai_D(1) - C_f(1,1)*dp_Ai_D(0));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	// L = A2 x B2
 	R0 = a_e(0)*absC_T_f(1,2) + a_e(1)*absC_T_f(0,2);
 	R1 = b_e(0)*absC_T_f(2,1) + b_e(1)*absC_T_f(2,0);
 	R = fabs(C_f(2,0)*dp_Ai_D(1) - C_f(2,1)*dp_Ai_D(0));
-	if (R > R0 + R1) {}
+	if (R > R0 + R1) { return 1; }
 
 	return 0;
 
@@ -488,7 +488,7 @@ static bool DoSimplex(vec4 *D) {
 
 int collision_test_GJK(const OBB &a, const OBB &b) {
 	
-	vec4 D(1.0, 0.0, 0.0, 0.0);	// initial direction (could be more "educated")
+	vec4 D(0.0, 1.0, 0.0, 0.0);	// initial direction (could be more "educated")
 
 	// compute bounding box vertices.
 	
@@ -496,7 +496,6 @@ int collision_test_GJK(const OBB &a, const OBB &b) {
 	vec4 VA[8];
 	vec4 precomp_val_A0 = 2*a_e(0)*a.A0;	// these two recur in the following block, so precompute
 	vec4 precomp_val_A2 = 2*a_e(2)*a.A2;
-
 
 	VA[0] = a.C + a_e(0)*a.A0 + a_e(1)*a.A1 + a_e(2)*a.A2;
 	VA[1] = VA[0] - precomp_val_A2;

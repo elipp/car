@@ -14,6 +14,8 @@
 #include "net/server.h"
 #include "net/client.h"
 
+#include "physics/OBB.h"
+
 #include "lin_alg.h"
 #include "common.h"
 #include "objloader.h"
@@ -42,7 +44,8 @@ static Model *chassis = NULL,
 			 *wheel = NULL, 
 			 *racetrack = NULL,
 			 *terrain = NULL,
-			 *skybox = NULL;
+			 *skybox = NULL,
+			 *cube = NULL;
 
 HeightMap *map = NULL;
 
@@ -65,7 +68,6 @@ vec4 cameraVel;
 
 static vec4 camera_position;
 
-
 GLuint road_texId;
 GLuint terrain_texId;
 GLuint skybox_texId;
@@ -81,6 +83,9 @@ static int vsync = 1;
 
 static float height_sample_under_car = 0.0;
 static vec4 car_pos;
+
+static OBB OBBa, OBBb;
+static Quaternion OBBaQ;
 
 void rotateview(float modx, float mody) {
 	static float qx = 0;
@@ -155,7 +160,27 @@ void control()
 			onScreenLog::toggle_visibility();
 			WM_KEYDOWN_KEYS['L'] = false;
 	}
+
+	if (WM_KEYDOWN_KEYS['O']) {
+		OBBa.C.assign(V::x, OBBa.C(V::x) + 0.10);
+	}
+	if (WM_KEYDOWN_KEYS['I']) {
+		OBBa.C.assign(V::x, OBBa.C(V::x) - 0.10);
+	}
+	if (WM_KEYDOWN_KEYS['K']) { 
+		OBBa.C.assign(V::y, OBBa.C(V::y) + 0.10);
+	}
+	if (WM_KEYDOWN_KEYS['J']) {
+		OBBa.C.assign(V::y, OBBa.C(V::y) - 0.10);
+	}
 	
+	static float alpha = 0;
+	if (WM_KEYDOWN_KEYS['R']) {
+		alpha += 0.10;
+		OBBaQ = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, alpha);
+		OBBa.rotate(OBBaQ);
+	}
+
 	camera_position = -view_position;
 	camera_position.assign(V::z, camera_position(V::z)*(-1));
 
@@ -240,8 +265,9 @@ int initGL(void)
 	wheel = new Model("models/wheel.bobj", regular_shader);
 	terrain = new Model("models/mappi.bobj", racetrack_shader);
 	skybox = new Model("models/skybox.bobj", skybox_shader);
+	cube = new Model("models/cube.bobj", regular_shader);
 
-	if (chassis->bad() || wheel->bad() || terrain->bad() || skybox->bad()) {
+	if (chassis->bad() || wheel->bad() || terrain->bad() || skybox->bad() || cube->bad()) {
 		messagebox_error("initGL error: model load error.\n");
 		return 0; 
 	}
@@ -293,9 +319,26 @@ int initGL(void)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
 	//wglSwapIntervalEXT(vsync);
-	
+
+	OBBa = OBB(vec4(1.0, 1.0, 1.0, 0.0));
+	OBBb = OBB(vec4(1.0, 1.0, 1.0, 0.0));
+
 	return 1;
 
+}
+
+void drawCubes() {	
+	
+	int are_intersecting = collision_test_GJK(OBBa, OBBb);
+	
+	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
+	regular_shader->update_uniform_vec4("light_direction", light_dir);
+	cube->use_ModelView(view*mat4::translate(OBBa.C)*OBBaQ.toRotationMatrix());
+	regular_shader->update_uniform_vec4("paint_color", are_intersecting ? vec4(0.7, 0.2, 0.3, 0.6) :  vec4(0.2, 0.7, 0.3, 1.0));
+	cube->draw();
+
+	cube->use_ModelView(view*mat4::translate(OBBb.C));
+	cube->draw();
 }
 
 
@@ -308,7 +351,7 @@ void drawRacetrack() {
 	racetrack_shader->update_uniform_vec4("light_direction", light_dir);
 
 	static const mat4 racetrack_model = mat4::translate(5.0, 0.0, 0.0)*mat4::scale(32,32,32) * mat4::rotate(PI_PER_TWO, 1.0, 0.0, 0.0);
-
+	 
 	mat4 racetrack_modelview = view * racetrack_model;
 	racetrack->use_ModelView(racetrack_modelview);
 	
@@ -340,7 +383,8 @@ void drawSkybox() {
 	skybox->use_ModelView(skybox_modelview);
 
 	skybox->draw();
-	glClear(GL_DEPTH_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT);	// this is really important ^^
+	glEnable(GL_DEPTH_TEST);
 }
 
 void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
@@ -371,12 +415,12 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 
 
 		mat4 modelview = view * mat4::translate(test_pos) * mat4::rotate(-car.state.direction, 0.0, 1.0, 0.0);
-		mat4 mw = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
-		//mw *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
+		mat4 mv = modelview*mat4::rotate(car.state.susp_angle_roll, 1.0, 0.0, 0.0);
+		//mv *= mat4::rotate(car.state.susp_angle_fwd, 0.0, 0.0, 1.0);
 		vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 
 		regular_shader->update_uniform_vec4("light_direction", light_dir);
-		chassis->use_ModelView(mw);
+		chassis->use_ModelView(mv);
 		regular_shader->update_uniform_vec4("paint_color", colors[iter.second.info.color]);
 
 		chassis->draw();
@@ -385,40 +429,40 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	
 		// front wheels
 		static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
-		mw = modelview;
-		mw *= front_left_wheel_translation;
-		mw *= mat4::rotate(M_PI - car.state.front_wheel_angle, 0.0, 1.0, 0.0);
-		mw *= mat4::rotate(-car.state.wheel_rot, 0.0, 0.0, 1.0);
+		mv = modelview;
+		mv *= front_left_wheel_translation;
+		mv *= mat4::rotate(M_PI - car.state.front_wheel_angle, 0.0, 1.0, 0.0);
+		mv *= mat4::rotate(-car.state.wheel_rot, 0.0, 0.0, 1.0);
 
-		wheel->use_ModelView(mw);
+		wheel->use_ModelView(mv);
 		wheel->draw();
 
 		static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
-		mw = modelview;
-		mw *= front_right_wheel_translation;
-		mw *= mat4::rotate(-car.state.front_wheel_angle, 0.0, 1.0, 0.0);
-		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
+		mv = modelview;
+		mv *= front_right_wheel_translation;
+		mv *= mat4::rotate(-car.state.front_wheel_angle, 0.0, 1.0, 0.0);
+		mv *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
 
-		wheel->use_ModelView(mw);
+		wheel->use_ModelView(mv);
 		wheel->draw();
 	
 		// back wheels
 		static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
-		mw = modelview;
-		mw *= back_left_wheel_translation;
-		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
-		mw *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
+		mv = modelview;
+		mv *= back_left_wheel_translation;
+		mv *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
+		mv *= mat4::rotate(M_PI, 0.0, 1.0, 0.0);
 
-		wheel->use_ModelView(mw);
+		wheel->use_ModelView(mv);
 		wheel->draw();
 	
 		static const mat4 back_right_wheel_translation = mat4::translate(vec4(1.3, -0.6, -0.9, 1.0));
 
-		mw = modelview;
-		mw *= back_right_wheel_translation;
-		mw *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
+		mv = modelview;
+		mv *= back_right_wheel_translation;
+		mv *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
 		
-		wheel->use_ModelView(mw);
+		wheel->use_ModelView(mv);
 		wheel->draw();
 	}
 }
@@ -510,6 +554,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		control();
 		update_c_pos();
+
+		drawCubes();
 		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();

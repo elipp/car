@@ -24,7 +24,7 @@ public:
 	void draw();
 	void bind_texture(GLuint texId);
 	bool bad() const { return _bad; }
-	void use_ModelView(const mat4 &mw);
+	void use_ModelView(const mat4 &mv);
 	
 	void *operator new(size_t size) {
 		void *p;
