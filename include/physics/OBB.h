@@ -35,10 +35,22 @@ struct OBB {
 int collision_test_SAT(const OBB &a, const OBB &b);
 
 __declspec(align(16))
+struct mat4_doublet {
+	mat4 m[2];
+	mat4_doublet(const mat4 &m0, const mat4 &m1) { m[0] = m0; m[1] = m1; }
+	mat4_doublet transposed_both() const {
+		return mat4_doublet(m[0].transposed(), m[1].transposed());
+	}
+	mat4 &operator()(int n) { return m[n]; }
+	vec4 column(int col) { return col > 3 ? m[1].column(col - 4) : m[0].column(col); }
+	mat4_doublet() {};
+};
+
+__declspec(align(16))
 struct GJKSession {
 private:
-	mat4 VAm1, VAm2, VBm1, VBm2;
-	mat4 VAm1_T, VAm2_T, VBm1_T, VBm2_T;	// these are stored because column() is at least 51965964 times faster than row(). At least.
+	mat4_doublet VAm, VAm_T;
+	mat4_doublet VBm, VBm_T;
 	vec4 support(const vec4 &D);
 public:
 	// don't like the interface though.

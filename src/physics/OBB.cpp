@@ -7,7 +7,7 @@ struct float_arr_vec4 {
 			_mm_store_ps(f, v.getData());
 		}
 		float_arr_vec4(const vec4 &v) {
-			*this = v;
+			_mm_store_ps(f, v.getData());
 		}
 		inline float operator()(int col) const { return f[col]; }
 };
@@ -19,7 +19,7 @@ struct float_arr_mat4 {
 		memcpy(f, m.rawData(), 16*sizeof(float));
 	}
 	float_arr_mat4(const mat4 &m) {
-		*this = m;
+		memcpy(f, m.rawData(), 16*sizeof(float));
 	}
 
 	inline float operator()(int col, int row) const { return f[4*col + row]; }
@@ -55,6 +55,18 @@ static void simplex_assign(const vec4 &a, const vec4 &b, const vec4 &c) {
 	simplex_points[2] = a;
 }
 
+
+inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
+	// use the identity (a x b) x c = -(c . b)a + (c . a)b (http://en.wikipedia.org/wiki/Vector_triple_product#Vector_triple_product)
+	// let c = a:	    (a x b) x a = -(a . b)a + (a . a)b 
+	// also				a x (b x c) = (a . c)b - (a . b)c
+	// c = a:			a x (b x a) = (a . a)b - (a . b)a
+	return -(dot3(a,b)*a) + (dot3(a,a)*b);	// dot3 -> 
+	//return (dot3(a, a)*b) - (dot3(a,b)*a);
+}
+
+
+// THIS IS REALLY BROKEN ATM.
 int collision_test_SAT(const OBB &a, const OBB &b) {
 
 	// test for collision between two OBBs using the Separating Axis Theorem (SAT).
@@ -181,7 +193,7 @@ int collision_test_SAT(const OBB &a, const OBB &b) {
 
 	return 0;
 
-}
+} 
 
 // GJK (Gilbert-Johnson-Keerthi). References:
 // http://mollyrocket.com/849 !!,
@@ -216,20 +228,21 @@ vec4 GJKSession::support(const vec4 &D) {
 	// the vertices of box A (VA), and the one farthest away in direction -D among
 	// the vertices of box B (VB).
 	
-	float_arr_vec4 dpVA1(VAm1_T*D);	// now we have the first four dot products in the vector
-	float_arr_vec4 dpVA2(VAm2_T*D);	// and the last four in another
+	// the whole float_arr bullshit is because we're calculating 4 dot products at once (SSE), in two gos.
+
+	float_arr_vec4 dpVA1(VAm_T(0)*D);	// now we have the first four dot products in the vector
+	float_arr_vec4 dpVA2(VAm_T(1)*D);	// and the last four in another
 
 	// find maximum dotp. just brute force for now :D (there's of course _mm_max_ps, but it's not a very good fit for this
 	// since we're not really interested in the dp values themselves)
-	int max_dp_A_index = find_max_dp_index(dpVA1, dpVA2);
-	vec4 max_A = (max_dp_A_index < 4) ? VAm1.column(max_dp_A_index) : VAm2.column(max_dp_A_index - 4);
+	vec4 max_A = VAm.column(find_max_dp_index(dpVA1, dpVA2));
 	
 	const vec4 neg_D = -D;
-	float_arr_vec4 dpVB1(VBm1_T*neg_D);	
-	float_arr_vec4 dpVB2(VBm2_T*neg_D);	
 
-	int max_dp_B_index = find_max_dp_index(dpVB1, dpVB2);
-	vec4 max_B = (max_dp_B_index < 4) ? VBm1.column(max_dp_B_index) : VBm2.column(max_dp_B_index - 4);
+	float_arr_vec4 dpVB1(VBm_T(0)*neg_D);	
+	float_arr_vec4 dpVB2(VBm_T(1)*neg_D);	
+
+	vec4 max_B = VBm.column(find_max_dp_index(dpVB1, dpVB2));
 	
 	return max_A - max_B;	// minkowski difference, or negative addition
 }
@@ -248,7 +261,7 @@ static bool null_simplexfunc(vec4 *dir) { return false; }
 static bool line_simplexfunc(vec4 *dir) {
 	vec4 AO = -simplex_points[1];		// -A
 	vec4 AB = simplex_points[0] + AO;	// essentially B - A
-	*dir = cross(cross(AB, AO), AB);	// use this edge as next simplex
+	*dir = triple_cross_1x2x1(AB, AO);	// use this edge as next simplex
 	
 	// the conclusion of the discussion in https://mollyrocket.com/forums/viewtopic.php?t=271&postdays=0&postorder=asc&start=15
     // was that in the line case, the new point A cannot be the closest simplex feature, so we'll just use the edge AB, and search
@@ -259,32 +272,34 @@ static bool line_simplexfunc(vec4 *dir) {
 
 static bool triangle_simplexfunc(vec4 *dir) {
 		// gets a tad more complicated here :P
-		vec4 A = simplex_points[2];
-		vec4 B = simplex_points[1];
-		vec4 C = simplex_points[0];
+		const vec4 &A = simplex_points[2];
+		const vec4 &B = simplex_points[1];
+		const vec4 &C = simplex_points[0];
 
 		vec4 AO = -A;
 		vec4 AB = B-A;
 		vec4 AC = C-A;
 
-		vec4 ABC = cross(AB,AC);	// triangle normal
-		vec4 ABCxAC = cross(ABC, AC);	// edge normal, pointing outwards
+		vec4 ABC = cross(AB, AC);	// triangle normal
+		
+		// edge normals, pointing outwards from the triangle (on the triangle plane)
+		vec4 ABCxAC = cross(ABC, AC);	
 		vec4 ABxABC = cross(AB, ABC);
 
 		// again, using the same principle as in the line case, the voronoi region of the new point A can be ruled out beforehand
 
-		if (SAMEDIRECTION(ABCxAC, AO)) {
+		if (POINTS_TOWARDS_ORIGIN(ABCxAC)) {
 			// then use edge AC
 			simplex_assign(A, C);
-			*dir = cross(cross(AC, AO), AC);	// a direction perpendicular to the edge, and pointing towards the origin
+			*dir = triple_cross_1x2x1(AC, AO);	// a direction perpendicular to the edge, and pointing towards the origin
 		}
-		else if (SAMEDIRECTION(ABxABC, AO)) {
+		else if (POINTS_TOWARDS_ORIGIN(ABxABC)) {
 			// use edge AB
 			simplex_assign(A, B);
-			*dir = cross(cross(AB, AO), AB);
+			*dir = triple_cross_1x2x1(AB, AO);
 		}
-		else if (SAMEDIRECTION(ABC, AO)) {
-			// the origin lies within the triangle area, either "above" or "below"
+		else if (POINTS_TOWARDS_ORIGIN(ABC)) {
+			// the origin lies within the triangle area, either "above" or "below" the plane
 			*dir = ABC;	
 		}
 		else {
@@ -298,10 +313,10 @@ static bool triangle_simplexfunc(vec4 *dir) {
 }
 
 static bool tetrahedron_simplexfunc(vec4 *dir) {
-	vec4 A = simplex_points[3];
-	vec4 B = simplex_points[2];
-	vec4 C = simplex_points[1];
-	vec4 D = simplex_points[0];
+	const vec4 &A = simplex_points[3];
+	const vec4 &B = simplex_points[2];
+	const vec4 &C = simplex_points[1];
+	const vec4 &D = simplex_points[0];
 
 	// redundant, but easy to read
 	
@@ -355,12 +370,12 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 				// as said a million times already, the point A can't be closest to the origin
 				//if (SAMEDIRECTION(AC, AO)) { // USE [A,C] } else { use [A] } <- unnecessary
 				simplex_assign(A, C);
-				*dir = cross(cross(AC, AO), AC);
+				*dir = triple_cross_1x2x1(AC, AO);
 	
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ACD, AD))) {
 				simplex_assign(A, D);	// edge AD
-				*dir = cross(cross(AD, AO), AD);
+				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else {
 				simplex_assign(A, C, D);	// the triangle A,C,D.
@@ -371,7 +386,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 			// again, differentiating between whether the edge AB is closer to the origin than the point A is unnecessary, so just skip
 			// if (SAMEDIRECTION(AB, AO)) {
 				simplex_assign(A, B);
-				*dir = cross(cross(AB, AO), AB);
+				*dir = triple_cross_1x2x1(AB, AO);
 			//}
 			// else { simplex_assign(A); }
 		}
@@ -392,11 +407,11 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 		if (POINTS_TOWARDS_ORIGIN(cross(ADB, AB))) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AB, ABC))) {
 				simplex_assign(A, B);
-				*dir = cross(cross(AB, AO), AB);
+				*dir = triple_cross_1x2x1(AB, AO);
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ABC, AC))) {
 				simplex_assign(A, C);
-				*dir = cross(cross(AC, AO), AC);
+				*dir = triple_cross_1x2x1(AC, AO);
 			}
 			else {
 				simplex_assign(A, B, C);
@@ -407,7 +422,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AD, ADB))) {
 				// there would be a gratuitous check for SAMEDIRECTION(AD, AO)
 				simplex_assign(A, D);
-				*dir = cross(cross(AD, AO), AD);
+				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else {
 				simplex_assign(A, D, B);
@@ -423,11 +438,11 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AD, ADB))) {
 				// if SAMEDIRECTION(AD, AO), not needed!
 				simplex_assign(A, D);
-				*dir = cross(cross(AD, AO), AD);
+				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ADB, AB))) {
 				simplex_assign(A, B);
-				*dir = cross(cross(AB, AO), AB);
+				*dir = triple_cross_1x2x1(AB, AO);
 			}
 			else {
 				simplex_assign(A, D, B);
@@ -437,7 +452,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 		else if (POINTS_TOWARDS_ORIGIN(cross(AC, ACD))) {
 			// if SAMEDIRECTION(AC, AO), not needed!
 			simplex_assign(A, C);
-			*dir = cross(cross(AC, AO), AC);
+			*dir = triple_cross_1x2x1(AC, AO);
 		}
 		else {
 			simplex_assign(A, C, D);
@@ -467,7 +482,7 @@ static const simplexfunc_t simplexfuncs[5] = {
 
 
 static bool DoSimplex(vec4 *D) {
-	std::cerr << "calling simplexfuncs[" << simplex_current_num_points << "] with dir = " << *D << ".\n";
+	//std::cerr << "calling simplexfuncs[" << simplex_current_num_points << "] with dir = " << *D << ".\n";
 	return simplexfuncs[simplex_current_num_points](D);
 }
 
@@ -493,19 +508,19 @@ GJKSession::GJKSession(const OBB &box_A, const OBB &box_B) {
 	vec4 VA[8];
 	box_A.compute_box_vertices(VA);
 
-	VAm1 = mat4(VA[0], VA[1], VA[2], VA[3]);
-	VAm1_T = VAm1.transposed();	
-	VAm2 = mat4(VA[4], VA[5], VA[6], VA[7]);
-	VAm2_T = VAm2.transposed();
-
+	VAm = mat4_doublet(mat4(VA[0], VA[1], VA[2], VA[3]), 
+					   mat4(VA[4], VA[5], VA[6], VA[7]));
+	
+	VAm_T = VAm.transposed_both();
 
 	vec4 VB[8];
 	box_B.compute_box_vertices(VB);
 
-	VBm1 = mat4(VB[0], VB[1], VB[2], VB[3]);
-	VBm1_T = VBm1.transposed();
-	VBm2 = mat4(VB[4], VB[5], VB[6], VB[7]);
-	VBm2_T = VBm2.transposed();
+	VBm = mat4_doublet(mat4(VB[0], VB[1], VB[2], VB[3]), 
+					   mat4(VB[4], VB[5], VB[6], VB[7]));
+	
+	VBm_T = VBm.transposed_both();
+
 
 }
 
@@ -521,6 +536,8 @@ int GJKSession::collision_test() {
 
 	// perhaps add a hard limit to the number of iterations to avoid infinite looping
 	while (1) {
+		D.assign(V::w, 0);
+		D.normalize();
 		vec4 A = support(D);
 		if (dot3(A, D) < 0) {
 			// we can conclude that there can be no intersection between the two shapes (boxes)

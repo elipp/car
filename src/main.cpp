@@ -348,11 +348,6 @@ int initGL(void)
 	glGenBuffers(1, &minkowski_IBOid);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 64*sizeof(GLushort), minkowski_indices, GL_STATIC_DRAW);
-
-	VarTracker_track(vec4, OBBa.A0);
-	VarTracker_track(vec4, OBBa.A1);
-	VarTracker_track(vec4, OBBa.A2);
-
 	return 1;
 
 }

@@ -69,7 +69,7 @@ namespace V {
 	enum { x = 0, y = 1, z = 2, w = 3 };
 }
 
-// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go ^^_^^.
+// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go.
 inline void assign_to_field(__m128 &a, int index, float val) {
 	__declspec(align(16)) float tmp[4];
 	_mm_store_ps(tmp, a);
@@ -86,7 +86,6 @@ inline float get_field(const __m128 &a, int index) {
 inline float get_first_field(const __m128 &a) {
 	float r;
 	_mm_store_ss(&r, a);
-	//std::cerr << "get_first_field: returning " << r << "\n";
 	return r;
 }
 

@@ -28,16 +28,17 @@ const vec4 vec4::zero3 = vec4(0.0, 0.0, 0.0, 1.0);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
 
+static const __m128 and_mask_0111 = 
+		*(__m128*) &(_mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
+
 
 static float MM_DPPS_XYZ_SSE(__m128 a, __m128 b) {
-	const __m128 mul = _mm_mul_ps(a, b);
-	//const __m128 t1 = _mm_movehl_ps(mul, mul);
-	//const __m128 t2 = _mm_add_ps(mul, t1);
-	//const __m128 sum = _mm_add_ss(t1, _mm_shuffle_ps(t2, t2, 1));
-	//return get_first_field(sum);
-	__declspec(align(16)) float tmp[4];
-	_mm_store_ps(tmp, mul);
-	return tmp[0] + tmp[1] + tmp[2];
+	
+	const __m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
+	const __m128 t = _mm_add_ps(mul, _mm_movehl_ps(mul, mul));
+	const __m128 sum = _mm_add_ss(t, _mm_shuffle_ps(t, t, 1));
+	return get_first_field(sum);
+
 }
 
 inline float MM_DPPS_XYZW_SSE(__m128 a, __m128 b) {
@@ -49,8 +50,8 @@ inline float MM_DPPS_XYZW_SSE(__m128 a, __m128 b) {
 }
 
 inline float MM_DPPS_XYZ_SSE3(__m128 a, __m128 b) {
-	__m128 mul = _mm_mul_ps(a, b);	
-	 assign_to_field(mul, 3, 0); // mul = (ax*bx, ay*by, az*bz, 0)
+		
+	__m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
 	 __m128 t = _mm_hadd_ps(mul, mul);	// t = (ax*bx + ay*by, az*bz + 0, ax*bx + ay*by, az*bz + 0)
 	 t = _mm_hadd_ps(t, t);				// t = (ax*bx + ay*by + az*bz + 0, ax*bx + ay*by + az*bz + 0, sim., sim.)
 	 return get_first_field(t);
@@ -202,7 +203,6 @@ vec4 vec4::operator-() const {
 vec4 vec4::applyQuatRotation(const Quaternion &q) const {
 	
 	vec4 v(*this);
-	v.normalize();
  	Quaternion vec_q(this->getData()), res_q;
 	vec_q.assign(Q::w, 0);
 
@@ -232,23 +232,8 @@ float vec4::length4() const {
 
 void vec4::normalize() {
 
-	// 0.08397us/iteration for this
-	//const float l_recip = 1.0/sqrt(_mm_dp_ps(this->data, this->data, xyz_dot_mask).m128_f32[0]); // only x,y,z components
-	//this->data = _mm_mul_ps(this->data, _mm_set1_ps(l_recip));
-
-	// 0.07257us/iteration, probably has a bigger error margin though
-	//const __m128 l_recip = _mm_rcp_ps(_mm_sqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)))); // only x,y,z components
-	//this->data = _mm_mul_ps(this->data, l_recip);
-
-	// in debug mode (no optimization whatsoever), stripping the temporary value improved
-	// performance to about 0.06786us/iteration
-	//this->data = _mm_mul_ps(this->data, _mm_rcp_ps(_mm_sqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)))));
-	const float dot3 = MM_DPPS_XYZ(this->data, this->data);
-	const __m128 factor = _mm_rsqrt_ps(_mm_set1_ps(dot3));	// rsqrtps = approximation :P
-	//const __m128 orig_data = this->data;
+	const __m128 factor = _mm_rsqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)));	// rsqrtps = approximation :P there will be issues if dot3 == 0!
 	this->data = _mm_mul_ps(factor, this->data);
-	//std::cerr << "\nat vec4::normalize: factor = " << factor << "\norig data = " << orig_data << "\n data = " << this->data << ", dot3 = " << dot3 << "\n";
-
 
 }
 
