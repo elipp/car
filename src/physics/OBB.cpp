@@ -200,6 +200,7 @@ static int find_max_dp_index(const float_arr_vec4 &p1, const float_arr_vec4 &p2)
 			max_index_p1 = i;
 			current_max_dp1 = dp1;
 		}
+
 		float dp2 = p2(i);
 		if (dp2 > current_max_dp2) {
 			max_index_p2 = i;
@@ -221,14 +222,14 @@ vec4 GJKSession::support(const vec4 &D) {
 	// find maximum dotp. just brute force for now :D (there's of course _mm_max_ps, but it's not a very good fit for this
 	// since we're not really interested in the dp values themselves)
 	int max_dp_A_index = find_max_dp_index(dpVA1, dpVA2);
-	vec4 max_A = (max_dp_A_index > 3) ? VAm1.column(max_dp_A_index) : VAm2.column(max_dp_A_index - 4);
+	vec4 max_A = (max_dp_A_index < 4) ? VAm1.column(max_dp_A_index) : VAm2.column(max_dp_A_index - 4);
 	
 	const vec4 neg_D = -D;
-	float_arr_vec4 dpVB1(VBm1_T*neg_D);	// now we have the first four dot products in the vector
-	float_arr_vec4 dpVB2(VBm2_T*neg_D);	// and the last four in another
+	float_arr_vec4 dpVB1(VBm1_T*neg_D);	
+	float_arr_vec4 dpVB2(VBm2_T*neg_D);	
 
 	int max_dp_B_index = find_max_dp_index(dpVB1, dpVB2);
-	vec4 max_B = (max_dp_B_index > 3) ? VBm1.column(max_dp_B_index) : VBm2.column(max_dp_B_index - 4);
+	vec4 max_B = (max_dp_B_index < 4) ? VBm1.column(max_dp_B_index) : VBm2.column(max_dp_B_index - 4);
 	
 	return max_A - max_B;	// minkowski difference, or negative addition
 }
@@ -239,8 +240,9 @@ vec4 GJKSession::support(const vec4 &D) {
 typedef bool (*simplexfunc_t)(vec4*);
 
 // THE PURPOSE OF A "SIMPLEXFUNC" IS TO
-// a) FIND THE FEATURE OF THE CURRENT SIMPLEX THAT'S CLOSEST TO THE ORIGIN (EDGE, TRIANGLE FACE)
-// b) AND UPDATE SEARCH DIRECTION ACCORDINGLY
+// a) FIND THE FEATURE OF THE CURRENT SIMPLEX THAT'S CLOSEST TO THE ORIGIN 
+// (EDGE, TRIANGLE FACE), AND SET THAT AS THE NEW SIMPLEX (WITH APPROPRIATE WINDING)
+// b) UPDATE SEARCH DIRECTION ACCORDINGLY
 
 static bool null_simplexfunc(vec4 *dir) { return false; }	
 static bool line_simplexfunc(vec4 *dir) {
@@ -338,7 +340,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 	case 1:
 		// only in front of triangle ABC
 		simplex_assign(A, B, C);
-		return triangle_simplexfunc(dir); // because we still need to figure out which feature we're closest to
+		return triangle_simplexfunc(dir); // because we still need to figure out which feature of the triangle simplex is closest to the origin
 		break;
 	case 2:
 		// only in front of triangle ACD

@@ -19,5 +19,7 @@ void main(void)
 	WorldPos_FS_in = (ModelView*vec4(Position_VS_in, 1.0)).xyz;
 	Normal_FS_in = normal_normalized;
 	TexCoord_FS_in = TexCoord_VS_in;
+	
+	gl_PointSize = 9.0;	// this is ignored if GL_PROGRAM_POINT_SIZE is not glEnable()d
 }
 
