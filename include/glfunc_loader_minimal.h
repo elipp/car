@@ -31,6 +31,7 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_ACTIVE_UNIFORMS                0x8B86
 #define GL_COMPILE_STATUS                 0x8B81
 #define GL_INFO_LOG_LENGTH                0x8B84
+#define GL_PROGRAM_POINT_SIZE             0x8642
 
 extern int load_functions();
 

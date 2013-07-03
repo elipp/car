@@ -66,6 +66,9 @@ mat4 projection;
 vec4 view_position;
 vec4 cameraVel;
 
+static GLuint minkowski_VBOid;
+static GLuint minkowski_IBOid;
+
 static vec4 camera_position;
 
 GLuint road_texId;
@@ -173,13 +176,23 @@ void control()
 	if (WM_KEYDOWN_KEYS['J']) {
 		OBBa.C.assign(V::y, OBBa.C(V::y) - 0.10);
 	}
-	
-	static float alpha = 0;
 	if (WM_KEYDOWN_KEYS['R']) {
-		alpha += 0.10;
-		OBBaQ = Quaternion::fromAxisAngle(0.0, 1.0, 0.0, alpha);
+		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.10);
+		OBBaQ.normalize();
 		OBBa.rotate(OBBaQ);
 	}
+	if (WM_KEYDOWN_KEYS['T']) {
+		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.10);
+		OBBaQ.normalize();
+		OBBa.rotate(OBBaQ);
+	}
+	if (WM_KEYDOWN_KEYS['Y']) {
+		OBBb.C.assign(V::z, OBBb.C(V::z) + 0.10);
+	}
+	if (WM_KEYDOWN_KEYS['U']) {
+		OBBb.C.assign(V::z, OBBb.C(V::z) - 0.10);
+	}
+
 
 	camera_position = -view_position;
 	camera_position.assign(V::z, camera_position(V::z)*(-1));
@@ -323,13 +336,60 @@ int initGL(void)
 	OBBa = OBB(vec4(1.0, 1.0, 1.0, 0.0));
 	OBBb = OBB(vec4(1.0, 1.0, 1.0, 0.0));
 
+	glGenBuffers(1, &minkowski_VBOid);
+	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
+	glBufferData(GL_ARRAY_BUFFER, 64*sizeof(vertex), NULL, GL_DYNAMIC_DRAW);
+
+	GLushort minkowski_indices[64];
+	for (GLushort i = 0; i < 64; ++i) {
+		minkowski_indices[i] = i;
+	}
+
+	glGenBuffers(1, &minkowski_IBOid);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 64*sizeof(GLushort), minkowski_indices, GL_STATIC_DRAW);
+
 	return 1;
 
 }
 
+static vertex vec4_to_vertex(const vec4 &v) {
+	vertex r;
+	r.vx = v(V::x);
+	r.vy = v(V::y);
+	r.vz = v(V::z);
+	// we don't care about normalz or texcoords
+	return r;
+}
+
 void drawCubes() {	
 	
-	int are_intersecting = collision_test_GJK(OBBa, OBBb);
+	vec4 VA[8];
+	OBBa.compute_box_vertices(VA);
+	vec4 VB[8];
+	OBBb.compute_box_vertices(VB);
+
+	vertex minkowski_difference[64];
+
+	for (int i = 0; i < 8; ++i) {
+		for (int j = 0; j < 8; ++j) {
+			minkowski_difference[i*8 + j] = vec4_to_vertex(VA[i] - VB[j]);
+		}
+	}
+	
+	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
+	glBufferData(GL_ARRAY_BUFFER, 64*sizeof(vertex), minkowski_difference, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
+	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glUseProgram(regular_shader->getProgramHandle());
+	regular_shader->update_uniform_mat4("Projection", projection);
+	regular_shader->update_uniform_mat4("ModelView", view);
+	regular_shader->update_uniform_vec4("paint_color", vec4(1.0, 1.0, 1.0, 1.0));
+	glEnable(GL_PROGRAM_POINT_SIZE);
+	glDrawElements(GL_POINTS, 64, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDisable(GL_PROGRAM_POINT_SIZE);
+	GJKSession GJKsess(OBBa, OBBb);
+	int are_intersecting = GJKsess.collision_test();
 	
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 	regular_shader->update_uniform_vec4("light_direction", light_dir);
