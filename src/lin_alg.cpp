@@ -32,7 +32,7 @@ static const __m128 and_mask_0111 =
 		*(__m128*) &(_mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
 
 
-static float MM_DPPS_XYZ_SSE(__m128 a, __m128 b) {
+inline float MM_DPPS_XYZ_SSE(__m128 a, __m128 b) {
 	
 	const __m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
 	const __m128 t = _mm_add_ps(mul, _mm_movehl_ps(mul, mul));
@@ -51,14 +51,14 @@ inline float MM_DPPS_XYZW_SSE(__m128 a, __m128 b) {
 
 inline float MM_DPPS_XYZ_SSE3(__m128 a, __m128 b) {
 		
-	__m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
+	const __m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
 	 __m128 t = _mm_hadd_ps(mul, mul);	// t = (ax*bx + ay*by, az*bz + 0, ax*bx + ay*by, az*bz + 0)
 	 t = _mm_hadd_ps(t, t);				// t = (ax*bx + ay*by + az*bz + 0, ax*bx + ay*by + az*bz + 0, sim., sim.)
 	 return get_first_field(t);
 }
 
 inline float MM_DPPS_XYZW_SSE3(__m128 a, __m128 b) {
-	__m128 mul = _mm_mul_ps(a, b);
+	const __m128 mul = _mm_mul_ps(a, b);
 	__m128 t = _mm_hadd_ps(mul, mul);
 	t = _mm_hadd_ps(t, t);
 	return get_first_field(t);
@@ -72,14 +72,8 @@ inline float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 	return get_first_field(_mm_dp_ps(a, b, xyzw_dot_mask));
 }
 
-inline float MM_DPPS_XYZ(__m128 a, __m128 b) {
-	// http://stackoverflow.com/questions/6996764/fastest-way-to-do-horizontal-float-vector-sum-on-x86 ^^
-	return MM_DPPS_XYZ_SSE(a, b);
-}
-
-inline float MM_DPPS_XYZW(__m128 a, __m128 b) {
-	return MM_DPPS_XYZW_SSE(a, b);
-}
+#define MM_DPPS_XYZ(a, b) (MM_DPPS_XYZ_SSE((a),(b)))
+#define MM_DPPS_XYZW(a, b) (MM_DPPS_XYZW_SSE((a),(b)))
 
 const char* checkCPUCapabilities() {
 
@@ -104,24 +98,7 @@ const char* checkCPUCapabilities() {
 	if (!SSE_BIT_ENABLED) {
 		return "ERROR: SSE not supported by host processor!";
 	}
-	/*
-	else if (!SSE3_BIT_ENABLED) {
-		MM_DPPS_XYZ = MM_DPPS_XYZ_SSE;
-		MM_DPPS_XYZW = MM_DPPS_XYZW_SSE;
-		return "NOTE: lin_alg: SSE3 not supported by host processor. Using SSE(1) for dot product computation.\n";
-	}
 	
-	else if (!SSE41_BIT_ENABLED) {
-		MM_DPPS_XYZ = MM_DPPS_XYZ_SSE3;
-		MM_DPPS_XYZW = MM_DPPS_XYZW_SSE3;
-		return "NOTE: lin_alg: SSE4.1 not supported by host processor. Using SSE3 hadd for dot product computation.\n";
-	}
-	else { 
-		MM_DPPS_XYZ = MM_DPPS_XYZ_SSE41;
-		MM_DPPS_XYZW = MM_DPPS_XYZW_SSE41;
-		return "NOTE: lin_alg: Using SSE4.1 for dot product computation (_mm_dp_ps, optimal).\n";
-	}
-	*/
 	return "Using SSE1 for dot product computation.\n";
 }
 
@@ -133,7 +110,6 @@ vec4::vec4(float _x, float _y, float _z, float _w) {
 }
 
 
-// obviously enough, this requires a 4-float array as argument
 vec4::vec4(const float* const a) {
 	data = _mm_loadu_ps(a);		// not assuming 16-byte alignment for a.
 }
@@ -549,7 +525,7 @@ void mat4::transpose() {
 
 mat4 mat4::transposed() const {
 
-	mat4 ret = (*this);	// copying can't be avoided
+	mat4 ret = (*this);	
 	_MM_TRANSPOSE4_PS(ret.data[0], ret.data[1], ret.data[2], ret.data[3]);
 	return ret;
 
@@ -662,8 +638,53 @@ mat4 mat4::inverted() const {
 }
 
 
-inline float det(const mat4 &m) {
-	return 0.0; // :*(
+float det(const mat4 &m) {
+
+	__m128 minor0;
+
+	__m128	row0 = m.data[0],
+			row1 = _mm_shuffle_ps(m.data[1], m.data[1], mask1032),
+			row2 = m.data[2],
+			row3 = _mm_shuffle_ps(m.data[3], m.data[3], mask1032);
+
+	__m128 det, tmp1;
+	
+
+	tmp1 = _mm_mul_ps(row2, row3);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
+	minor0 = _mm_mul_ps(row1, tmp1);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
+	minor0 = _mm_sub_ps(_mm_mul_ps(row1, tmp1), minor0);
+
+
+	tmp1 = _mm_mul_ps(row1, row2);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
+	minor0 = _mm_add_ps(_mm_mul_ps(row3, tmp1), minor0);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
+	minor0 = _mm_sub_ps(minor0, _mm_mul_ps(row3, tmp1));
+
+
+	tmp1 = _mm_mul_ps(_mm_shuffle_ps(row1, row1, 0x4E), row3);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
+	row2 = _mm_shuffle_ps(row2, row2, 0x4E);
+	minor0 = _mm_add_ps(_mm_mul_ps(row2, tmp1), minor0);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
+	minor0 = _mm_sub_ps(minor0, _mm_mul_ps(row2, tmp1));
+	
+
+	tmp1 = _mm_mul_ps(row0, row2);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
+	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
+	
+	det = _mm_mul_ps(row0, minor0);
+	det = _mm_add_ps(_mm_shuffle_ps(det, det, 0x4E), det);
+	det = _mm_add_ss(_mm_shuffle_ps(det, det, 0xB1), det);
+	//tmp1 = _mm_rcp_ss(det);
+	//det = _mm_sub_ss(_mm_add_ss(tmp1, tmp1), _mm_mul_ss(det, _mm_mul_ss(tmp1, tmp1)));
+	//det = _mm_shuffle_ps(det, det, 0x00);
+
+	return get_first_field(det);
+
 }
 
 mat4 mat4::scale(float x, float y, float z) {

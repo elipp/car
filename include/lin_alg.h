@@ -69,7 +69,7 @@ namespace V {
 	enum { x = 0, y = 1, z = 2, w = 3 };
 }
 
-// microsoft says the __m128 union fields shouldn't be accessed directly, so.. here we go.
+// microsoft says the __m128 union fields shouldn't be accessed directly as in __m128::m128_f32[n], so.. here we go.
 inline void assign_to_field(__m128 &a, int index, float val) {
 	__declspec(align(16)) float tmp[4];
 	_mm_store_ps(tmp, a);
@@ -112,9 +112,7 @@ public:
 	inline float operator()(int col) const { 
 		return get_field(data, col);
 	}
-
-	// see also: vec4 operator*(const float& scalar, vec4& v);
-
+	
 	void operator*=(float scalar);
 	vec4 operator*(float scalar) const;
 	
@@ -196,17 +194,11 @@ __attribute__((aligned(16))) // to ensure 16-byte alignment in memory
 ;
 
 vec4 operator*(float scalar, const vec4& v);	// convenience overload :P
-// no operator/ for <scalar>/<vec4>, since the operation doesn't exist
 
 
 float dot3(const vec4 &a, const vec4 &b);
 float dot4(const vec4 &a, const vec4 &b);
 vec4 abs(const vec4 &a);
-
-// dot benchmarks for 100000000 iterations:
-// naive:			20.9s
-// DPPS:			2.9s
-// MULPS:			3.0s
 
 vec4 cross(const vec4 &a,  const vec4 &b);	// not really vec4, since cross product for such vectors isn't defined
 
@@ -224,7 +216,7 @@ public:
 	
 	static mat4 proj_ortho(float left, float right, float bottom, float top, float zNear, float zFar);
 	static mat4 proj_persp(float left, float right, float bottom, float top, float zNear, float zFar);
-	static mat4 proj_persp(float fov_radians, float aspect, float zNear, float zFar); // gluPerspective-like
+	static mat4 proj_persp(float fov_radians, float aspect, float zNear, float zFar); // gluPerspective
 
 	static mat4 rotate(float angle_radians, float axis_x, float axis_y, float axis_z);
 	static mat4 scale(float x, float y, float z);
@@ -263,6 +255,7 @@ public:
 
 	friend mat4 abs(const mat4 &m); // perform fabs on all elements of argument matrix
 	friend mat4 operator*(float scalar, const mat4& m);
+	friend float det(const mat4 &m);
 	
 	void *operator new(size_t size) {
 		void *p;
@@ -309,7 +302,7 @@ __attribute__((aligned(16))) // to ensure 16-byte alignment in memory
 mat4 abs(const mat4 &m);
 mat4 operator*(float scalar, const mat4& m);
 
-inline float det(const mat4 &m);
+float det(const mat4 &m);
 
 // the quaternion memory layout is as presented in the following enum
 

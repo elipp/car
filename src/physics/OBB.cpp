@@ -60,9 +60,14 @@ inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
 	// use the identity (a x b) x c = -(c . b)a + (c . a)b (http://en.wikipedia.org/wiki/Vector_triple_product#Vector_triple_product)
 	// let c = a:	    (a x b) x a = -(a . b)a + (a . a)b 
 	// also				a x (b x c) = (a . c)b - (a . b)c
-	// c = a:			a x (b x a) = (a . a)b - (a . b)a
-	return -(dot3(a,b)*a) + (dot3(a,a)*b);	// dot3 -> 
-	//return (dot3(a, a)*b) - (dot3(a,b)*a);
+	// let c = a:			a x (b x a) = (a . a)b - (a . b)a
+	
+	// ^ that's all good, but it turns out it's faster to just do a cross(cross(a,b),a) (dot products are so slow :()
+	
+	// return ((-dot3(a,b))*a) + (dot3(a,a)*b);	// 
+	// return (dot3(a, a)*b) - (dot3(a,b)*a);
+
+	return cross(cross(a,b),a);
 }
 
 

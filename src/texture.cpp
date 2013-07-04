@@ -303,7 +303,7 @@ float HeightMap::lookup(float x, float y) {
 											   xf * yf };
 	const __m128 w = _mm_load_ps(weights);
 
-	float r = MM_DPPS_XYZW(z, w)/255.0;
+	float r = dot4(z, w)/255.0;
 	return min_elevation_real_y + r * elevation_real_diff;
 }
 
