@@ -679,9 +679,6 @@ float det(const mat4 &m) {
 	det = _mm_mul_ps(row0, minor0);
 	det = _mm_add_ps(_mm_shuffle_ps(det, det, 0x4E), det);
 	det = _mm_add_ss(_mm_shuffle_ps(det, det, 0xB1), det);
-	//tmp1 = _mm_rcp_ss(det);
-	//det = _mm_sub_ss(_mm_add_ss(tmp1, tmp1), _mm_mul_ss(det, _mm_mul_ss(tmp1, tmp1)));
-	//det = _mm_shuffle_ps(det, det, 0x00);
 
 	return get_first_field(det);
 

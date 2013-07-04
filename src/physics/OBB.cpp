@@ -233,13 +233,12 @@ vec4 GJKSession::support(const vec4 &D) {
 	// the vertices of box A (VA), and the one farthest away in direction -D among
 	// the vertices of box B (VB).
 	
-	// the whole float_arr bullshit is because we're calculating 4 dot products at once (SSE), in two gos.
+	// the whole float_arr bullshit is because we're calculating 4 dot products at once (SSE), in two parts.
 
 	float_arr_vec4 dpVA1(VAm_T(0)*D);	// now we have the first four dot products in the vector
 	float_arr_vec4 dpVA2(VAm_T(1)*D);	// and the last four in another
 
-	// find maximum dotp. just brute force for now :D (there's of course _mm_max_ps, but it's not a very good fit for this
-	// since we're not really interested in the dp values themselves)
+	// find maximum dotp.
 	vec4 max_A = VAm.column(find_max_dp_index(dpVA1, dpVA2));
 	
 	const vec4 neg_D = -D;
