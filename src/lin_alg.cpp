@@ -111,7 +111,7 @@ vec4::vec4(float _x, float _y, float _z, float _w) {
 
 
 vec4::vec4(const float* const a) {
-	data = _mm_loadu_ps(a);		// not assuming 16-byte alignment for a.
+	data = _mm_load_ps(a);		// not assuming 16-byte alignment for a.
 }
 
 void vec4::operator*=(float scalar) {
@@ -205,7 +205,6 @@ float vec4::length4() const {
 }
 
 // this should actually include all components, but given the application, this won't :P
-
 void vec4::normalize() {
 
 	const __m128 factor = _mm_rsqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)));	// rsqrtps = approximation :P there will be issues if dot3 == 0!
@@ -269,43 +268,33 @@ mat4 vec4::toTranslationMatrix() const {
 	return M;
 }
 
-
-mat4::mat4() {
-	data[0] = data[1] = data[2] = data[3] = ZERO;
-}
-
-mat4::mat4(const float *arr) {
-	data[0] = _mm_loadu_ps(arr);
-	data[1] = _mm_loadu_ps(arr + 4);	
-	data[2] = _mm_loadu_ps(arr + 8);	
-	data[3] = _mm_loadu_ps(arr + 12);	
+mat4::mat4(const float *const arr) {
+	// this is assuming arr is aligned to a 16-byte boundary, and column major
+	data[0] = _mm_load_ps(arr);
+	data[1] = _mm_load_ps(arr + 4);	
+	data[2] = _mm_load_ps(arr + 8);	
+	data[3] = _mm_load_ps(arr + 12);	
 
 }
 
-mat4::mat4(const int main_diagonal_val) {
-	mat4 &a = (*this);	// reference (*this) for easier manipulation
-	a = mat4::zero();
-	a.assign(0, 0, main_diagonal_val);
-	a.assign(1, 1, main_diagonal_val);
-	a.assign(2, 2, main_diagonal_val);
-	a.assign(3, 3, main_diagonal_val);
+mat4::mat4(float main_diagonal_val) {
+	const __m128 d = _mm_set_ss(main_diagonal_val);
+	this->data[0] = d;
+	this->data[1] = _mm_shuffle_ps(d, d, _MM_SHUFFLE(1, 1, 0, 1));
+	this->data[2] = _mm_shuffle_ps(d, d, _MM_SHUFFLE(1, 0, 1, 1));
+	this->data[3] = _mm_shuffle_ps(d, d, _MM_SHUFFLE(0, 1, 1, 1));
 
 }
 
-
-// stupid constructor.
 
 mat4::mat4(const vec4& c1, const vec4& c2, const vec4& c3, const vec4& c4) {
-
 	data[0] = c1.getData();
 	data[1] = c2.getData();
 	data[2] = c3.getData();
 	data[3] = c4.getData();
-
 }
 
-// must be passed as references lolz, otherwise the last one will lose its alignment
-
+// must be passed as references, since otherwise the last one will lose its alignment
 mat4::mat4(const __m128& c1, const __m128&  c2, const __m128&  c3, const __m128& c4) {
 	data[0] = c1;
 	data[1] = c2;
@@ -377,20 +366,11 @@ mat4 mat4::zero() {
 
 
 vec4 mat4::row(int i) const {
-
-	return vec4(this->transposed().data[i]);
-	// benchmarks for 100000000 iterations
-	// Two transpositions, no redirection to mat4::column:	15.896s
-	// Two transpositions, redirection to mat4::column:		18.332s
-	// Naive implementation:								14.140s. !
-	// copy, transpose:										11.354s
-	
-	// for comparison: column, 100000000 iterations:		4.7s
-
+	return this->transposed().data[i];
 }
 
 vec4 mat4::column(int i) const {
-	return vec4(this->data[i]);
+	return this->data[i];
 }
 
 void mat4::assignToColumn(int column, const vec4& v) {
@@ -432,57 +412,37 @@ std::ostream &operator<< (std::ostream& out, const mat4 &M) {
 
 mat4 mat4::proj_ortho(float left, float right, float bottom, float top, float zNear, float zFar) {
 		
-	mat4 M = mat4::identity();
+	float_arr_mat4 M(mat4::identity());
 	
-	//M(0,0) = 2.0/(right - left);
-	M.assign(0, 0, 2.0/(right - left));
+	M(0,0) = 2.0/(right - left);
 
-	//M(1,1) = 2.0/(top - bottom);
-	M.assign(1, 1, 2.0/(top - bottom));
-	
-//	M(2,2) = -2.0/(zFar - zNear);
-	M.assign(2, 2, -2.0/(zFar - zNear));
+	M(1,1) = 2.0/(top - bottom);
+	M(2,2) = -2.0/(zFar - zNear);
 
-	//M(3,0) = - (right + left) / (right - left);
-	M.assign(3, 0, -(right + left) / (right - left));
+	M(3,0) = - (right + left) / (right - left);
+	M(3,1) = - (top + bottom) / (top - bottom);
+	M(3,2) = - (zFar + zNear) / (zFar - zNear);
 
-	//M(3,1) = - (top + bottom) / (top - bottom);
-	M.assign(3, 1, - (top + bottom) / (top - bottom));
-
-//	M(3,2) = - (zFar + zNear) / (zFar - zNear);
-	M.assign(3, 2, -(zFar + zNear) / (zFar - zNear));
-	// the element at (3,3) is already 1 (identity() was called)
-	return M;
+	// M(3,3) = 1 :P
+	return M.as_mat4();
 }
 
 mat4 mat4::proj_persp(float left, float right, float bottom, float top, float zNear, float zFar) {
 		
-	mat4 M = mat4::identity();
+	float_arr_mat4 M(mat4::identity());
 
-	// FIXME: operate on a __declspec(align(16)) float[16], do assignments, construct mat4. 
-
-	//M(0,0) = (2*zNear)/(right-left);
-	M.assign(0, 0, (2*zNear)/(right-left));
+	M(0,0) = (2*zNear)/(right-left);
 	
-	//M(1,1) = (2*zNear)/(top-bottom);
-	M.assign(1, 1, (2*zNear)/(top-bottom));
-
-//	M(2,0) = (right+left)/(right-left);
-	M.assign(2, 0, (right+left)/(right-left));
-
-//	M(2,1) = (top+bottom)/(top-bottom);
-	M.assign(2, 1, (top+bottom)/(top-bottom));
+	M(1,1) = (2*zNear)/(top-bottom);
 	
-	//M(2,2) = -(zFar + zNear)/(zFar - zNear);
-	M.assign(2, 2, -(zFar + zNear)/(zFar - zNear));
-
-	//M(2,3) = -1.0;
-	M.assign(2, 3, -1.0);
+	M(2,0) = (right+left)/(right-left);
+	M(2,1) = (top+bottom)/(top-bottom);
+	M(2,2) = -(zFar + zNear)/(zFar - zNear);
+	M(2,3) = -1.0;
 	
-	//M(3,2) = -(2*zFar*zNear)/(zFar - zNear);
-	M.assign(3, 2, -(2*zFar*zNear)/(zFar - zNear));
+	M(3,2) = -(2*zFar*zNear)/(zFar - zNear);
 	
-	return M;
+	return M.as_mat4();
 
 }
 
@@ -686,12 +646,12 @@ float det(const mat4 &m) {
 
 mat4 mat4::scale(float x, float y, float z) {
 	// assign to main diagonal
-	mat4 m;
-	m.assign(0, 0, x);
-	m.assign(1, 1, y);
-	m.assign(2, 2, z);
-	m.assign(3, 3, 1);
-	return m;
+	float_arr_mat4 m(mat4::identity());
+	m(0, 0) = x;
+	m(1, 1) = y;
+	m(2, 2) = z;
+
+	return m.as_mat4();
 }
 mat4 mat4::translate(float x, float y, float z) {
 	mat4 m = mat4::identity();

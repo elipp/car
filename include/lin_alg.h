@@ -211,6 +211,7 @@ class mat4 {	// column major
 	__m128 data[4];	// each holds a column vector
 	
 public:
+	
 	static mat4 identity();
 	static mat4 zero();
 	
@@ -222,6 +223,12 @@ public:
 	static mat4 scale(float x, float y, float z);
 	static mat4 translate(float x, float y, float z);
 	static mat4 translate(const vec4 &v);
+
+	mat4() {};
+	mat4(const float *data);
+	mat4(const float main_diagonal_val);
+	mat4(const vec4& c1, const vec4& c2, const vec4& c3, const vec4& c4);
+	mat4(const __m128& c1, const __m128& c2, const __m128& c3, const __m128& c4);
 
 	inline void assign(int col, int row, float val) { assign_to_field(data[col], row, val); }
 	inline float operator()(int col, int row) const { return get_field(data[col], row); }
@@ -237,12 +244,6 @@ public:
 	void assignToRow(int row, const vec4& v);
 	void assignToColumn(int column, const vec4& v);
 	
-	mat4();
-	mat4(const float *data);
-	mat4(const int main_diagonal_val);
-	mat4(const vec4& c1, const vec4& c2, const vec4& c3, const vec4& c4);
-	mat4(const __m128& c1, const __m128& c2, const __m128& c3, const __m128& c4);
-
 	void transpose();
 	mat4 transposed() const;
 
@@ -390,5 +391,38 @@ __attribute__((aligned(16)))
 ;
 
 Quaternion operator*(float scalar, const Quaternion &q);
+
+// these are pretty useful when there's need to manipulate many of the data fields in a __m128
+__declspec(align(16)) 
+struct float_arr_vec4 {
+		__declspec(align(16)) float f[4];
+		inline void operator=(const vec4 &v) {
+			_mm_store_ps(f, v.getData());
+		}
+		float_arr_vec4(const vec4 &v) {
+			_mm_store_ps(f, v.getData());
+		}
+		inline float operator()(int col) const { return f[col]; }
+		vec4 as_vec4() const { return vec4(_mm_load_ps(f)); }
+};
+
+__declspec(align(16))
+struct float_arr_mat4 {
+	__declspec(align(16)) float f[16];
+	inline void operator=(const mat4 &m) {
+		memcpy(f, m.rawData(), 16*sizeof(float));
+	}
+	float_arr_mat4(const mat4 &m) {
+		memcpy(f, m.rawData(), 16*sizeof(float));
+	}
+
+	inline float& operator()(int col, int row) { return f[4*col + row]; }
+	mat4 as_mat4() const { 
+		return mat4(f);
+	}
+};
+
+
+
 
 #endif

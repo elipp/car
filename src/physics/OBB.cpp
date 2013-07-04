@@ -1,31 +1,5 @@
 #include "physics/OBB.h"
 
-__declspec(align(16)) 
-struct float_arr_vec4 {
-		__declspec(align(16)) float f[4];
-		inline void operator=(const vec4 &v) {
-			_mm_store_ps(f, v.getData());
-		}
-		float_arr_vec4(const vec4 &v) {
-			_mm_store_ps(f, v.getData());
-		}
-		inline float operator()(int col) const { return f[col]; }
-};
-
-__declspec(align(16))
-struct float_arr_mat4 {
-	float f[16];
-	inline void operator=(const mat4 &m) {
-		memcpy(f, m.rawData(), 16*sizeof(float));
-	}
-	float_arr_mat4(const mat4 &m) {
-		memcpy(f, m.rawData(), 16*sizeof(float));
-	}
-
-	inline float operator()(int col, int row) const { return f[4*col + row]; }
-};
-
-
 static vec4 simplex_points[4];
 static int simplex_current_num_points = 0;
 
@@ -83,27 +57,26 @@ int collision_test_SAT(const OBB &a, const OBB &b) {
 	// actual performance gains are observed maybe in the worst case (test #15)
 	mat4 A(a.A0, a.A1, a.A2, vec4::zero4);
 	mat4 A_T = A.transposed();
-	const float_arr_vec4 a_e(a.e);
+	float_arr_vec4 a_e(a.e);
 
 	mat4 B(b.A0, b.A1, b.A2, vec4::zero4);
 	mat4 B_T = B.transposed();
-	const float_arr_vec4 b_e(b.e);
+	float_arr_vec4 b_e(b.e);
 
 	mat4 C = A_T * B;	// get c_ij coefficients
-	const float_arr_mat4 C_f(C);
+	float_arr_mat4 C_f(C);
 
 	mat4 absC = abs(C);
 	mat4 absC_T = absC.transposed();
-	const float_arr_mat4 absC_T_f(absC_T);
+	float_arr_mat4 absC_T_f(absC_T);
 
 	vec4 D = b.C - a.C;	// vector between the two center points
 	D.assign(V::w, 0.0);
 
 	vec4 A_T_D = A_T*D;
-	const float_arr_vec4 dp_Ai_D(A_T_D); // Ai · D
-	const float_arr_vec4 abs_dp_Ai_D(abs(A_T_D)); // |Ai · D|
-	const float_arr_vec4 abs_dp_Bi_D(abs(B_T*D)); // |Bi · D|
-
+	float_arr_vec4 dp_Ai_D(A_T_D); // Ai · D
+	float_arr_vec4 abs_dp_Ai_D(abs(A_T_D)); // |Ai · D|
+	float_arr_vec4 abs_dp_Bi_D(abs(B_T*D)); // |Bi · D|
 	// start testing for each of the 15 axes (R > R0 + R1). Reference PDF, Table 1 ^^
 
 	float R, R0, R1;	// hopefully the compiler will optimize these away :P
@@ -238,7 +211,7 @@ vec4 GJKSession::support(const vec4 &D) {
 	float_arr_vec4 dpVA1(VAm_T(0)*D);	// now we have the first four dot products in the vector
 	float_arr_vec4 dpVA2(VAm_T(1)*D);	// and the last four in another
 
-	// find maximum dotp.
+	// find point with maximum dot product
 	vec4 max_A = VAm.column(find_max_dp_index(dpVA1, dpVA2));
 	
 	const vec4 neg_D = -D;
