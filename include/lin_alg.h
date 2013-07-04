@@ -230,6 +230,8 @@ public:
 	mat4(const vec4& c1, const vec4& c2, const vec4& c3, const vec4& c4);
 	mat4(const __m128& c1, const __m128& c2, const __m128& c3, const __m128& c4);
 
+	mat4 &operator=(const mat4 &M) { memcpy(&this->data[0], &M.data[0], 4*sizeof(__m128)); return *this; }
+
 	inline void assign(int col, int row, float val) { assign_to_field(data[col], row, val); }
 	inline float operator()(int col, int row) const { return get_field(data[col], row); }
 	

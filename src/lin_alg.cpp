@@ -119,27 +119,21 @@ void vec4::operator*=(float scalar) {
 }
 
 vec4 operator*(float scalar, const vec4& v) {
-
 	vec4 r(v);
 	r *= scalar;
 	return r;
-
 }	
 
 vec4 vec4::operator*(float scalar) const{
-
 	vec4 v(*this);
 	v *= scalar;
 	return v;
-
 }
 
 void vec4::operator/=(float scalar) {
 	const __m128 scalar_recip = _mm_set1_ps(1.0/scalar);
 	this->data = _mm_mul_ps(this->data, scalar_recip);
-
 }
-
 
 vec4 vec4::operator/(float scalar) const {
 	vec4 v = (*this);
@@ -148,17 +142,13 @@ vec4 vec4::operator/(float scalar) const {
 }
 
 void vec4::operator+=(const vec4 &b) {
-	
 	this->data=_mm_add_ps(data, b.data);
-
 }
 
 vec4 vec4::operator+(const vec4 &b) const {
-
 	vec4 v = (*this);
 	v += b; 
 	return v;
-
 }
 
 void vec4::operator-=(const vec4 &b) {
@@ -194,22 +184,16 @@ vec4 vec4::applyQuatRotation(const Quaternion &q) const {
 float vec4::length3() const {
 	//return sqrt(_mm_dp_ps(this->data, this->data, xyz_dot_mask).m128_f32[0]);
 	return sqrt(MM_DPPS_XYZ(this->data, this->data));
-
 }
 
 float vec4::length4() const {
-
-	//return sqrt(_mm_dp_ps(this->data, this->data, xyzw_dot_mask).m128_f32[0]);	// includes x,y,z,w in the computation
 	return sqrt(MM_DPPS_XYZW(this->data, this->data));
-
 }
 
 // this should actually include all components, but given the application, this won't :P
 void vec4::normalize() {
-
 	const __m128 factor = _mm_rsqrt_ps(_mm_set1_ps(MM_DPPS_XYZ(this->data, this->data)));	// rsqrtps = approximation :P there will be issues if dot3 == 0!
 	this->data = _mm_mul_ps(factor, this->data);
-
 }
 
 vec4 vec4::normalized() const {
@@ -263,18 +247,14 @@ vec4 cross(const vec4 &a, const vec4 &b) {
 }
 
 mat4 vec4::toTranslationMatrix() const {
-	mat4 M(MAT_IDENTITY);
+	mat4 M = mat4::identity();
 	M.assignToColumn(3, (*this));
 	return M;
 }
 
 mat4::mat4(const float *const arr) {
 	// this is assuming arr is aligned to a 16-byte boundary, and column major
-	data[0] = _mm_load_ps(arr);
-	data[1] = _mm_load_ps(arr + 4);	
-	data[2] = _mm_load_ps(arr + 8);	
-	data[3] = _mm_load_ps(arr + 12);	
-
+	memcpy(&data[0], arr, 16*sizeof(float));
 }
 
 mat4::mat4(float main_diagonal_val) {
@@ -294,7 +274,7 @@ mat4::mat4(const vec4& c1, const vec4& c2, const vec4& c3, const vec4& c4) {
 	data[3] = c4.getData();
 }
 
-// must be passed as references, since otherwise the last one will lose its alignment
+// must be passed as references, since otherwise the fourth one will lose its alignment
 mat4::mat4(const __m128& c1, const __m128&  c2, const __m128&  c3, const __m128& c4) {
 	data[0] = c1;
 	data[1] = c2;
@@ -314,7 +294,8 @@ mat4 mat4::operator* (const mat4& R) const {
 	
 	// we'll choose to transpose the other matrix, and instead of calling the perhaps
 	// more intuitive row(), we'll be calling column(), which is a LOT faster in comparison.
-
+	
+#pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
 		__declspec(align(16)) float tmp[4];	// represents a temporary column
 		for (int j = 0; j < 4; j++) {
@@ -334,7 +315,7 @@ vec4 mat4::operator* (const vec4& R) const {
 	// result: performs better (with optimizations disabled at least)
 	const mat4 M = (*this).transposed();
 	__declspec(align(16)) float tmp[4];
-#pragma loop(hint_parallel(4))
+
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
 	}
@@ -354,7 +335,6 @@ mat4 operator*(float scalar, const mat4& m) {
 				_mm_mul_ps(scalar_m128, m.data[3]));
 
 }
-
 
 mat4 mat4::identity() {
 	// better design than to do (*this)(0,0) = 1.0 etc
@@ -378,24 +358,13 @@ void mat4::assignToColumn(int column, const vec4& v) {
 }
 
 void mat4::assignToRow(int row, const vec4& v) {
-	// here, since 
-	// 1. row operations are inherently slower than column operations, and
-	// 2. transposition is blazing fast (:D)
-
-	// we could just transpose the matrix and do some fancy sse shit with it.
-	
-	// this could (and probably should) be done with a reference, like this:
-	// mat4.row(i) = vec4(...). However, this is only possible if the mat4 is 
-	// constructed of actual vec4s (which is something one should consider anyway)
-
 	this->transpose();
 	this->data[row] = v.getData();
 	this->transpose();
-
 }
-// return by void pointer? :P
+
 void *mat4::rawData() const {
-	return (void*)&data[0];	// seems to work just fine :D
+	return (void*)&data[0];
 }
 
 std::ostream &operator<< (std::ostream& out, const mat4 &M) {
@@ -479,7 +448,7 @@ void mat4::transpose() {
             (row2) = _mm_shuffle_ps(tmp2, tmp3, 0x88);              \
             (row3) = _mm_shuffle_ps(tmp2, tmp3, 0xDD);              \
         }
-		*/
+	*/
 
 }
 
@@ -609,6 +578,10 @@ float det(const mat4 &m) {
 
 	__m128 det, tmp1;
 	
+	// just took the intel inverse routine, recursively identified the dependencies of "__m128 det",
+	// and stripped any assignments that didn't involve those dependencies :P
+	// that said, i'm "ninety-nine point nine nine nine nine nine NINE percent sure" this 
+	// isn't the fastest way to compute a 4x4 determinant
 
 	tmp1 = _mm_mul_ps(row2, row3);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
@@ -616,13 +589,11 @@ float det(const mat4 &m) {
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
 	minor0 = _mm_sub_ps(_mm_mul_ps(row1, tmp1), minor0);
 
-
 	tmp1 = _mm_mul_ps(row1, row2);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
 	minor0 = _mm_add_ps(_mm_mul_ps(row3, tmp1), minor0);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
 	minor0 = _mm_sub_ps(minor0, _mm_mul_ps(row3, tmp1));
-
 
 	tmp1 = _mm_mul_ps(_mm_shuffle_ps(row1, row1, 0x4E), row3);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
@@ -631,7 +602,6 @@ float det(const mat4 &m) {
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
 	minor0 = _mm_sub_ps(minor0, _mm_mul_ps(row2, tmp1));
 	
-
 	tmp1 = _mm_mul_ps(row0, row2);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0xB1);
 	tmp1 = _mm_shuffle_ps(tmp1, tmp1, 0x4E);
