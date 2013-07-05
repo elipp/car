@@ -25,6 +25,12 @@
     <Filter Include="Header Files\lzma">
       <UniqueIdentifier>{850cdf0e-99ea-4958-b460-6543a4307e8e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\physics">
+      <UniqueIdentifier>{17dd8bca-a10e-430a-9a4b-e6301c47028b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\physics">
+      <UniqueIdentifier>{8681a49d-70db-465e-8339-1cff5d3be6ff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\common.cpp">
@@ -89,6 +95,9 @@
     </ClCompile>
     <ClCompile Include="src\glfunc_loader_minimal.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\OBB.cpp">
+      <Filter>Source Files\physics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -160,6 +169,9 @@
     </ClInclude>
     <ClInclude Include="include\lodepng.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\physics\OBB.h">
+      <Filter>Header Files\physics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

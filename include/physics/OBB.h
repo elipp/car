@@ -11,9 +11,10 @@ struct OBB {
 	vec4 C;	// center point
 	void rotate(Quaternion q) {
 		// this sux, tbh :P
-		A0 = vec4(1.0, 0.0, 0.0, 0.0).applyQuatRotation(q).normalized();
-		A1 = vec4(0.0, 1.0, 0.0, 0.0).applyQuatRotation(q).normalized();
-		A2 = vec4(0.0, 0.0, 1.0, 0.0).applyQuatRotation(q).normalized();
+		const mat4 qm = q.toRotationMatrix();
+		A0 = qm*vec4(1.0, 0.0, 0.0, 0.0).normalized();
+		A1 = qm*vec4(0.0, 1.0, 0.0, 0.0).normalized();
+		A2 = qm*vec4(0.0, 0.0, 1.0, 0.0).normalized();
 	}
 	OBB() {
 		A0 = vec4(1.0, 0.0, 0.0, 0.0);

@@ -72,7 +72,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\lib;$(SolutionDir)/include;C:\Users\elias\Documents\Visual Studio 2012\Projects\car_windows\include;C:\Users\elias\Documents\Visual Studio 2012\Projects\car_windows\include\lz4;$(IncludePath)</IncludePath>
     <OutDir>$(SolutionDir)</OutDir>
-    <LibraryPath>C:\lib\glew190_64\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>
+    </LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(SolutionDir)/include;C:\Users\elias\Documents\Visual Studio 2012\Projects\car_windows\include;$(IncludePath)</IncludePath>
@@ -81,7 +82,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\lib;$(SolutionDir)/include;;$(IncludePath)</IncludePath>
     <OutDir>$(SolutionDir)</OutDir>
-    <LibraryPath>C:\lib\glew190_64\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -108,13 +109,15 @@
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
-      <OpenMPSupport>false</OpenMPSupport>
+      <OpenMPSupport>true</OpenMPSupport>
       <AdditionalIncludeDirectories>C:\Users\elias\Documents\Visual Studio 2012\Projects\car_windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PreprocessorDefinitions>_MBCS;WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAsManaged>false</CompileAsManaged>
       <CompileAsWinRT>false</CompileAsWinRT>
       <StructMemberAlignment>16Bytes</StructMemberAlignment>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling>false</ExceptionHandling>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -152,9 +155,11 @@
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <OpenMPSupport>false</OpenMPSupport>
       <AdditionalIncludeDirectories>C:\Users\elias\Documents\Visual Studio 2012\Projects\car_windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;</PreprocessorDefinitions>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -209,6 +214,7 @@
     <ClCompile Include="src\net\socket.cpp" />
     <ClCompile Include="src\net\taskthread.cpp" />
     <ClCompile Include="src\objloader.cpp" />
+    <ClCompile Include="src\physics\OBB.cpp" />
     <ClCompile Include="src\shader.cpp" />
     <ClCompile Include="src\text.cpp" />
     <ClCompile Include="src\texture.cpp" />
@@ -232,6 +238,7 @@
     <ClInclude Include="include\net\socket.h" />
     <ClInclude Include="include\net\taskthread.h" />
     <ClInclude Include="include\objloader.h" />
+    <ClInclude Include="include\physics\OBB.h" />
     <ClInclude Include="include\precalculated_texcoords.h" />
     <ClInclude Include="include\shader.h" />
     <ClInclude Include="include\text.h" />

@@ -88,7 +88,7 @@ static float height_sample_under_car = 0.0;
 static vec4 car_pos;
 
 static OBB OBBa, OBBb;
-static Quaternion OBBaQ;
+static Quaternion OBBaQ, OBBbQ;
 
 void rotateview(float modx, float mody) {
 	static float qx = 0;
@@ -179,18 +179,20 @@ void control()
 	if (WM_KEYDOWN_KEYS['R']) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.10);
 		OBBaQ.normalize();
-		OBBa.rotate(OBBaQ);
 	}
 	if (WM_KEYDOWN_KEYS['T']) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.10);
 		OBBaQ.normalize();
-		OBBa.rotate(OBBaQ);
 	}
 	if (WM_KEYDOWN_KEYS['Y']) {
 		OBBb.C.assign(V::z, OBBb.C(V::z) + 0.10);
 	}
 	if (WM_KEYDOWN_KEYS['U']) {
 		OBBb.C.assign(V::z, OBBb.C(V::z) - 0.10);
+	}
+	
+	if (WM_KEYDOWN_KEYS['F']) {
+		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.10);
 	}
 
 
@@ -368,16 +370,18 @@ void drawCubes() {
 	vec4 VB[8];
 	OBBb.compute_box_vertices(VB);
 
-	vertex minkowski_difference[64];
-
+	//vertex minkowski_difference[64];
+	vertex boxvertices[16];
 	for (int i = 0; i < 8; ++i) {
-		for (int j = 0; j < 8; ++j) {
-			minkowski_difference[i*8 + j] = vec4_to_vertex(VA[i] - VB[j]);
-		}
+		//for (int j = 0; j < 8; ++j) {
+		//	minkowski_difference[i*8 + j] = vec4_to_vertex(VA[i] - VB[j]);
+		//}
+		boxvertices[i] = vec4_to_vertex(VA[i]);
+		boxvertices[i+8] = vec4_to_vertex(VB[i]);
 	}
 	
 	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
-	glBufferData(GL_ARRAY_BUFFER, 64*sizeof(vertex), minkowski_difference, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 16*sizeof(vertex), boxvertices, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
 	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
 	glUseProgram(regular_shader->getProgramHandle());
@@ -385,18 +389,21 @@ void drawCubes() {
 	regular_shader->update_uniform_mat4("ModelView", view);
 	regular_shader->update_uniform_vec4("paint_color", vec4(1.0, 1.0, 1.0, 1.0));
 	glEnable(GL_PROGRAM_POINT_SIZE);
-	glDrawElements(GL_POINTS, 64, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
+	glDrawElements(GL_POINTS, 16, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
 	glDisable(GL_PROGRAM_POINT_SIZE);
 	GJKSession GJKsess(OBBa, OBBb);
 	int are_intersecting = GJKsess.collision_test();
 	
+	OBBa.rotate(OBBaQ);
+	OBBb.rotate(OBBbQ);
+
 	vec4 light_dir = view * vec4(0.0, 1.0, 1.0, 0.0);
 	regular_shader->update_uniform_vec4("light_direction", light_dir);
 	cube->use_ModelView(view*mat4::translate(OBBa.C)*OBBaQ.toRotationMatrix());
 	regular_shader->update_uniform_vec4("paint_color", are_intersecting ? vec4(0.7, 0.2, 0.3, 0.6) :  vec4(0.2, 0.7, 0.3, 1.0));
 	cube->draw();
-
-	cube->use_ModelView(view*mat4::translate(OBBb.C));
+	
+	cube->use_ModelView(view*mat4::translate(OBBb.C)*OBBbQ.toRotationMatrix());
 	cube->draw();
 }
 

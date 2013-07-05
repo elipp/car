@@ -512,7 +512,9 @@ int GJKSession::collision_test() {
 	simplex_assign(S);
 
 	// perhaps add a hard limit to the number of iterations to avoid infinite looping
-	while (1) {
+#define ITERATIONS_MAX 20
+	int i = 0;
+	while (i < ITERATIONS_MAX) {
 		D.assign(V::w, 0);
 		D.normalize();
 		vec4 A = support(D);
@@ -524,6 +526,7 @@ int GJKSession::collision_test() {
 		if (DoSimplex(&D)) { // updates our simplex and the search direction in a way that allows us to close in on the origin efficiently
 			return 1;
 		}
+		++i;
 	}
 
 }
