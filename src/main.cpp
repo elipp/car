@@ -318,6 +318,7 @@ int initGL(void)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(int)(0xFFFF), indices, GL_STATIC_DRAW);
 
+
 	delete [] indices;	
 	
 	glEnableVertexAttribArray(ATTRIB_POSITION);

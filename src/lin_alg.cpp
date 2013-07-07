@@ -1,5 +1,4 @@
 #include "lin_alg.h"
-#include "text.h"
 
 static const __m128 ZERO = _mm_setzero_ps();
 static const __m128 MINUS_ONES = _mm_set_ps(1.0, -1.0, -1.0, -1.0);
@@ -12,15 +11,15 @@ static const int mask3021 = 0xC9, // 11 00 10 01_2
 				xyzw_dot_mask = 0xF1; // 11 11 00 01_2
 
 
-static const float identity_arr[16] = { 1.0, 0.0, 0.0, 0.0, 
-										0.0, 1.0, 0.0, 0.0, 
-										0.0, 0.0, 1.0, 0.0, 
-										0.0, 0.0, 0.0, 1.0 };
+static const float identity_arr[16] = { 1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0, 
+					0.0, 0.0, 1.0, 0.0, 
+					0.0, 0.0, 0.0, 1.0 };
 
 static const float zero_arr[16] = { 0.0, 0.0, 0.0, 0.0,
-									0.0, 0.0, 0.0, 0.0,
-									0.0, 0.0, 0.0, 0.0,
-									0.0, 0.0, 0.0, 0.0 };
+				    0.0, 0.0, 0.0, 0.0,
+				    0.0, 0.0, 0.0, 0.0,
+				    0.0, 0.0, 0.0, 0.0 };
 								
 
 const vec4 vec4::zero4 = vec4(ZERO);
@@ -28,17 +27,14 @@ const vec4 vec4::zero3 = vec4(0.0, 0.0, 0.0, 1.0);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
 
-static const __m128 and_mask_0111 = 
-		*(__m128*) &(_mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
-
+static const __m128i _and_mask = _mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
+static const __m128 and_mask_0111 = *((__m128*)&_and_mask);
 
 inline float MM_DPPS_XYZ_SSE(__m128 a, __m128 b) {
-	
 	const __m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
 	const __m128 t = _mm_add_ps(mul, _mm_movehl_ps(mul, mul));
 	const __m128 sum = _mm_add_ss(t, _mm_shuffle_ps(t, t, 1));
 	return get_first_field(sum);
-
 }
 
 inline float MM_DPPS_XYZW_SSE(__m128 a, __m128 b) {
@@ -49,8 +45,8 @@ inline float MM_DPPS_XYZW_SSE(__m128 a, __m128 b) {
 
 }
 
+#ifdef __SSE3__	// these aren't defined on windows tho
 inline float MM_DPPS_XYZ_SSE3(__m128 a, __m128 b) {
-		
 	const __m128 mul = _mm_and_ps(_mm_mul_ps(a, b), and_mask_0111);
 	 __m128 t = _mm_hadd_ps(mul, mul);	// t = (ax*bx + ay*by, az*bz + 0, ax*bx + ay*by, az*bz + 0)
 	 t = _mm_hadd_ps(t, t);				// t = (ax*bx + ay*by + az*bz + 0, ax*bx + ay*by + az*bz + 0, sim., sim.)
@@ -63,7 +59,9 @@ inline float MM_DPPS_XYZW_SSE3(__m128 a, __m128 b) {
 	t = _mm_hadd_ps(t, t);
 	return get_first_field(t);
 }
+#endif
 
+#ifdef __SSE4_1__
 inline float MM_DPPS_XYZ_SSE41(__m128 a, __m128 b) {
 	return get_first_field(_mm_dp_ps(a, b, xyz_dot_mask));
 }
@@ -71,6 +69,7 @@ inline float MM_DPPS_XYZ_SSE41(__m128 a, __m128 b) {
 inline float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 	return get_first_field(_mm_dp_ps(a, b, xyzw_dot_mask));
 }
+#endif
 
 #define MM_DPPS_XYZ(a, b) (MM_DPPS_XYZ_SSE((a),(b)))
 #define MM_DPPS_XYZW(a, b) (MM_DPPS_XYZW_SSE((a),(b)))
@@ -78,7 +77,7 @@ inline float MM_DPPS_XYZW_SSE41(__m128 a, __m128 b) {
 const char* checkCPUCapabilities() {
 
 	typedef struct _cpuid_t {
-		int eax, ebx, ecx, edx;
+		unsigned int eax, ebx, ecx, edx;
 	} cpuid_t;
 
 	cpuid_t c;
@@ -86,7 +85,7 @@ const char* checkCPUCapabilities() {
 #ifdef _WIN32
 	__cpuid((int*)&c, 1);
 #elif __linux__
-	cpuid(0x1, c);
+	__get_cpuid(1, &c.eax, &c.ebx, &c.ecx, &c.edx);
 #endif
 
 	// would be better to somehow check these flags at compile time
@@ -297,7 +296,7 @@ mat4 mat4::operator* (const mat4& R) const {
 	
 #pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
-		__declspec(align(16)) float tmp[4];	// represents a temporary column
+		_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;	// represents a temporary column
 		for (int j = 0; j < 4; j++) {
 			tmp[j] = MM_DPPS_XYZW(L.data[j], R.data[i]);
 		}
@@ -314,7 +313,7 @@ vec4 mat4::operator* (const vec4& R) const {
 	// try with temporary mat4? :P
 	// result: performs better (with optimizations disabled at least)
 	const mat4 M = (*this).transposed();
-	__declspec(align(16)) float tmp[4];
+	_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;
 
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
@@ -747,7 +746,7 @@ mat4 Quaternion::toRotationMatrix() const {
 
 	const Quaternion &q = *this;
 
-	__declspec(align(16)) float tmp[4];
+	_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;
 	_mm_store_ps(tmp, this->data);
 
 	const float x2 = tmp[Q::x]*tmp[Q::x];

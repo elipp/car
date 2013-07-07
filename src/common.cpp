@@ -30,8 +30,6 @@ std::string get_timestamp() {
 	return std::string(buffer);
 }
 
-
-
 size_t getfilesize(FILE *file)
 {
 	fseek(file, 0, SEEK_END);
@@ -40,7 +38,6 @@ size_t getfilesize(FILE *file)
 
 	return filesize;
 }
-
 
 size_t cpp_getfilesize(std::ifstream& in)
 {

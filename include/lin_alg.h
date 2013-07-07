@@ -7,6 +7,7 @@
 #include <smmintrin.h>
 #elif __linux__
 #include <x86intrin.h>
+#include <cpuid.h>
 #endif
 
 #include <cstdio>
@@ -15,15 +16,51 @@
 #include <cmath>
 #include <ostream>
 
+#ifdef _WIN32
+#define _BEGIN_ALIGN16 __declspec(align(16))
+#define _END_ALIGN16
+#define _ALIGNED_MALLOC16(ptr, size) do { ptr = _aligned_malloc((size), 16); } while(0)
+#define _ALIGNED_FREE(ptr) do { _aligned_free(ptr); } while(0)
+
+#elif __linux__
+#define _BEGIN_ALIGN16
+#define _END_ALIGN16 __attribute__((aligned(16)))
+#define _ALIGNED_MALLOC16(ptr, size) do { posix_memalign(&(ptr), 16, (size)); } while(0)
+#define _ALIGNED_FREE(ptr) do { free(ptr); } while(0)
+#endif
+
+#define _ALIGNED16(decl) _BEGIN_ALIGN16 decl _END_ALIGN16
+
+#define _DEFINE_ALIGNED_MALLOC_FREE_MEMBERS \
+	void *operator new(size_t size)\
+	{\
+		void *p;\
+		_ALIGNED_MALLOC16(p, size);\
+		return p;\
+	}\
+	void *operator new[](size_t size) {\
+		void *p;\
+		_ALIGNED_MALLOC16(p, size);\
+		return p;\
+	}\
+		void operator delete(void *p) {\
+		_ALIGNED_FREE(p);\
+	}\
+		void operator delete[](void *p) {\
+		_ALIGNED_FREE(p);\
+	}\
+
+
 class vec4;
 class mat4;
 class Quaternion;
 
 inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
 	char buffer[128];
-	__declspec(align(16)) float tmp[4];
+	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, m);
-	sprintf_s(buffer, 128, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	//sprintf_s(buffer, 128, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
 	out << buffer;
 	return out;
 }
@@ -35,12 +72,8 @@ std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 #include "glwindow_win32.h"
 #include "text.h"
 
-float MM_DPPS_XYZ(__m128 a, __m128 b);
-float MM_DPPS_XYZW(__m128 a, __m128 b);
-
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
-
-// stolen from microsoft :(
+// (stolen from microsoft :()
 
 #ifndef _MM_TRANSPOSE4_PS
 #define _MM_TRANSPOSE4_PS(row0, row1, row2, row3) {                 \
@@ -71,27 +104,23 @@ namespace V {
 
 // microsoft says the __m128 union fields shouldn't be accessed directly as in __m128::m128_f32[n], so.. here we go.
 inline void assign_to_field(__m128 &a, int index, float val) {
-	__declspec(align(16)) float tmp[4];
+	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, a);
 	tmp[index] = val;
 	a = _mm_load_ps(tmp);
 }
 
 inline float get_field(const __m128 &a, int index) {
-	__declspec(align(16)) float tmp[4];
+	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, a);
 	return tmp[index];
 }
 
 inline float get_first_field(const __m128 &a) {
-	float r;
-	_mm_store_ss(&r, a);
-	return r;
+	return _mm_cvtss_f32(a);
 }
 
-#ifdef _WIN32
-__declspec(align(16)) // to ensure 16-byte alignment in memory
-#endif
+_BEGIN_ALIGN16
 class vec4 {		
 	__m128 data;
 public:
@@ -148,50 +177,11 @@ public:
 	friend vec4 operator*(float scalar, const vec4& v);
 
 	mat4 toTranslationMatrix() const;
+	
+	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
-	void *operator new(size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
-	void *operator new[](size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
-
-	void operator delete(void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		vec4 *v = static_cast<vec4*>(p);	// the cast could be unnecessary
-		free(v);
-#endif
-	}
-
-	void operator delete[](void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		vec4 *v = static_cast<vec4*>(p);	// the cast could be unnecessary
-		free(v);
-#endif	// the cast could be unnecessary
-	}
-
-
-} 
-#ifdef __linux__
-__attribute__((aligned(16))) // to ensure 16-byte alignment in memory
-#endif
-;
+}
+_END_ALIGN16;
 
 vec4 operator*(float scalar, const vec4& v);	// convenience overload :P
 
@@ -203,15 +193,11 @@ vec4 abs(const vec4 &a);
 vec4 cross(const vec4 &a,  const vec4 &b);	// not really vec4, since cross product for such vectors isn't defined
 
 
-#ifdef _WIN32
-__declspec(align(16)) // to ensure 16-byte alignment in memory
-#endif
+_BEGIN_ALIGN16 
 class mat4 {	// column major 
-
 	__m128 data[4];	// each holds a column vector
 	
 public:
-	
 	static mat4 identity();
 	static mat4 zero();
 	
@@ -255,52 +241,13 @@ public:
 	void *rawData() const;	// returns a column-major float[16]
 	void printRaw() const;	// prints elements in actual memory order.
 		
-
 	friend mat4 abs(const mat4 &m); // perform fabs on all elements of argument matrix
 	friend mat4 operator*(float scalar, const mat4& m);
 	friend float det(const mat4 &m);
-	
-	void *operator new(size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
-	void *operator new[](size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
 
-	void operator delete(void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		mat4 *m = static_cast<mat4*>(p);
-		free(m);
-#endif
-	}
+	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
-	void operator delete[](void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		mat4 *m = static_cast<mat4*>(p);
-		free(m);
-#endif
-	}
-}
-#ifdef __linux__
-__attribute__((aligned(16))) // to ensure 16-byte alignment in memory
-#endif
-;
+} _END_ALIGN16;
 
 mat4 abs(const mat4 &m);
 mat4 operator*(float scalar, const mat4& m);
@@ -313,9 +260,7 @@ namespace Q {
 	enum {x = 0, y = 1, z = 2, w = 3};
 };
 
-#ifdef _WIN32
-__declspec(align(16)) // to ensure 16-byte alignment in memory
-#endif
+_BEGIN_ALIGN16 
 class Quaternion {
 	__m128 data;
 public:
@@ -350,67 +295,30 @@ public:
 
 	friend Quaternion operator*(float scalar, const Quaternion &q);
 
-	void *operator new(size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
-	void *operator new[](size_t size) {
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
+	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
-	void operator delete(void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		Quaternion *q = static_cast<Quaternion*>(p);	// the cast could be unnecessary
-		free(q);
-#endif
-	}
-
-	void operator delete[](void *p) {
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		Quaternion *q = static_cast<Quaternion*>(p);	// the cast could be unnecessary
-		free(q);
-#endif
-	}
-} 
-#ifdef __linux__
-__attribute__((aligned(16)))
-#endif
-;
+} _END_ALIGN16;
 
 Quaternion operator*(float scalar, const Quaternion &q);
 
-// these are pretty useful when there's need to manipulate many of the data fields in a __m128
-__declspec(align(16)) 
-struct float_arr_vec4 {
-		__declspec(align(16)) float f[4];
-		inline void operator=(const vec4 &v) {
-			_mm_store_ps(f, v.getData());
-		}
-		float_arr_vec4(const vec4 &v) {
-			_mm_store_ps(f, v.getData());
-		}
-		inline float operator()(int col) const { return f[col]; }
-		vec4 as_vec4() const { return vec4(_mm_load_ps(f)); }
-};
+// these are pretty useful for when there's need to manipulate many of the data fields in a __m128
 
-__declspec(align(16))
+_BEGIN_ALIGN16
+struct float_arr_vec4 {
+	_ALIGNED16(float f[4]);
+	inline void operator=(const vec4 &v) {
+		_mm_store_ps(f, v.getData());
+	}
+	float_arr_vec4(const vec4 &v) {
+		_mm_store_ps(f, v.getData());
+	}
+	inline float operator()(int col) const { return f[col]; }
+	vec4 as_vec4() const { return vec4(_mm_load_ps(f)); }
+} _END_ALIGN16;
+
+_BEGIN_ALIGN16 
 struct float_arr_mat4 {
-	__declspec(align(16)) float f[16];
+	_ALIGNED16(float f[16]);
 	inline void operator=(const mat4 &m) {
 		memcpy(f, m.rawData(), 16*sizeof(float));
 	}
@@ -422,7 +330,7 @@ struct float_arr_mat4 {
 	mat4 as_mat4() const { 
 		return mat4(f);
 	}
-};
+} _END_ALIGN16;
 
 
 
