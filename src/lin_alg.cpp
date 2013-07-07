@@ -296,7 +296,7 @@ mat4 mat4::operator* (const mat4& R) const {
 	
 #pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
-		_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;	// represents a temporary column
+		_ALIGNED16(float tmp[4]);	// represents a temporary column
 		for (int j = 0; j < 4; j++) {
 			tmp[j] = MM_DPPS_XYZW(L.data[j], R.data[i]);
 		}
@@ -313,7 +313,7 @@ vec4 mat4::operator* (const vec4& R) const {
 	// try with temporary mat4? :P
 	// result: performs better (with optimizations disabled at least)
 	const mat4 M = (*this).transposed();
-	_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;
+	_ALIGNED16(float tmp[4]);	// represents a temporary column
 
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
@@ -746,7 +746,7 @@ mat4 Quaternion::toRotationMatrix() const {
 
 	const Quaternion &q = *this;
 
-	_BEGIN_ALIGN16 float tmp[4] _END_ALIGN16;
+	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, this->data);
 
 	const float x2 = tmp[Q::x]*tmp[Q::x];
