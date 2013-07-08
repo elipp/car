@@ -290,17 +290,18 @@ float HeightMap::lookup(float x, float y) {
 	//float R2 = xf_r * z12 + xf * z22;
 	//float r = (yf_r * R1 + yf * R2)/255.0;
 	
-	__declspec(align(16)) float zs[4] = { get_pixel(xi,		yi), 
-										  get_pixel(xi+1,	yi), 
-										  get_pixel(xi,		yi+1), 
-										  get_pixel(xi+1,	yi+1) };
+	_ALIGNED16(float zs[4]) = { get_pixel(xi, yi), 
+				   get_pixel(xi+1, yi), 
+				   get_pixel(xi, yi+1), 
+				   get_pixel(xi+1, yi+1) };
 
 	const __m128 z = _mm_load_ps(zs);
 
-	__declspec(align(16)) float weights[4] = { xf_r * yf_r, 
-											   xf * yf_r, 
-											   xf_r * yf, 
-											   xf * yf };
+	_ALIGNED16(float weights[4]) = { xf_r * yf_r, 
+					   xf * yf_r, 
+					   xf_r * yf, 
+					   xf * yf };
+
 	const __m128 w = _mm_load_ps(weights);
 
 	float r = dot4(z, w)/255.0;

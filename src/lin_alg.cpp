@@ -710,7 +710,7 @@ Quaternion Quaternion::operator*(const Quaternion &b) const {
 
 	//ret(Q::w) = a.data.m128_f32[Q::w]*b.data.m128_f32[Q::w] - _mm_dp_ps(a.data, b.data, xyz_dot_mask).m128_f32[0];
 	//ret(Q::w) = a.element(Q::w) * b.element(Q::w) - MM_DPPS_XYZ(a.data, b.data);
-	assign_to_field(ret.data, Q::w, a(Q::w) * b(Q::w) - MM_DPPS_XYZ(a.data, b.data));
+	ret.assign(Q::w, a(Q::w) * b(Q::w) - MM_DPPS_XYZ(a.data, b.data));
 	return ret;
 
 }

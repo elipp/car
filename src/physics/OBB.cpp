@@ -1,4 +1,5 @@
 #include "physics/OBB.h"
+#include <stdint.h>
 
 static vec4 simplex_points[4];
 static int simplex_current_num_points = 0;
@@ -236,8 +237,8 @@ typedef bool (*simplexfunc_t)(vec4*);
 
 static bool null_simplexfunc(vec4 *dir) { return false; }	
 static bool line_simplexfunc(vec4 *dir) {
-	vec4 AO = -simplex_points[1];		// -A
-	vec4 AB = simplex_points[0] + AO;	// essentially B - A
+	const vec4 AO = -simplex_points[1];		// -A
+	const vec4 AB = simplex_points[0] + AO;	// essentially B - A
 	*dir = triple_cross_1x2x1(AB, AO);	// use this edge as next simplex
 	
 	// the conclusion of the discussion in https://mollyrocket.com/forums/viewtopic.php?t=271&postdays=0&postorder=asc&start=15
@@ -249,19 +250,19 @@ static bool line_simplexfunc(vec4 *dir) {
 
 static bool triangle_simplexfunc(vec4 *dir) {
 		// gets a tad more complicated here :P
-		const vec4 &A = simplex_points[2];
-		const vec4 &B = simplex_points[1];
-		const vec4 &C = simplex_points[0];
+		const vec4 A = simplex_points[2];
+		const vec4 B = simplex_points[1];
+		const vec4 C = simplex_points[0];
 
-		vec4 AO = -A;
-		vec4 AB = B-A;
-		vec4 AC = C-A;
+		const vec4 AO = -A;
+		const vec4 AB = B-A;
+		const vec4 AC = C-A;
 
-		vec4 ABC = cross(AB, AC);	// triangle normal
+		const vec4 ABC = cross(AB, AC);	// triangle normal
 		
 		// edge normals, pointing outwards from the triangle (on the triangle plane)
-		vec4 ABCxAC = cross(ABC, AC);	
-		vec4 ABxABC = cross(AB, ABC);
+		const vec4 ABCxAC = cross(ABC, AC);	
+		const vec4 ABxABC = cross(AB, ABC);
 
 		// again, using the same principle as in the line case, the voronoi region of the new point A can be ruled out beforehand
 
@@ -290,22 +291,22 @@ static bool triangle_simplexfunc(vec4 *dir) {
 }
 
 static bool tetrahedron_simplexfunc(vec4 *dir) {
-	const vec4 &A = simplex_points[3];
-	const vec4 &B = simplex_points[2];
-	const vec4 &C = simplex_points[1];
-	const vec4 &D = simplex_points[0];
+	const vec4 A = simplex_points[3];
+	const vec4 B = simplex_points[2];
+	const vec4 C = simplex_points[1];
+	const vec4 D = simplex_points[0];
 
 	// redundant, but easy to read
 	
-	vec4 AO = -A;
-	vec4 AB = B-A;
-	vec4 AC = C-A;
-	vec4 AD = D-A;
+	const vec4 AO = -A;
+	const vec4 AB = B-A;
+	const vec4 AC = C-A;
+	const vec4 AD = D-A;
 
 	// OUTWARD-FACING (outward from the tetrahedron) triangle normals.
-	vec4 ABC = cross(AB, AC);
-	vec4 ACD = cross(AC, AD);	
-	vec4 ADB = cross(AD, AB);
+	const vec4 ABC = cross(AB, AC);
+	const vec4 ACD = cross(AC, AD);	
+	const vec4 ADB = cross(AD, AB);
 
 	// taken from casey's implementation at https://mollyrocket.com/forums/viewtopic.php?t=245&postdays=0&postorder=asc&start=41
 	uint32_t code = 0;
@@ -494,7 +495,7 @@ GJKSession::GJKSession(const OBB &box_A, const OBB &box_B) {
 	box_B.compute_box_vertices(VB);
 
 	VBm = mat4_doublet(mat4(VB[0], VB[1], VB[2], VB[3]), 
-					   mat4(VB[4], VB[5], VB[6], VB[7]));
+				   mat4(VB[4], VB[5], VB[6], VB[7]));
 	
 	VBm_T = VBm.transposed_both();
 

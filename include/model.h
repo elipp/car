@@ -5,13 +5,8 @@
 #include "lin_alg.h"
 #include <cstdlib>
 
-#define ALIGNMENT 16
-
-#ifdef _WIN32
-__declspec(align(ALIGNMENT)) // to ensure 16-byte alignment in memory
-#endif
+_BEGIN_ALIGN16
 class Model {
-
 public:	
 	// apparently, the default allocator can still return misaligned addresses, need to overload
 	mat4 model_matrix;
@@ -36,25 +31,7 @@ public:
 	void translate(const vec4 &vec);
 	void updatePosition();
 
-	void *operator new(std::size_t size)  { 
-		void *p;
-#ifdef _WIN32
-		p = _aligned_malloc(size, 16);
-#elif __linux__
-		posix_memalign(&p, 16, size);
-#endif
-		return p;
-	}
-	
-	void operator delete(void *p) { 
-#ifdef _WIN32
-		_aligned_free(p);
-#elif __linux__
-		Model* M = static_cast<Model*>(p);
-		free(M);
-#endif
-
-	}
+	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 	
 private:
 	GLuint VBOid;
@@ -63,10 +40,6 @@ private:
 	bool is_a_lightsrc;
 	bool fixed_pos;
 
-}
-#ifdef __linux__
-__attribute__((aligned(ALIGNMENT)))
-#endif
-;
+} _END_ALIGN16;
 
 #endif

@@ -69,8 +69,10 @@ std::ostream &operator<< (std::ostream& out, const vec4 &v);
 std::ostream &operator<< (std::ostream& out, const mat4 &M);
 std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 
+#ifndef LINALG_STANDALONE
 #include "glwindow_win32.h"
 #include "text.h"
+#endif
 
 // http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
 // (stolen from microsoft :()
