@@ -27,6 +27,52 @@ const vec4 vec4::zero3 = vec4(0.0, 0.0, 0.0, 1.0);
 const mat4 identity_const_mat4 = mat4(identity_arr);
 const mat4 zero_const_mat4 = mat4(zero_arr);
 
+__m128 dot3x4_transpose(const mat4 &M, const vec4 &v) {
+
+	__m128 tmp3, tmp2, tmp1, tmp0;                          
+	__m128 row2, row1, row0;
+
+	tmp0   = _mm_shuffle_ps((M.data[0]), (M.data[1]), 0x44);          
+	tmp2   = _mm_shuffle_ps((M.data[0]), (M.data[1]), 0xEE);          
+	tmp1   = _mm_shuffle_ps((M.data[2]), (M.data[3]), 0x44);          
+	tmp3   = _mm_shuffle_ps((M.data[2]), (M.data[3]), 0xEE);          
+
+	row0 = _mm_shuffle_ps(tmp0, tmp1, 0x88);              
+	row1 = _mm_shuffle_ps(tmp0, tmp1, 0xDD);              
+	row2 = _mm_shuffle_ps(tmp2, tmp3, 0x88);              
+
+	const __m128 Vx = _mm_shuffle_ps(v.data, v.data, 0x00); 
+	const __m128 Vy = _mm_shuffle_ps(v.data, v.data, 0x55);
+	const __m128 Vz = _mm_shuffle_ps(v.data, v.data, 0xAA); 
+
+	__m128 xx = _mm_mul_ps(Vx, row0);
+	__m128 yy = _mm_mul_ps(Vy, row1);
+	__m128 zz = _mm_mul_ps(Vz, row2);
+
+	__m128 ret = _mm_add_ps(xx, yy);
+	ret = _mm_add_ps(ret, zz);
+
+	return ret;
+
+}
+
+__m128 dot3x4_notranspose(const mat4 &M, const vec4 &v) {
+
+	const __m128 Vx = _mm_shuffle_ps(v.data, v.data, 0x00); // (Vx, Vx, Vx, Vx)
+	const __m128 Vy = _mm_shuffle_ps(v.data, v.data, 0x55); // (Vy, Vy, Vy, Vy)
+	const __m128 Vz = _mm_shuffle_ps(v.data, v.data, 0xAA); // (Vz, Vz, Vz, Vz)
+
+	__m128 xx = _mm_mul_ps(Vx, M.data[0]);
+	__m128 yy = _mm_mul_ps(Vy, M.data[1]);
+	__m128 zz = _mm_mul_ps(Vz, M.data[2]);
+
+	__m128 ret = _mm_add_ps(xx, yy);
+	ret = _mm_add_ps(ret, zz);
+
+	return ret;
+
+}
+
 static const __m128i _and_mask = _mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
 static const __m128 and_mask_0111 = *((__m128*)&_and_mask);
 

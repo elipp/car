@@ -25,7 +25,7 @@
 #elif __linux__
 #define _BEGIN_ALIGN16
 #define _END_ALIGN16 __attribute__((aligned(16)))
-#define _ALIGNED_MALLOC16(ptr, size) do { posix_memalign(&(ptr), 16, (size)); } while(0)
+#define _ALIGNED_MALLOC16(ptr, size) do { posix_memalign((void**)&(ptr), 16, (size)); } while(0)
 #define _ALIGNED_FREE(ptr) do { free(ptr); } while(0)
 #endif
 
@@ -98,8 +98,6 @@ enum { MAT_ZERO = 0x0, MAT_IDENTITY = 0x1 };
 
 const char* checkCPUCapabilities();
 
-// forward declarations 
-
 namespace V {
 	enum { x = 0, y = 1, z = 2, w = 3 };
 }
@@ -122,11 +120,15 @@ inline float get_first_field(const __m128 &a) {
 	return _mm_cvtss_f32(a);
 }
 
+__m128 dot3x4_transpose(const mat4 &M, const vec4 &V);
+__m128 dot3x4_notranspose(const mat4 &M, const vec4 &V);
+
+
 _BEGIN_ALIGN16
 class vec4 {		
-	__m128 data;
 public:
-	
+	__m128 data;
+
 	static const vec4 zero4;
 	static const vec4 zero3;
 
@@ -197,9 +199,9 @@ vec4 cross(const vec4 &a,  const vec4 &b);	// not really vec4, since cross produ
 
 _BEGIN_ALIGN16 
 class mat4 {	// column major 
-	__m128 data[4];	// each holds a column vector
 	
 public:
+	__m128 data[4];	// each holds a column vector
 	static mat4 identity();
 	static mat4 zero();
 	
@@ -264,8 +266,8 @@ namespace Q {
 
 _BEGIN_ALIGN16 
 class Quaternion {
-	__m128 data;
 public:
+	__m128 data;
 
 	Quaternion(float x, float y, float z, float w);
 	Quaternion(const __m128 d) { data = d;};
@@ -335,6 +337,6 @@ struct float_arr_mat4 {
 } _END_ALIGN16;
 
 
-
+extern __m128 dot4x4(const mat4 &M, const vec4 &V);
 
 #endif
