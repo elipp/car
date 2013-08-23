@@ -9,7 +9,7 @@ struct OBB {
 						// Always updated to reflect the rotation of the host body.
 	vec4 e;	// corresponding extents.
 	vec4 C;	// center point
-	void rotate(Quaternion q) {
+	void rotate(Quaternion &q) {
 		// this sux, tbh :P
 		const mat4 qm = q.toRotationMatrix();
 		A0 = (qm*vec4(1.0, 0.0, 0.0, 0.0)).normalized();
@@ -53,6 +53,7 @@ private:
 	mat4_doublet VAm, VAm_T;
 	mat4_doublet VBm, VBm_T;
 	vec4 support(const vec4 &D);
+	vec4 EPA_penetration();
 public:
 	// don't like the interface though.
 	GJKSession(const OBB &a, const OBB &b);

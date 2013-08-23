@@ -1,18 +1,22 @@
 #ifndef GLWINDOW_WIN32_H
 #define GLWINDOW_WIN32_H
 
-#pragma warning(disable: 4244)
-#pragma warning(disable: 4267)
-#pragma warning(disable: 4305)
+//#pragma warning(disable: 4267)
+#pragma warning(disable: 4244) // double -> const float conversion warning
+#pragma warning(disable: 4305) // double -> const float trunc warning
+
 
 #include <Winsock2.h>
 #include <Windows.h>
-#include <lmcons.h>
-#include <GL\GL.h>
+
+#define GLEW_STATIC
+#include <GL\glew.h>
+#include <GL\wglew.h>
+
 #include <wingdi.h>
 #include <mutex>
 
-#include "glfunc_loader_minimal.h"
+#include <lmcons.h>
 
 extern bool WM_KEYDOWN_KEYS[];
 extern bool WM_CHAR_KEYS[];

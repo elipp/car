@@ -14,10 +14,7 @@
 #include "shader.h"
 
 extern void text_set_Projection(const mat4 &proj);
-
 extern GLuint text_texId;
-extern GLuint text_shared_IBOid;
-
 extern ShaderProgram *text_shader;
 extern GLuint generate_empty_VBO(size_t size, GLint FLAG);
 
@@ -108,7 +105,7 @@ private:
 	static unsigned current_index;
 	static unsigned current_line_num;
 	static unsigned num_characters_drawn;
-	static void update_VBO(const char* buffer, unsigned length);
+	static void update_VBO(const std::string &buffer);
 	static bool _visible;
 	static bool _autoscroll;
 	static void set_y_translation(float new_y);

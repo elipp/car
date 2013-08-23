@@ -277,10 +277,11 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 		return FALSE;
 	}
 
-	// apparently, the WINAPI ShowWindow calls some opengl functions and causes a crash if the funcptrs aren't loaded
-	if (load_functions() > 0) {
-		messagebox_error("error: load_functions() pheyled!");
-		return 0;
+	// apparently, the WINAPI ShowWindow calls some opengl functions and causes a crash if the funcptrs aren't loaded before hand
+	GLenum glew_err = glewInit();
+	if (glew_err != GL_NO_ERROR) {
+		messagebox_error("glewInit() failure.\n");
+		return FALSE;
 	}
 
 //	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  

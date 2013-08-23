@@ -73,6 +73,23 @@ __m128 dot3x4_notranspose(const mat4 &M, const vec4 &v) {
 
 }
 
+__m128 dot4x4_notranspose(const mat4 &M, const vec4 &v) {
+	const __m128 Vx = _mm_shuffle_ps(v.data, v.data, 0x00); // (Vx, Vx, Vx, Vx)
+	const __m128 Vy = _mm_shuffle_ps(v.data, v.data, 0x55); // (Vy, Vy, Vy, Vy)
+	const __m128 Vz = _mm_shuffle_ps(v.data, v.data, 0xAA); // (Vz, Vz, Vz, Vz)
+	const __m128 Vw = _mm_shuffle_ps(v.data, v.data, 0xFF); // (Vw, Vw, Vw, VW)
+	
+	__m128 xx = _mm_mul_ps(Vx, M.data[0]);
+	__m128 yy = _mm_mul_ps(Vy, M.data[1]);
+	__m128 zz = _mm_mul_ps(Vz, M.data[2]);
+	__m128 ww = _mm_mul_ps(Vw, M.data[3]);
+
+	__m128 ret = _mm_add_ps(xx, yy);
+	ret = _mm_add_ps(ret, zz);
+	ret = _mm_add_ps(ret, ww);
+	return ret;
+}
+
 static const __m128i _and_mask = _mm_set_epi32(0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
 static const __m128 and_mask_0111 = *((__m128*)&_and_mask);
 
@@ -333,13 +350,12 @@ mat4 mat4::rotate(float angle_radians, float axis_x, float axis_y, float axis_z)
 }
 
 mat4 mat4::operator* (const mat4& R) const {
-
-	mat4 L = (*this).transposed();
-	mat4 ret;
 	
 	// we'll choose to transpose the other matrix, and instead of calling the perhaps
 	// more intuitive row(), we'll be calling column(), which is a LOT faster in comparison.
-	
+	/*
+	mat4 L = (*this).transposed();	
+	mat4 ret;
 #pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
 		_ALIGNED16(float tmp[4]);	// represents a temporary column
@@ -348,8 +364,19 @@ mat4 mat4::operator* (const mat4& R) const {
 		}
 		ret.assignToColumn(i, _mm_load_ps(tmp));
 	}
+	return ret; */
+
+
 	
-	return ret;
+	mat4 L = (*this);
+	mat4 ret;
+	
+	ret.data[0] = dot4x4_notranspose(L, R.data[0]);
+	ret.data[1] = dot4x4_notranspose(L, R.data[1]);
+	ret.data[2] = dot4x4_notranspose(L, R.data[2]);
+	ret.data[3] = dot4x4_notranspose(L, R.data[3]);
+
+	return ret; 
 
 }
 
@@ -358,14 +385,15 @@ vec4 mat4::operator* (const vec4& R) const {
 
 	// try with temporary mat4? :P
 	// result: performs better (with optimizations disabled at least)
-	const mat4 M = (*this).transposed();
-	_ALIGNED16(float tmp[4]);	// represents a temporary column
+	//const mat4 M = (*this).transposed();
+	const mat4 M = (*this);
+/*	_ALIGNED16(float tmp[4]);	// represents a temporary column
 
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
-	}
+	}*/
 
-	return vec4(tmp);
+	return vec4(dot4x4_notranspose(M, R));
 }
 
 void mat4::operator*=(const mat4 &R) {
@@ -682,8 +710,8 @@ mat4 mat4::translate(const vec4 &v) {
 
 
 mat4 abs(const mat4 &m) {
-	// might seem a bit funny, but it's actually used in the OBB coll.g detection code
-	static const __m128 mask = _mm_set1_ps(-0.f);	// == 1 << 31
+	// might seem a bit funny, but it's actually used in the OBB SAT cdetection code
+	static const __m128 mask = _mm_castsi128_ps(_mm_set1_epi32(0x80000000));
 	return mat4(vec4(_mm_andnot_ps(mask, m.column(0).getData())),
 				vec4(_mm_andnot_ps(mask, m.column(1).getData())),
 				vec4(_mm_andnot_ps(mask, m.column(2).getData())),
@@ -782,19 +810,48 @@ void Quaternion::operator+=(const Quaternion &b) {
 	this->data = _mm_add_ps(this->data, b.data);
 }
 
-// a name such as "applyQuaternionRotation" would be much more fitting,
-// since quaternion-vector multiplication doesn't REALLY exist
-
-
 mat4 Quaternion::toRotationMatrix() const {
 	
 	// ASSUMING *this is a NORMALIZED QUATERNION!
 
-	const Quaternion &q = *this;
+	// the product-of-two-matrices implementation is actually 
+	// just barely faster than the original version (below) auto-vectorized by msvc
+	// http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
+	
+	
+	const __m128 qdata = this->data;
+	const __m128 C0 = _mm_shuffle_ps(qdata, qdata, 0x1B),
+			  C1 = _mm_shuffle_ps(qdata, qdata, 0x4E),
+			  C2 = _mm_shuffle_ps(qdata, qdata, 0xB1),
+			  C3 = qdata;
 
+#define PLUS 0x00000000	
+#define MINUS 0x80000000	// a = -a requires flipping the sign bit, so xor sign bit with 1
+	static const __m128 sgnmaskL0 = _mm_castsi128_ps(_mm_setr_epi32(PLUS, MINUS, PLUS, MINUS));
+	static const __m128 sgnmaskL1 = _mm_castsi128_ps(_mm_setr_epi32(PLUS, PLUS, MINUS, MINUS));
+	static const __m128 sgnmaskL2 = _mm_castsi128_ps(_mm_setr_epi32(MINUS, PLUS, PLUS, MINUS));
+	static const __m128 sgnmaskL3 = _mm_castsi128_ps(_mm_setr_epi32(PLUS, PLUS, PLUS, PLUS));
+
+	static const __m128 sgnmaskR0 = _mm_castsi128_ps(_mm_setr_epi32(PLUS, MINUS, PLUS, PLUS));
+	static const __m128 sgnmaskR1 = _mm_castsi128_ps(_mm_setr_epi32(PLUS, PLUS, MINUS, PLUS));
+	static const __m128 sgnmaskR2 = _mm_castsi128_ps(_mm_setr_epi32(MINUS, PLUS, PLUS, PLUS));
+	static const __m128 sgnmaskR3 = _mm_castsi128_ps(_mm_setr_epi32(MINUS, MINUS, MINUS, PLUS));
+
+	mat4 res = mat4(_mm_xor_ps(C0, sgnmaskL0),
+					_mm_xor_ps(C1, sgnmaskL1),
+					_mm_xor_ps(C2, sgnmaskL2),
+					C3) //_mm_xor_ps(C3, sgnmaskL3)) // sgnmaskL3 is all zeroes so no need to xor
+				*
+				mat4(_mm_xor_ps(C0, sgnmaskR0),
+					 _mm_xor_ps(C1, sgnmaskR1),
+					 _mm_xor_ps(C2, sgnmaskR2),
+					 _mm_xor_ps(C3, sgnmaskR3));
+	return res; 
+	
+	/*
+	const Quaternion &q = *this;
 	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, this->data);
-
 	const float x2 = tmp[Q::x]*tmp[Q::x];
 	const float y2 = tmp[Q::y]*tmp[Q::y];
 	const float z2 = tmp[Q::z]*tmp[Q::z];
@@ -808,8 +865,8 @@ mat4 Quaternion::toRotationMatrix() const {
 	return mat4(vec4(1.0 - 2.0*(y2 + z2), 2.0*(xy-zw), 2.0*(xz + yw), 0.0f),
 				vec4(2.0 * (xy + zw), 1.0 - 2.0*(x2 + z2), 2.0*(yz - xw), 0.0),
 				vec4(2.0 * (xz - yw), 2.0 * (yz + xw), 1.0 - 2.0 * (x2 + y2), 0.0),
-				vec4(0.0, 0.0, 0.0, 1.0));
-
+				vec4(0.0, 0.0, 0.0, 1.0)); */
+	
 }
 
 Quaternion operator*(float scalar, const Quaternion& q) {

@@ -64,23 +64,6 @@ public:
 
 float f_wheel_angle(float x);
 
-#define GOTO_OFFSET(origin, iter, offset) \
-	do { \
-	iter = origin + offset; \
-	} while(0)
-
-#define GOTO_OFFSET_SUM(origin, iter, increment, sum) \
-	do { \
-	sum += increment; \
-	iter = origin + sum; \
-	} while(0)
-
-#define NEXTLINE(iter) \
-	while (*iter != '\n') \
-		iter++; \
-	iter++ \
-
-
 #ifdef _WIN32
 class _timer {
 	double cpu_freq;	// in kHz

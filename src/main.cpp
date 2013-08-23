@@ -35,11 +35,6 @@ float c_vel_fwd = 0, c_vel_side = 0;
 
 float height_sample_above_camera = 0;
 
-struct meshinfo {
-	GLuint VBOid;
-	GLuint facecount;
-};
-
 static Model *chassis = NULL, 
 			 *wheel = NULL, 
 			 *racetrack = NULL,
@@ -165,34 +160,34 @@ void control()
 	}
 
 	if (WM_KEYDOWN_KEYS['O']) {
-		OBBa.C.assign(V::x, OBBa.C(V::x) + 0.10);
+		OBBa.C.assign(V::x, OBBa.C(V::x) + 0.03);
 	}
 	if (WM_KEYDOWN_KEYS['I']) {
-		OBBa.C.assign(V::x, OBBa.C(V::x) - 0.10);
+		OBBa.C.assign(V::x, OBBa.C(V::x) - 0.03);
 	}
 	if (WM_KEYDOWN_KEYS['K']) { 
-		OBBa.C.assign(V::y, OBBa.C(V::y) + 0.10);
+		OBBa.C.assign(V::y, OBBa.C(V::y) + 0.03);
 	}
 	if (WM_KEYDOWN_KEYS['J']) {
-		OBBa.C.assign(V::y, OBBa.C(V::y) - 0.10);
+		OBBa.C.assign(V::y, OBBa.C(V::y) - 0.03);
 	}
 	if (WM_KEYDOWN_KEYS['R']) {
-		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.10);
+		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.03);
 		OBBaQ.normalize();
 	}
 	if (WM_KEYDOWN_KEYS['T']) {
-		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.10);
+		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.03);
 		OBBaQ.normalize();
 	}
 	if (WM_KEYDOWN_KEYS['Y']) {
-		OBBb.C.assign(V::z, OBBb.C(V::z) + 0.10);
+		OBBb.C.assign(V::z, OBBb.C(V::z) + 0.03);
 	}
 	if (WM_KEYDOWN_KEYS['U']) {
-		OBBb.C.assign(V::z, OBBb.C(V::z) - 0.10);
+		OBBb.C.assign(V::z, OBBb.C(V::z) - 0.03);
 	}
 	
 	if (WM_KEYDOWN_KEYS['F']) {
-		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.10);
+		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.03);
 	}
 
 
@@ -228,6 +223,25 @@ GLushort *generateIndices() {
 	return indices;
 }
 
+static void init_minkowski_buffers() {
+	GLushort minkowski_indices[64];
+	for (GLushort i = 0; i < 64; ++i) {
+		minkowski_indices[i] = i;
+	}	
+		
+	glGenBuffers(1, &minkowski_VBOid);
+	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
+	glBufferData(GL_ARRAY_BUFFER, 64*sizeof(vertex), NULL, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &minkowski_IBOid);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 64*sizeof(GLushort), minkowski_indices, GL_STATIC_DRAW);
+	
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+}
+
 
 #define uniform_assert_warn(uniform) do {\
 if (uniform == -1) { \
@@ -244,19 +258,23 @@ int initGL(void)
 	glCullFace(GL_BACK);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	
 	text_shader = new ShaderProgram("shaders/text_shader");
 	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
 
 	onScreenLog::init();
 	VarTracker::init();
 	
-
 	glEnable(GL_DEPTH_TEST);
-	
 
-	onScreenLog::print( "OpenGL version: %s\n", glGetString(GL_VERSION));
-	onScreenLog::print( "GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	GLushort *indices = generateIndices();
+	glGenBuffers(1, &IBOid);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)sizeof(GLushort)*(0xFFFF), indices, GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	delete [] indices;	
+
+	onScreenLog::print("OpenGL version: %s\n", glGetString(GL_VERSION));
+	onScreenLog::print("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 		
 	regular_shader = new ShaderProgram("shaders/regular"); 
 	racetrack_shader = new ShaderProgram("shaders/racetrack");
@@ -289,10 +307,7 @@ int initGL(void)
 
 	onScreenLog::print( "done.\n");
 	
-	GLushort *indices = generateIndices();
-	
 	onScreenLog::print( "Loading textures...");
-	road_texId = TextureBank::add(Texture("textures/road.jpg", GL_LINEAR_MIPMAP_LINEAR));
 	terrain_texId = TextureBank::add(Texture("textures/grass.jpg", GL_LINEAR_MIPMAP_LINEAR));
 	skybox_texId = TextureBank::add(Texture("textures/skybox.jpg", GL_NEAREST));
 	onScreenLog::print( "done.\n");
@@ -311,49 +326,23 @@ int initGL(void)
 	terrain->bind_texture(terrain_texId);
 	skybox->bind_texture(skybox_texId);
 
-	onScreenLog::draw();
-	window_swapbuffers();
-
-	glGenBuffers(1, &IBOid);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(int)(0xFFFF), indices, GL_STATIC_DRAW);
-
-
-	delete [] indices;	
-	
-	glEnableVertexAttribArray(ATTRIB_POSITION);
-	glEnableVertexAttribArray(ATTRIB_NORMAL);
-	glEnableVertexAttribArray(ATTRIB_TEXCOORD);
-
 	view = mat4::identity();
 
 	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 
 	view_position = vec4(0.0, -45, 0.0, 1.0); // displacement would be a better name
 	cameraVel = vec4(0.0, 0.0, 0.0, 1.0);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
 	
-	//wglSwapIntervalEXT(vsync);
+	init_minkowski_buffers();
 
 	OBBa = OBB(vec4(1.0, 1.0, 1.0, 0.0));
 	OBBb = OBB(vec4(1.0, 1.0, 1.0, 0.0));
 
-	glGenBuffers(1, &minkowski_VBOid);
-	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
-	glBufferData(GL_ARRAY_BUFFER, 64*sizeof(vertex), NULL, GL_DYNAMIC_DRAW);
-
-	GLushort minkowski_indices[64];
-	for (GLushort i = 0; i < 64; ++i) {
-		minkowski_indices[i] = i;
-	}
-
-	glGenBuffers(1, &minkowski_IBOid);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 64*sizeof(GLushort), minkowski_indices, GL_STATIC_DRAW);
-	return 1;
-
+	return TRUE;
 }
+
+
+
 
 static vertex vec4_to_vertex(const vec4 &v) {
 	vertex r;
@@ -365,33 +354,6 @@ static vertex vec4_to_vertex(const vec4 &v) {
 }
 
 void drawCubes() {	
-	
-	vec4 VA[8];
-	OBBa.compute_box_vertices(VA);
-	vec4 VB[8];
-	OBBb.compute_box_vertices(VB);
-
-	//vertex minkowski_difference[64];
-	vertex boxvertices[16];
-	for (int i = 0; i < 8; ++i) {
-		//for (int j = 0; j < 8; ++j) {
-		//	minkowski_difference[i*8 + j] = vec4_to_vertex(VA[i] - VB[j]);
-		//}
-		boxvertices[i] = vec4_to_vertex(VA[i]);
-		boxvertices[i+8] = vec4_to_vertex(VB[i]);
-	}
-	
-	glBindBuffer(GL_ARRAY_BUFFER, minkowski_VBOid);
-	glBufferData(GL_ARRAY_BUFFER, 16*sizeof(vertex), boxvertices, GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, minkowski_IBOid);
-	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-	glUseProgram(regular_shader->getProgramHandle());
-	regular_shader->update_uniform_mat4("Projection", projection);
-	regular_shader->update_uniform_mat4("ModelView", view);
-	regular_shader->update_uniform_vec4("paint_color", vec4(1.0, 1.0, 1.0, 1.0));
-	glEnable(GL_PROGRAM_POINT_SIZE);
-	glDrawElements(GL_POINTS, 16, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0));
-	glDisable(GL_PROGRAM_POINT_SIZE);
 	GJKSession GJKsess(OBBa, OBBb);
 	int are_intersecting = GJKsess.collision_test();
 	
@@ -406,6 +368,7 @@ void drawCubes() {
 	
 	cube->use_ModelView(view*mat4::translate(OBBb.C)*OBBbQ.toRotationMatrix());
 	cube->draw();
+
 }
 
 
@@ -537,13 +500,14 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
 	
-	//if(AllocConsole()) {
-	// for debugging those early-program fatal erreurz. this will screw up our framerate though.
-	//	freopen("CONOUT$", "wt", stderr);
+	/*if(AllocConsole()) {
+	 // for debugging those early-program fatal erreurz. this will screw up our framerate though.
+		FILE *dummy;
+		freopen_s(&dummy, "CONOUT$", "wt", stderr);
 
-	//	SetConsoleTitle("debug output");
-		//SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	//} 
+		SetConsoleTitle("debug output");
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+	} */
 
 	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
 	if (!initGL()) {
@@ -642,7 +606,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if (!vsync) { // then we'll do a "half-busy" wait :P
 			if (wait > 3) { Sleep(wait-1); }
-			while(fps_timer.get_ms() < 16.7);	// this is the accurate, ie. busy, part
+			while(fps_timer.get_ms() < 16.7);	// this is the (more) accurate, ie. busy, part
 		}
 		
 		time_per_frame_ms = fps_timer.get_ms();

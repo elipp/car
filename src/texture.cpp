@@ -140,7 +140,11 @@ Texture::Texture(const std::string &filename, const GLint filter_param) : name(f
 	unified_header_data img_info;
 
 	std::vector<unsigned char> pixels;
-	if (!load_pixels(filename, pixels, &img_info)) { fprintf(stderr, "Loading texture %s failed.\n", filename.c_str()); _otherbad = true; }
+	if (!load_pixels(filename, pixels, &img_info)) { 
+		messagebox_error("Loading a texture resource failed.\n");
+		_otherbad = true; 
+		return;
+	}
 
 	_badheader = _nosuch = _otherbad = false;
 
@@ -286,10 +290,15 @@ float HeightMap::lookup(float x, float y) {
 	yf_r = 1.0 - yf;
 	
 	// this is a simple scalar implementation
-	//float R1 = xf_r * z11 + xf * z21;
-	//float R2 = xf_r * z12 + xf * z22;
-	//float r = (yf_r * R1 + yf * R2)/255.0;
-	
+	float z11 = get_pixel(xi, yi);
+	float z21 = get_pixel(xi+1, yi);
+	float z12 = get_pixel(xi, yi+1);
+	float z22 = get_pixel(xi+1, yi+1);
+
+	float R1 = xf_r * z11 + xf * z21;
+	float R2 = xf_r * z12 + xf * z22;
+	float r = (yf_r * R1 + yf * R2)/255.0;
+/*	
 	_ALIGNED16(float zs[4]) = { get_pixel(xi, yi), 
 				   get_pixel(xi+1, yi), 
 				   get_pixel(xi, yi+1), 
@@ -304,7 +313,7 @@ float HeightMap::lookup(float x, float y) {
 
 	const __m128 w = _mm_load_ps(weights);
 
-	float r = dot4(z, w)/255.0;
+	float r = dot4(z, w)/255.0;*/
 	return min_elevation_real_y + r * elevation_real_diff;
 }
 

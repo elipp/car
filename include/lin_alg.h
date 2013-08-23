@@ -19,7 +19,7 @@
 #ifdef _WIN32
 #define _BEGIN_ALIGN16 __declspec(align(16))
 #define _END_ALIGN16
-#define _ALIGNED_MALLOC16(ptr, size) do { ptr = _aligned_malloc((size), 16); } while(0)
+#define _ALIGNED_MALLOC16(ptr, size) do { ptr = (decltype(ptr))_aligned_malloc((size), 16); } while(0)
 #define _ALIGNED_FREE(ptr) do { _aligned_free(ptr); } while(0)
 
 #elif __linux__
@@ -59,8 +59,8 @@ inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
 	char buffer[128];
 	_ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, m);
-	//sprintf_s(buffer, 128, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
-	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+//	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
 	out << buffer;
 	return out;
 }
@@ -120,9 +120,10 @@ inline float get_first_field(const __m128 &a) {
 	return _mm_cvtss_f32(a);
 }
 
-__m128 dot3x4_transpose(const mat4 &M, const vec4 &V);
-__m128 dot3x4_notranspose(const mat4 &M, const vec4 &V);
+__m128 dot3x4_transpose(const mat4 &M, const vec4 &v);
+__m128 dot3x4_notranspose(const mat4 &M, const vec4 &v);
 
+__m128 dot4x4_notranspose(const mat4 &M, const vec4 &v);
 
 _BEGIN_ALIGN16
 class vec4 {		
@@ -182,7 +183,7 @@ public:
 
 	mat4 toTranslationMatrix() const;
 	
-	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
+	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
 }
 _END_ALIGN16;
@@ -249,7 +250,7 @@ public:
 	friend mat4 operator*(float scalar, const mat4& m);
 	friend float det(const mat4 &m);
 
-	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
+	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
 } _END_ALIGN16;
 
@@ -299,7 +300,7 @@ public:
 
 	friend Quaternion operator*(float scalar, const Quaternion &q);
 
-	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
+	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
 } _END_ALIGN16;
 
@@ -336,7 +337,5 @@ struct float_arr_mat4 {
 	}
 } _END_ALIGN16;
 
-
-extern __m128 dot4x4(const mat4 &M, const vec4 &V);
 
 #endif

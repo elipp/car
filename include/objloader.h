@@ -10,11 +10,18 @@
 
 static const int bobj = 0x6a626f62;
 
+struct vertex_data {
+	std::vector<GLuint> VBOids;
+	std::vector<GLuint> VAOids;
+	std::vector<GLuint> num_faces;
+	size_t size;
+};
+
 __declspec(align(16))
 class Model {
 	mat4 ModelView;
 	std::string id_string;
-	std::map<GLuint, unsigned short> VBOid_numfaces_map;
+	vertex_data vdata;
 	GLuint texId;
 	ShaderProgram *program;
 	bool has_texture;
@@ -25,7 +32,7 @@ public:
 	void bind_texture(GLuint texId);
 	bool bad() const { return _bad; }
 	void use_ModelView(const mat4 &mv);
-	
+	/*
 	void *operator new(size_t size) {
 		void *p;
 #ifdef _WIN32
@@ -61,7 +68,7 @@ public:
 		Model *q = static_cast<Model*>(p);	// the cast could be unnecessary
 		free(q);
 #endif
-	}
+	}*/
 };
 
 bool checkext(const char*, int);

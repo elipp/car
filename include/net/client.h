@@ -69,7 +69,7 @@ public:
 	peer_iter begin() { return map.begin(); }
 	peer_iter end() { return map.end(); }
 	peer_iter find(unsigned short key) { return map.find(key); }
-	int num_peers() { return map.size(); }
+	size_t num_peers() { return map.size(); }
 	
 	std::unordered_map<unsigned short, struct Peer> get_map_copy() { return map; }
 	void insert(std::pair<unsigned short, struct Peer> &p) { 
@@ -165,7 +165,7 @@ public:
 	
 	static unsigned short id() { return client.info.id; }
 
-	static int num_peers(){ return peers.num_peers(); }
+	static size_t num_peers(){ return peers.num_peers(); }
 	static void set_name(const std::string &nick);
 	static void parse_user_input(const std::string s);
 	static const std::unordered_map<unsigned short, struct Peer> get_peers() { return peers.get_map_copy(); }

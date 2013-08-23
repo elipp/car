@@ -33,41 +33,46 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_INFO_LOG_LENGTH                0x8B84
 #define GL_PROGRAM_POINT_SIZE             0x8642
 
-extern int load_functions();
+extern int load_GL_functions();
 
 extern int (*wglSwapIntervalEXT)(int);
+#define GLAPI extern
 
-extern void (*glGenBuffers)(GLsizei, GLuint*);	 // (n, buffers)
-extern void (*glBindBuffer)(GLenum, GLuint);	// (target, buffer)
-extern void (*glBufferData)(GLenum, GLsizeiptr, const GLvoid*, GLenum); // (target, size, data, usage)
-extern void (*glBufferSubData)(GLenum, GLintptr, GLsizeiptr, const GLvoid*); // (target, offset, size, data)
-extern GLint (*glGetUniformLocation)(GLuint, const GLchar*); // (program, name)
+GLAPI void (APIENTRY *glGenBuffers)(GLsizei n, GLuint* buffers);	 // (n, buffers)
+GLAPI void (APIENTRY *glBindBuffer) (GLenum target, GLuint buffer);
+GLAPI void (APIENTRY *glBufferData)(GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage); // (target, size, data, usage)
+GLAPI void (APIENTRY *glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const GLvoid* data); // (target, offset, size, data)
 
-extern void (*glGetActiveUniform) (GLuint, GLuint, GLsizei, GLsizei*, GLint*, GLenum*, GLchar*); // (program, index, bufSize, length, size, type, name)
-extern void (*glGetProgramInfoLog)(GLuint, GLsizei, GLsizei*, GLchar*); // (program, maxLength, length, infoLog)
-extern GLuint (*glCreateShader)(GLenum); // (shaderType)
-extern void (*glAttachShader)(GLuint, GLuint); // (program, shader)
-extern void (*glShaderSource)(GLuint, GLsizei, const GLchar **, const GLint*); // (shader, count, string, length)
-extern void (*glCompileShader)(GLuint); // (shader)
-extern void (*glLinkProgram)(GLuint); // program
-extern GLuint (*glCreateProgram)(void); // ()
-extern void (*glValidateProgram)(GLuint); // (program)
-extern void (*glUseProgram)(GLuint); // (program)
+GLAPI void (APIENTRY *glGetProgramInfoLog) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+GLAPI GLuint (APIENTRY *glCreateProgram)(void); // ()
+GLAPI GLuint (APIENTRY *glCreateShader) (GLenum type);
+GLAPI void (APIENTRY *glAttachShader)(GLuint program, GLuint shader); // (program, shader)
+GLAPI void (APIENTRY *glShaderSource) (GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
+GLAPI void (APIENTRY *glCompileShader)(GLuint shader); // (shader)
+GLAPI void (APIENTRY *glLinkProgram)(GLuint program); // program
+GLAPI void (APIENTRY *glValidateProgram)(GLuint program); // (program)
+GLAPI void (APIENTRY *glUseProgram)(GLuint program); // (program)
 
-extern void (*glGetProgramiv)(GLuint, GLenum, GLint*); // (program, pname, params)
-extern void (*glGetShaderInfoLog)(GLuint, GLsizei, GLsizei, GLchar*); // (shader, maxLength, length, infoLog)
-extern void (*glGetShaderiv)(GLuint, GLenum, GLint*); // (shader, pname, params)
+GLAPI void (APIENTRY *glGetProgramiv) (GLuint program, GLenum pname, GLint *params);
+GLAPI void	(APIENTRY *glGetShaderInfoLog) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+GLAPI void (APIENTRY *glGetShaderiv) (GLuint shader, GLenum pname, GLint *params);
 
-extern void (*glUniform1f)(GLint, GLfloat); // (location, val)
-extern void (*glUniform1i)(GLint, GLint); // (location, val)
-extern void (*glUniform4fv)(GLint, GLsizei, const GLfloat*); // (location, count, value)
-extern void (*glUniformMatrix4fv)(GLint, GLsizei, GLboolean, const GLfloat*); // (location, count, transpose, val_arr)
+GLAPI void (APIENTRY *glGetActiveUniform)(GLuint program, GLuint index, GLsizei bufSize, GLsizei *length, GLint *size, GLenum *type, GLchar *name);
+GLAPI GLint (APIENTRY *glGetUniformLocation)(GLuint program, const GLchar* name); // (program, name)
+GLAPI void (APIENTRY *glUniform1f)(GLint location, GLfloat val); // (location, val)
+GLAPI void (APIENTRY *glUniform1i)(GLint location, GLint val); // (location, val)
+GLAPI void (APIENTRY *glUniform4fv)(GLint location, GLsizei count, const GLfloat* value); // (location, count, value)
+GLAPI void (APIENTRY *glUniformMatrix4fv)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* val_arr); // (location, count, transpose, val_arr)
 
-extern void (*glEnableVertexAttribArray)(GLuint); // (index)
-extern void (*glVertexAttribPointer)(GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid*); // (index, size, type, normalized, stride, ptr)
-extern void (*glBindAttribLocation)(GLuint, GLuint, const GLchar*); // (program, index, name)
+GLAPI void (APIENTRY *glEnableVertexAttribArray)(GLuint index); // (index)
+GLAPI void (APIENTRY *glDisableVertexAttribArray) (GLuint index); // (index)
+GLAPI void (APIENTRY *glVertexAttribPointer) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+GLAPI void (APIENTRY *glBindAttribLocation) (GLuint program, GLuint index, const GLchar *name);
 
-extern void (*glGenerateMipmap)(GLenum); // (target)
-extern void (*glActiveTexture)(GLenum) ; // (texture)
+GLAPI void (APIENTRY *glGenerateMipmap)(GLenum target); // (target)
+GLAPI void (APIENTRY *glActiveTexture)(GLenum texture) ; // (texture)
+
+GLAPI void (APIENTRY *glGenVertexArrays) (GLsizei n, GLuint *arrays);
+GLAPI void (APIENTRY *glBindVertexArray)(GLuint array); // (array)
 
 #endif

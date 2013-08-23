@@ -45,6 +45,91 @@ inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
 	return cross(cross(a,b),a);
 }
 
+// perform casts from __m128i -> __m128 -> __m128i without performing any kind of conversion (reinterpret)
+// http://stackoverflow.com/questions/13631951/bitwise-cast-from-m128-to-m128i-on-msvc
+#ifdef WIN32
+#define m128i_CAST(m128_var) (_mm_castps_si128(m128_var))	// intrinsics are required on windows :P
+#define m128_CAST(m128i_var) (_mm_castsi128_ps(m128i_var))
+#elif __linux__
+#define m128i_CAST(m128_var) ((__m128i)(m128_var))
+#define m128_CAST(m128i_var) ((__m128)(m128i_var))
+#endif
+
+inline __m128i _expand_int_mask(int mask) {
+	static const __m128i mulShiftImm = _mm_set_epi32(0x10000000, 0x20000000, 0x40000000, 0x80000000);
+	__m128i s = _mm_set1_epi16(mask);
+	s = _mm_mullo_epi16(s, mulShiftImm);
+	s = _mm_srai_epi32(s, 31);	// now we have extended the four-bit mask into a full xmm register
+	return s;
+}
+
+inline __m128 __mm_blend_ps_emul(__m128 a, __m128 b, int mask) {
+	__m128i s = _expand_int_mask(mask);
+	__m128i ra = _mm_and_si128(m128i_CAST(a), s);	// zero out the unwanted stuff from a
+	__m128i rb = _mm_andnot_si128(s, m128i_CAST(b));	// zero out unwanted stuff from b
+	__m128i reti = _mm_or_si128(ra, rb);	// combine them with or
+	__m128 ret = m128_CAST(reti);
+	return ret;
+
+}
+
+inline __m128i __mm_blend_epi32_emul(__m128i a, __m128i b, int mask) {
+	__m128 tmp = __mm_blend_ps_emul(m128_CAST(a), m128_CAST(b), mask);
+	return m128i_CAST(tmp);
+}
+
+inline int find_hi_index_ps(__m128i indices, __m128 floats) {
+
+	_ALIGNED16(int ind[4]);
+	_mm_store_si128((__m128i*)&ind[0], indices);
+	int highest_i = ind[0];
+
+	_ALIGNED16(float f[4]);
+	_mm_store_ps(f, floats);
+	float highest_f = f[0];
+
+	for (int i = 1; i < 4; ++i) {
+		if (f[i] > highest_f) {
+			highest_i = ind[i];
+			highest_f = f[i];
+		}
+	}
+	return highest_i;
+
+}
+
+static int find_largest_float_index_8f(__m128 *floats_aligned16) {
+
+	__m128i cur_indices = _mm_set_epi32(3, 2, 1, 0);
+	__m128i highest_indices = cur_indices;
+
+	__m128 cur = floats_aligned16[0];
+	static const __m128i increment4 = _mm_set1_epi32(4);
+	__m128 cur_highest = cur;
+	
+	cur = floats_aligned16[1];
+	__m128 cmp = _mm_cmpge_ps(cur, cur_highest);
+	int blendmask = _mm_movemask_ps(cmp);
+	cur_indices = _mm_add_epi32(cur_indices, increment4);
+	// pick the floats that were bigger than the corresponding float from the last chunk
+	cur_highest = __mm_blend_ps_emul(cur, cur_highest, blendmask);
+	// use same mask for indices :P
+	highest_indices = __mm_blend_epi32_emul(cur_indices, highest_indices, blendmask);
+
+	return find_hi_index_ps(highest_indices, cur_highest);
+
+}
+
+static int find_farthest_in_direction(mat4_doublet &point_chunks_transposed, const vec4 &D) {
+
+	__m128 dps[2];
+	dps[0] = dot3x4_notranspose(point_chunks_transposed(0), D);
+	dps[1] = dot3x4_notranspose(point_chunks_transposed(1), D);
+	
+	int index = find_largest_float_index_8f(dps);
+
+	return index;
+}
 
 // THIS IS REALLY BROKEN ATM.
 int collision_test_SAT(const OBB &a, const OBB &b) {
@@ -209,7 +294,7 @@ vec4 GJKSession::support(const vec4 &D) {
 	
 	// the whole float_arr bullshit is because we're calculating 4 dot products at once (SSE), in two parts.
 
-	float_arr_vec4 dpVA1(VAm_T(0)*D);	// now we have the first four dot products in the vector
+	/*float_arr_vec4 dpVA1(VAm_T(0)*D);	// now we have the first four dot products in the vector
 	float_arr_vec4 dpVA2(VAm_T(1)*D);	// and the last four in another
 
 	// find point with maximum dot product
@@ -220,8 +305,10 @@ vec4 GJKSession::support(const vec4 &D) {
 	float_arr_vec4 dpVB1(VBm_T(0)*neg_D);	
 	float_arr_vec4 dpVB2(VBm_T(1)*neg_D);	
 
-	vec4 max_B = VBm.column(find_max_dp_index(dpVB1, dpVB2));
-	
+	vec4 max_B = VBm.column(find_max_dp_index(dpVB1, dpVB2));*/
+
+	vec4 max_A = VAm.column(find_farthest_in_direction(VAm_T, D));
+	vec4 max_B = VBm.column(find_farthest_in_direction(VBm_T, -D));
 	return max_A - max_B;	// minkowski difference, or negative addition
 }
 
@@ -281,7 +368,8 @@ static bool triangle_simplexfunc(vec4 *dir) {
 			*dir = ABC;	
 		}
 		else {
-			// a permutation of the points B & C is needed to give consistent cross products in the tetrahedral simplex processing
+			// a permutation of the points B & C is in order to give consistent 
+			// triangle winding (-> cross products) in the tetrahedral simplex processing
 			simplex_assign(A, C, B);
 			*dir = -ABC;
 		}
@@ -310,6 +398,8 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 
 	// taken from casey's implementation at https://mollyrocket.com/forums/viewtopic.php?t=245&postdays=0&postorder=asc&start=41
 	uint32_t code = 0;
+
+	// this could be reimplemented using _mm_cmpgt_ps -> _mm_movemask_ps
 	if (POINTS_TOWARDS_ORIGIN(ABC)) {
 		code |= 0x01;
 	}
@@ -323,7 +413,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 	}
 
 	// the tetrahedron winding tells us there's no need to test for triangle BCD, since
-	// that dot product is guaranteed to be negative
+	// that dot product is bound to be negative
 
 	switch(code) {
 	case 0:
@@ -346,7 +436,7 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AC, ACD))) {
 				// there's actually another plane test after this in Casey's implementation, but
 				// as said a million times already, the point A can't be closest to the origin
-				//if (SAMEDIRECTION(AC, AO)) { // USE [A,C] } else { use [A] } <- unnecessary
+				//if (SAMEDIRECTION(AC, AO)) { // USE [A,C] } else { use [A] } // <- all of that is unnecessary
 				simplex_assign(A, C);
 				*dir = triple_cross_1x2x1(AC, AO);
 	
@@ -513,6 +603,7 @@ int GJKSession::collision_test() {
 	simplex_assign(S);
 
 	// perhaps add a hard limit to the number of iterations to avoid infinite looping
+	enum { GJK_INCONCLUSIVE = -1, GJK_NOCOLLISION = 0, GJK_COLLISION = 1 };
 #define ITERATIONS_MAX 20
 	int i = 0;
 	while (i < ITERATIONS_MAX) {
@@ -521,13 +612,67 @@ int GJKSession::collision_test() {
 		vec4 A = support(D);
 		if (dot3(A, D) < 0) {
 			// we can conclude that there can be no intersection between the two shapes (boxes)
-			return 0;
+			return GJK_NOCOLLISION;
 		}
 		simplex_add(A);
 		if (DoSimplex(&D)) { // updates our simplex and the search direction in a way that allows us to close in on the origin efficiently
-			return 1;
+			return GJK_COLLISION;
 		}
 		++i;
 	}
+	return GJK_INCONCLUSIVE;
+
+}
+
+inline int find_hi_index_float4(float *f4) {
+	int cur_hi_index = 0;
+	float cur_hi_float = f4[0];
+
+	for (int i = 1; i < 4; ++i) {
+		float cur_float = f4[i];
+		if (cur_float > cur_hi_float) {
+			cur_hi_index = i;
+			cur_hi_float = cur_float;
+		}
+	}
+	return cur_hi_index;
+}
+
+vec4 GJKSession::EPA_penetration() {
+	// start with the final simplex returned by GJK (tetrahedron)
+	
+	// find closest triangle face.
+	
+	const vec4 A = simplex_points[3];
+	const vec4 B = simplex_points[2];
+	const vec4 C = simplex_points[1];
+	const vec4 D = simplex_points[0];
+		
+	const vec4 AO = -A;
+	const vec4 AB = B-A;
+	const vec4 AC = C-A;
+	const vec4 AD = D-A;
+	const vec4 BC = C-B;
+	const vec4 BD = D-B;
+
+	// OUTWARD-FACING (outward from the tetrahedron) triangle normals.
+	const vec4 normals[4] = {
+		cross(AB, AC),
+		cross(AC, AD),
+		cross(AD, AB),
+		cross(BD, BC)
+	};
+	
+	_ALIGNED16(float distances[4]) = 
+	{ dot3(normals[0], A),	// any of the involved triangle vertices (A, B, C) should give the same dot product
+	  dot3(normals[1], A),
+	  dot3(normals[2], A),
+	  dot3(normals[3], B) };
+
+	vec4 search_direction = normals[find_hi_index_float4(distances)];
+
+	vec4 new_p = support(search_direction);
+
+	return new_p;
 
 }
