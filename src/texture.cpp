@@ -13,7 +13,7 @@ static std::string get_file_extension(const std::string &filename) {
 		++i;
 	}
 	std::string ext = filename.substr(i+1, filename.length() - (i+1));
-	//onScreenLog::print("get_file_extension: \"%s\"\n", ext.c_str());
+	//PRINT("get_file_extension: \"%s\"\n", ext.c_str());
 	return ext;
 }
 
@@ -28,7 +28,7 @@ static int loadJPEG(const std::string &filename, unsigned char **out_buffer, uni
   int row_stride;		/* physical row width in output buffer */
 	int err;
   if ((err = fopen_s(&infile, filename.c_str(), "rb")) != 0) {
-    fprintf(stderr, "loadJPEG: fatal: can't open %s\n", filename.c_str());
+    PRINT("loadJPEG: fatal: can't open %s\n", filename.c_str());
     return 0;
   }
 
@@ -108,7 +108,7 @@ static int load_pixels(const std::string& filename, std::vector<unsigned char> &
 		unsigned char* pixel_buf;
 		int total_bytes;
 		if (!loadJPEG(filename, &pixel_buf, img_info, &total_bytes)) {
-			fprintf(stderr, "load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
+			PRINT("load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
 			return 0;
 		}
 		else {
@@ -120,14 +120,14 @@ static int load_pixels(const std::string& filename, std::vector<unsigned char> &
 	}
 	else if (ext == "png") {
 		if(!loadPNG(filename, pixels, img_info, colortype)) {
-			fprintf(stderr, "load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
+			PRINT("load_pixels: fatal error: loading file %s failed.\n", filename.c_str());
 			return 0;
 		}
 		else { 
 			return 1;
 		}
 	} else {
-		fprintf(stderr, "load_pixels: fatal error: unsupported image file extension \"%s\" (only .png, .jpg, .jpeg are supported)\n", ext.c_str());
+		PRINT("load_pixels: fatal error: unsupported image file extension \"%s\" (only .png, .jpg, .jpeg are supported)\n", ext.c_str());
 		return 0;
 	}
 }
@@ -207,16 +207,16 @@ bool TextureBank::validate() {
 				const Texture &t = (*iter);
 				if (t.bad()) {
 					all_good = false;
-					onScreenLog::print( "[Textures] invalid textures detected:\n");
+					PRINT( "[Textures] invalid textures detected:\n");
 					
 					if (t.badheader()) {
-						onScreenLog::print( "%s: bad file header.\n", t.getName().c_str()); }
+						PRINT( "%s: bad file header.\n", t.getName().c_str()); }
 					
 					else if (t.nosuch())
-						onScreenLog::print( "%s: no such file or directory.\n", t.getName().c_str());
+						PRINT( "%s: no such file or directory.\n", t.getName().c_str());
 
 					else if (t.otherbad())
-						onScreenLog::print( "%s: file either is not square (n-by-n), or not power of two (128x128, 256x256 etc.)\n\n", t.getName().c_str());
+						PRINT( "%s: file either is not square (n-by-n), or not power of two (128x128, 256x256 etc.)\n\n", t.getName().c_str());
 					}
 					
 			}
@@ -234,13 +234,13 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 	unified_header_data img_info;
 
 	if (!load_pixels(filename, this->pixels, &img_info, LCT_GREY)) {
-		fprintf(stderr, "HeightMap: loading file %s pheyled.\n", filename.c_str()); 
+		PRINT("HeightMap: loading file %s pheyled.\n", filename.c_str()); 
 		_bad = true; 
 		return; 
 	}
 
 	else if (img_info.bpp != 8) {
-		fprintf(stderr, "HeightMap: only 8-bit grayscale accepted! :(\n", filename.c_str());
+		PRINT("HeightMap: only 8-bit grayscale accepted! :(\n", filename.c_str());
 
 		_bad = true;
 		return;
@@ -260,10 +260,10 @@ HeightMap::HeightMap(const std::string &filename, float _scale, float _top, floa
 
 	elevation_real_diff = max_elevation_real_y - min_elevation_real_y;
 
-	onScreenLog::print("HeightMap (filename: %s):\n", filename.c_str());
-	onScreenLog::print("img_dim_pixels = %d, dim_per_scale = %f, max_elevation_real_y = %f,\nmin_elevation_real_y = %f, elevation_real_diff = %f\n",
+	PRINT("HeightMap (filename: %s):\n", filename.c_str());
+	PRINT("img_dim_pixels = %d, dim_per_scale = %f, max_elevation_real_y = %f,\nmin_elevation_real_y = %f, elevation_real_diff = %f\n",
 						img_dim_pixels, dim_per_scale, max_elevation_real_y, min_elevation_real_y, elevation_real_diff);
-	onScreenLog::print("pixel buffer size: %u\n", this->pixels.size());
+	PRINT("pixel buffer size: %u\n", this->pixels.size());
 
 }
 

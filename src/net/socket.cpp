@@ -16,7 +16,7 @@ int Socket::initialize() {
 	ret = WSAStartup(MAKEWORD(2,2), &wsaData);
 	
 	if (ret != 0) {
-		fprintf(stderr, "WSAStartup failed: %x\n", ret);
+		PRINT("WSAStartup failed: %x\n", ret);
 		return 0;
 	}
 	_initialized = 1;
@@ -37,7 +37,7 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 	fd = socket(AF_INET, TYPE, 0);
 	if (fd <= 0) {
-		fprintf(stderr, "Socket: Failed to create socket (error code %x).\n", WSAGetLastError());
+		PRINT("Socket: Failed to create socket (error code %x).\n", WSAGetLastError());
 		return;
 	}
 	
@@ -46,7 +46,7 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 	my_addr.sin_port = htons((unsigned short) port);
 
 	while (bind(fd, (const sockaddr*)&my_addr, sizeof(struct sockaddr_in) ) < 0 ) {
-		fprintf(stderr, "Socket: bind request at port %u failed, trying port %u.\n", port, port+1);
+		PRINT("Socket: bind request at port %u failed, trying port %u.\n", port, port+1);
 		++port;
 		my_addr.sin_port = htons((unsigned short) port);
 	}
@@ -57,13 +57,13 @@ Socket::Socket(unsigned short port, int TYPE, bool blocking) {
 
 	if (!blocking) {
 		if (ioctlsocket(fd, FIONBIO, &socket_mode) == SOCKET_ERROR) {
-			fprintf(stderr, "Socket: failed to set non-blocking socket\n");
+			PRINT("Socket: failed to set non-blocking socket\n");
 			return;
 		}
-		fprintf(stderr, "Socket: using non-blocking socket.\n");
+		PRINT("Socket: using non-blocking socket.\n");
 	}
 	else { 
-		fprintf(stderr, "Socket: using blocking socket.\n");
+		PRINT("Socket: using blocking socket.\n");
 	}
 	_bad = false;
 
@@ -99,7 +99,7 @@ int Socket::receive_data(char *buffer, struct sockaddr_in _OUT *out_from) {
 	memset(out_from, 0x0, from_length);	// probably not necessary
 
 	int bytes = recvfrom(fd, buffer, PACKET_SIZE_MAX, 0, (struct sockaddr*)out_from, &from_length);
-	//fprintf(stderr, "%d bytes of data available. select returned %d\n", bytes, select_r);
+	//PRINT "%d bytes of data available. select returned %d\n", bytes, select_r);
 	int real_bytes = max(bytes, 0);
 	real_bytes = min(bytes, PACKET_SIZE_MAX-1);
 	buffer[real_bytes] = '\0';

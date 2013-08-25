@@ -1,0 +1,56 @@
+#version 150 core
+
+layout(points) in;
+
+layout(triangle_strip, max_vertices = 4) out;
+
+//precision highp float;
+
+uniform mat4 Projection;
+uniform mat4 ModelView;
+uniform vec2 upper_left_corner;
+
+#define DINA_ALL_TEXTURE_DIM (128.0)
+#define char_spacing_vert (13.0)
+#define char_spacing_horiz (7.0)
+#define char_dim_vert (12.0)
+#define char_dim_horiz (6.0)
+#define U_incr (char_dim_horiz/DINA_ALL_TEXTURE_DIM)
+#define V_incr (char_dim_vert/DINA_ALL_TEXTURE_DIM)
+
+in vec2 TexCoord_ULCORNER_GS_in[];
+in vec4 Color_GS_in[];
+
+out vec2 TexCoord_FS_in;	// every output vertex will get one of these
+out vec4 Color_FS_in;
+
+const vec4 transp_vecs[4] = {
+	vec4(0.0, 0.0, 0.0, 0.0),
+	vec4(0.0, char_dim_vert, 0.0, 0.0),
+	vec4(char_dim_horiz, 0.0, 0.0, 0.0),
+	vec4(char_dim_horiz, char_dim_vert, 0.0, 0.0)
+};
+	 
+const vec2 uv_adjs[4] = {
+	vec2(0.0, 0.0),
+	vec2(0.0, V_incr),
+	vec2(U_incr, 0.0),
+	vec2(U_incr, V_incr)
+};
+
+
+void main() {
+	vec4 UL_corner = gl_in[0].gl_Position;
+	vec2 TC_ULC = TexCoord_ULCORNER_GS_in[0];
+	vec4 Color = Color_GS_in[0];
+	
+	int i = 0;
+	for (; i < 4; ++i) {
+		gl_Position = Projection*ModelView*(UL_corner + transp_vecs[i]);
+		TexCoord_FS_in = TC_ULC + uv_adjs[i];
+		Color_FS_in = Color_GS_in[0];
+		EmitVertex();
+	}
+	EndPrimitive();
+
+}

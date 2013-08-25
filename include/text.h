@@ -13,32 +13,49 @@
 #include "precalculated_texcoords.h"
 #include "shader.h"
 
+//#define PRINT_BOTH
+
+#ifdef PRINT_STDERR
+#define PRINT(fmt, ...) do {\
+	fprintf(stderr, fmt, __VA_ARGS__);\
+	} while (0)
+#elif defined(PRINT_BOTH)
+#define PRINT(fmt, ...) do {\
+	fprintf(stderr, fmt, __VA_ARGS__);\
+	onScreenLog::print(fmt, __VA_ARGS__);\
+	} while (0)
+#else
+	#define PRINT(fmt, ...) do {\
+		onScreenLog::print(fmt, __VA_ARGS__);\
+	} while (0)
+#endif
+
+enum { TEXT_ATTRIB_ALL = 0 };
+
 extern void text_set_Projection(const mat4 &proj);
 extern GLuint text_texId;
 extern ShaderProgram *text_shader;
-extern GLuint generate_empty_VBO(size_t size, GLint FLAG);
 
 extern float char_spacing_vert;
 extern float char_spacing_horiz;
 
-#define BLANK_GLYPH (sizeof(glyph_texcoords)/(8*sizeof(float)) - 1)
+#define BLANK_GLYPH (0x20)
+
+enum { TEXT_COLOR_FG = 0, TEXT_COLOR_RED, TEXT_COLOR_GREEN, TEXT_COLOR_BLUE, TEXT_COLOR_YELLOW, TEXT_COLOR_PURPLE, TEXT_COLOR_TURQ };
 
 extern std::string get_timestamp();
 
-struct xy { 
-	float x; float y;
-};
+struct char_object {
+	union {
+		struct {
+			unsigned pos_x : 7;	 // pos_x maximum is OSL_LINE_LEN (atm 96; representable in 7 bits).
+			unsigned pos_y : 14;
+			unsigned char_index : 7;
+			unsigned color : 4;
+		} bitfields;
 
-struct vertex2 {		
-	float x, y;
-	float u, v;
-	vertex2(const struct xy &pos, const struct uv &tc) : x(pos.x), y(pos.y), u(tc.u), v(tc.v) {};
-	vertex2(float _x, float _y, const struct uv &tc) : x(_x), y(_y), u(tc.u), v(tc.v) {};
-	vertex2() {};
-};
-
-struct glyph {
-	vertex2 vertices[4];
+		GLuint value;
+	} co_union;
 };
 
 #define _RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
@@ -52,7 +69,7 @@ public:
 #define INPUT_FIELD_BUFFER_SIZE 256
 	static class InputField {
 		std::string input_buffer;
-		glyph glyph_buffer[INPUT_FIELD_BUFFER_SIZE];
+		char_object IF_char_object_buffer[INPUT_FIELD_BUFFER_SIZE];
 		int cursor_pos;
 
 		bool _enabled;
@@ -60,7 +77,7 @@ public:
 		bool _changed;
 	public:
 		
-		GLuint VBOid;
+		GLuint IF_VBOid;
 		float textfield_pos_y;
 
 		bool enabled() const { return _enabled; }
@@ -83,7 +100,7 @@ public:
 			cursor_pos = 0; 
 			input_buffer.reserve(INPUT_FIELD_BUFFER_SIZE); 
 			input_buffer.clear(); 
-			VBOid = 0;
+			IF_VBOid = 0;
 		}
 	
 	} input_field;
@@ -96,10 +113,10 @@ private:
 		void add(const std::string &s);
 		PrintQueue() { 	queue.reserve(OSL_BUFFER_SIZE); queue.clear();	}
 	} print_queue;
-
+	static char_object OSL_char_object_buffer[OSL_BUFFER_SIZE];
 	static float pos_x, pos_y;	// ze upper left corner
 	static mat4 modelview;
-	static GLuint VBOid;
+	static GLuint OSL_VBOid;
 	static unsigned line_length;
 	static unsigned num_lines_displayed;
 	static unsigned current_index;
@@ -171,8 +188,8 @@ class VarTracker {
 	static float pos_x, pos_y;
 	static int cur_total_length;
 
-	static glyph glyph_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
-	static GLuint VBOid;
+	static char_object VT_char_object_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
+	static GLuint VT_VBOid;
 	static std::vector<const TrackableBase* const> tracked;
 	static void update_VBO(const std::string &buffer);
 

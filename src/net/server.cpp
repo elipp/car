@@ -341,7 +341,7 @@ void Server::GameState::task() {
 			}
 			broadcast_state();
 			semi_busy_sleep_until(POSITION_UPDATE_GRANULARITY_MS, calculate_timer);	// for more accuracy
-			//fprintf(stderr, "posupd: %f ms from last\n", calculate_timer.get_ms());
+			//PRINT "posupd: %f ms from last\n", calculate_timer.get_ms());
 			calculate_timer.begin();
 		}
 	}

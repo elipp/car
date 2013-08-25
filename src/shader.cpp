@@ -7,7 +7,7 @@ static char logbuffer[1024];
 #define RED_BOLD "\033[1;31m"
 #define COLOR_RESET "\033[0m"
 
-ShaderProgram::ShaderProgram(const std::string &name_base) { 	
+ShaderProgram::ShaderProgram(const std::string &name_base, const std::unordered_map<GLuint,std::string> &bindattrib_loc_names_map) { 	
 
 	for (int i = 0; i < 5; i++) shaderObjIDs[i] = SHADER_NONE;	
 
@@ -46,7 +46,7 @@ ShaderProgram::ShaderProgram(const std::string &name_base) {
 			shaderObjIDs[TessellationEvaluationShader] = glCreateShader(GL_TESS_EVALUATION_SHADER);
 		}	
 		else {
-			onScreenLog::print("ShaderProgram error: %s: TessellationControlShader enabled but no TessellationEvaluationShader provided.\n", name_base.c_str());
+			PRINT("ShaderProgram error: %s: TessellationControlShader enabled but no TessellationEvaluationShader provided.\n", name_base.c_str());
 			set_bad(); goto cleanup;
 		}
 	}
@@ -91,9 +91,12 @@ ShaderProgram::ShaderProgram(const std::string &name_base) {
 		}
 	}
 
-	glBindAttribLocation(programHandle, ATTRIB_POSITION, "Position_VS_in");
-	glBindAttribLocation(programHandle, ATTRIB_NORMAL, "Normal_VS_in");
-	glBindAttribLocation(programHandle, ATTRIB_TEXCOORD, "TexCoord_VS_in");
+	for (auto &iter : bindattrib_loc_names_map) {
+		PRINT("Binding attrib \"%s\" to location %u (glBindAttribLocation).\n", iter.second.c_str(), iter.first);
+		glBindAttribLocation(programHandle, iter.first, iter.second.c_str());
+	}
+
+	// if binding is used, it must be done before glLinkProgram is called :P
 
 	glLinkProgram(programHandle);
 	glUseProgram(programHandle);
@@ -129,14 +132,14 @@ inline const char* shader_present(const GLuint *objIDs, GLint index) {
 }
 
 void ShaderProgram::printStatus () const {
-	onScreenLog::print("ShaderProgram %s status:\n", id_string.c_str());
-	onScreenLog::print("shader\t\t\tpresent?\tid\n");
-	onScreenLog::print("Vertex shader: \t\t%s\t\t%d\n", shader_present(shaderObjIDs, VertexShader), shaderObjIDs[VertexShader]);
-	onScreenLog::print("TessCtrl shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationControlShader), shaderObjIDs[TessellationControlShader]);
-	onScreenLog::print("TessEval shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationEvaluationShader), shaderObjIDs[TessellationEvaluationShader]);
-	onScreenLog::print("Geometry shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, GeometryShader), shaderObjIDs[GeometryShader]);
-	onScreenLog::print("Fragment shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, FragmentShader), shaderObjIDs[FragmentShader]);
-	onScreenLog::print("bad flag: %d\n\n", bad);
+	PRINT("ShaderProgram %s status:\n", id_string.c_str());
+	PRINT("shader\t\t\tpresent?\tid\n");
+	PRINT("Vertex shader: \t\t%s\t\t%d\n", shader_present(shaderObjIDs, VertexShader), shaderObjIDs[VertexShader]);
+	PRINT("TessCtrl shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationControlShader), shaderObjIDs[TessellationControlShader]);
+	PRINT("TessEval shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, TessellationEvaluationShader), shaderObjIDs[TessellationEvaluationShader]);
+	PRINT("Geometry shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, GeometryShader), shaderObjIDs[GeometryShader]);
+	PRINT("Fragment shader: \t%s\t\t%d\n", shader_present(shaderObjIDs, FragmentShader), shaderObjIDs[FragmentShader]);
+	PRINT("bad flag: %d\n\n", bad);
 }
 
 char* ShaderProgram::readShaderFromFile(const std::string &filename, GLsizei *filesize)
@@ -144,7 +147,7 @@ char* ShaderProgram::readShaderFromFile(const std::string &filename, GLsizei *fi
 	std::ifstream in(filename.c_str(), std::ios::in | std::ios::binary);
 
 	if (!in.is_open()) { 
-		onScreenLog::print( "(warning: ShaderProgram: couldn't open file %s: no such file or directory)\n", filename.c_str());
+		PRINT( "(warning: ShaderProgram: couldn't open file %s: no such file or directory)\n", filename.c_str());
 		return NULL; 
 	}
 	size_t length = cpp_getfilesize(in);
@@ -171,7 +174,7 @@ GLint ShaderProgram::checkShaderCompileStatus_all() // GL_COMPILE_STATUS
 
 			if (succeeded[i] == GL_FALSE)
 			{	
-				onScreenLog::print( "glGetShaderiv returned GL_FALSE for query GL_COMPILE_STATUS for shader %s, id: %d\n", shader_filenames[i].c_str(), shaderObjIDs[i]);
+				PRINT( "glGetShaderiv returned GL_FALSE for query GL_COMPILE_STATUS for shader %s, id: %d\n", shader_filenames[i].c_str(), shaderObjIDs[i]);
 				GLint log_length = 0;
 				++num_errors;
 				glGetShaderiv(shaderObjIDs[i], GL_INFO_LOG_LENGTH, &log_length);
@@ -196,14 +199,14 @@ GLint ShaderProgram::checkShaderCompileStatus_all() // GL_COMPILE_STATUS
 
 	if (num_errors > 0) {	
 
-		onScreenLog::print( "\nShader %s: error log (glGetShaderInfoLog):\n-----------------------------------------------------------------\n\n", id_string.c_str());
+		PRINT( "\nShader %s: error log (glGetShaderInfoLog):\n-----------------------------------------------------------------\n\n", id_string.c_str());
 		for (int i = VertexShader; i <= FragmentShader; i++) {
 			if (succeeded[i] != GL_TRUE) {
-				onScreenLog::print( "filename: %s\n\n", shader_filenames[i].c_str());
-				onScreenLog::print( "%s\n\n", log_buffers[i]);
+				PRINT( "filename: %s\n\n", shader_filenames[i].c_str());
+				PRINT( "%s\n\n", log_buffers[i]);
 			}
 		}
-		onScreenLog::print( "\n---------------------------------------------------\n");
+		PRINT( "\n---------------------------------------------------\n");
 	}
 	for (int i = VertexShader; i <= FragmentShader; i++) {	
 		if (log_buffers[i]) delete [] log_buffers[i];
@@ -219,26 +222,26 @@ GLint ShaderProgram::checkProgramLinkStatus() {
 	glGetProgramiv(programHandle, GL_LINK_STATUS, &status);
 	if (status == GL_FALSE) {
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		onScreenLog::print( "ShaderProgram::checkProgramLinkStatus: shader program link error. Log:\n%s\n", logbuffer);
+		PRINT( "ShaderProgram::checkProgramLinkStatus: shader program link error. Log:\n%s\n", logbuffer);
 		return 0;
 	}
 	else {
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		onScreenLog::print( "Program %s; LINK:\n", id_string.c_str());
-		if (log_len > 0) { onScreenLog::print("log: \n"); 
-						   onScreenLog::print("%s\n\n", logbuffer);
+		PRINT( "Program %s; LINK:\n", id_string.c_str());
+		if (log_len > 0) { PRINT("log: \n"); 
+						   PRINT("%s\n\n", logbuffer);
 		}
-		else { onScreenLog::print( "<OK>\n\n"); }
+		else { PRINT( "<OK>\n\n"); }
 
 		glValidateProgram(programHandle);
 		glGetProgramInfoLog(programHandle, sizeof(logbuffer), &log_len, logbuffer);
-		onScreenLog::print( "Program %s; VALIDATION:\n\n", id_string.c_str());
-		if (log_len > 0) {  onScreenLog::print("log: \n"); 
-							onScreenLog::print("%s\n\n", logbuffer);
+		PRINT( "Program %s; VALIDATION:\n\n", id_string.c_str());
+		if (log_len > 0) {  PRINT("log: \n"); 
+							PRINT("%s\n\n", logbuffer);
 		}
-		else { onScreenLog::print("<OK>\n\n"); }
+		else { PRINT("<OK>\n\n"); }
 
-		onScreenLog::print("\n");
+		PRINT("\n");
 		return 1;
 	}
 }
@@ -258,7 +261,7 @@ void ShaderProgram::construct_uniform_map() {
 		uniform_name_buf[name_len] = '\0';
 		GLuint loc = glGetUniformLocation(programHandle, uniform_name_buf);
 		uniforms.insert(std::pair<std::string, int>(std::string(uniform_name_buf), loc));
-		//onScreenLog::print( "construct_uniform_map: %s: inserted uniform %s with location %d.\n", id_string.c_str(), uniform_name_buf, loc);
+		//PRINT( "construct_uniform_map: %s: inserted uniform %s with location %d.\n", id_string.c_str(), uniform_name_buf, loc);
 	}
 }
 
@@ -267,7 +270,8 @@ void ShaderProgram::update_uniform_mat4(const std::string &uniform_name, const m
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		onScreenLog::print( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		// TODO: uncomment this :D
+		//PRINT( "update_uniform: warning: uniform \"mat4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -279,7 +283,7 @@ void ShaderProgram::update_uniform_vec4(const std::string &uniform_name, const v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		onScreenLog::print( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//PRINT( "update_uniform: warning: uniform \"vec4 %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -291,7 +295,7 @@ void ShaderProgram::update_uniform_1f(const std::string &uniform_name, GLfloat v
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		onScreenLog::print( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//PRINT( "update_uniform: warning: uniform \"float %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {
@@ -304,7 +308,7 @@ void ShaderProgram::update_uniform_1i(const std::string &uniform_name, GLint val
 	glUseProgram(programHandle);
 	std::unordered_map<std::string,GLuint>::iterator iter = uniforms.find(uniform_name);
 	if (iter == uniforms.end()) {
-		onScreenLog::print( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
+		//PRINT( "update_uniform: warning: uniform \"int %s\" not active in shader %s\n!", uniform_name.c_str(), id_string.c_str());
 		return;
 	}
 	else {

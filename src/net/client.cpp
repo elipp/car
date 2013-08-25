@@ -54,7 +54,7 @@ int LocalClient::connect(const std::string &ip_port_string) {
 	std::vector<std::string> tokens = split(ip_port_string, ':');
 
 	if (tokens.size() != 2) {
-		onScreenLog::print("connect: Error: badly formatted ip_port_string (%s)!\n", ip_port_string.c_str());
+		PRINT("connect: Error: badly formatted ip_port_string (%s)!\n", ip_port_string.c_str());
 		return 0;
 	}
 
@@ -73,11 +73,11 @@ int LocalClient::connect(const std::string &ip_port_string) {
 	client.address = socket.get_own_addr();	// :D
 
 	if (socket.bad()) { 
-		onScreenLog::print( "LocalClient: socket init failed.\n");
+		PRINT( "LocalClient: socket init failed.\n");
 		LocalClient::request_shutdown();
 		return 0;
 	}
-	onScreenLog::print("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
+	PRINT("client: attempting to connect to %s:%u.\n", remote_ip.c_str(), remote_port);
 
 
 	int success = handshake();
@@ -147,7 +147,7 @@ int LocalClient::handshake() {
 #define RETRY_GRANULARITY_MS 1000
 #define NUM_RETRIES 5
 		
-	onScreenLog::print( "LocalClient::sending handshake to remote.\n");
+	PRINT( "LocalClient::sending handshake to remote.\n");
 	
 	// FIXME: currently broken when handshaking with localhost :P
 	// the WS2 select() call reports "data available" when sending to 127.0.0.1, despite different port.
@@ -160,12 +160,12 @@ int LocalClient::handshake() {
 			received_data = 1;
 			break;
 		}
-		onScreenLog::print("Re-sending handshake to remote...\n");
+		PRINT("Re-sending handshake to remote...\n");
 		send_data_to_server(handshake_buffer, PTCL_HEADER_LENGTH + client.info.name.length());
 	}
 
 	if (!received_data) {
-		onScreenLog::print("Handshake timed out.\n");
+		PRINT("Handshake timed out.\n");
 		LocalClient::request_shutdown();
 		return 0;
 	}
@@ -177,7 +177,7 @@ int LocalClient::handshake() {
 	protocol_get_header_data(handshake_buffer, &header);
 
 	if (header.protocol_id != PROTOCOL_ID) {
-		onScreenLog::print( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
+		PRINT( "LocalClient: handshake: protocol id mismatch (received %d)\n", header.protocol_id);
 		LocalClient::request_shutdown();
 		return 0;
 	}
@@ -185,7 +185,7 @@ int LocalClient::handshake() {
 	const unsigned char &cmd = header.cmd_arg_mask.ch[0];
 
 	if (cmd != S_HANDSHAKE_OK) {
-		onScreenLog::print("LocalClient: handshake: received cmdbyte != S_HANDSHAKE_OK (%x). Handshake failed.\n", cmd);
+		PRINT("LocalClient: handshake: received cmdbyte != S_HANDSHAKE_OK (%x). Handshake failed.\n", cmd);
 		LocalClient::request_shutdown();
 		return 0;
 	}
@@ -195,7 +195,7 @@ int LocalClient::handshake() {
 
 	// get player name received from server
 	client.info.name = std::string(handshake_buffer + PTCL_HEADER_LENGTH + sizeof(client.info.id));
-	onScreenLog::print("Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
+	PRINT("Client: received player id %d and name %s from %s. =)\n", client.info.id, client.info.name.c_str(), get_dot_notation_ipv4(&from).c_str());
 	
 	_connected = true;
 
@@ -238,7 +238,7 @@ static std::vector<struct peer_info_t> process_peer_list_string(const char* buff
 	while (it != sub.end()) {
 		std::vector<std::string> tokens = split(*it, '/');
 		if (tokens.size() != 4) {
-			//onScreenLog::print( "warning: process_peer_list_string: tokens.size() != 3 (%d): dump = \"%s\"\n", tokens.size(), it->c_str());
+			//PRINT( "warning: process_peer_list_string: tokens.size() != 3 (%d): dump = \"%s\"\n", tokens.size(), it->c_str());
 		}
 		else {
 			peers.push_back(struct peer_info_t(std::stoi(tokens[0]), tokens[1], tokens[2], std::stoi(tokens[3])));
@@ -251,7 +251,7 @@ static std::vector<struct peer_info_t> process_peer_list_string(const char* buff
 
 void LocalClient::send_chat_message(const std::string &msg) {
 	if (!_connected) { 
-		onScreenLog::print("chat: not connected to server.\n");
+		PRINT("chat: not connected to server.\n");
 		return; 
 	}
 	static char chat_msg_buffer[PACKET_SIZE_MAX];
@@ -273,12 +273,12 @@ void LocalClient::Listen::handle_current_packet() {
 	protocol_get_header_data(buffer, &header);
 
 	if (header.protocol_id != PROTOCOL_ID) {
-		onScreenLog::print( "dropping packet. Reason: protocol_id mismatch (%d)\n", header.protocol_id);
+		PRINT( "dropping packet. Reason: protocol_id mismatch (%d)\n", header.protocol_id);
 		return;
 	}
 
 	if (header.sender_id != ID_SERVER) {
-		//onScreenLog::print( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
+		//PRINT( "unexpected sender id. expected ID_SERVER (%x), got %x instead.\n", ID_SERVER, sender_id);
 		return;
 	}
 
@@ -299,7 +299,7 @@ void LocalClient::Listen::handle_current_packet() {
 			unsigned embedded_seq_number;
 			copy_from_buffer(&embedded_seq_number, sizeof(embedded_seq_number), PTCL_HEADER_LENGTH);
 			if (embedded_seq_number != Ping._latest_ping_seq_number) {
-				onScreenLog::print("Received S_PONG from server, but the embedded seq_number (%u) doesn't match with the expected one (%d).\n", embedded_seq_number, Ping._latest_ping_seq_number);
+				PRINT("Received S_PONG from server, but the embedded seq_number (%u) doesn't match with the expected one (%d).\n", embedded_seq_number, Ping._latest_ping_seq_number);
 			}
 			Ping._latest_ping_seq_number = 0; 
 			break;
@@ -312,24 +312,24 @@ void LocalClient::Listen::handle_current_packet() {
 			if (it != peers.end()) {
 			std::string chatmsg(buffer + PTCL_HEADER_LENGTH + sizeof(sender_id));
 				if (!Server::running()) {
-				onScreenLog::print("[%s] <%s>: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
+				PRINT("[%s] <%s>: %s\n", get_timestamp().c_str(), it->second.info.name.c_str(), chatmsg.c_str());
 				}
 			}
 				else {
 				// perhaps request a new peer list from the server. :P
-				onScreenLog::print("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
+				PRINT("warning: server broadcast S_CLIENT_CHAT_MESSAGE with unknown sender id %u!\n", sender_id);
 			}
 			break;
 		}
 
 		case S_SHUTDOWN:
-			onScreenLog::print( "Client: Received S_SHUTDOWN from server (server going down).\n");
+			PRINT( "Client: Received S_SHUTDOWN from server (server going down).\n");
 			LocalClient::request_shutdown(); // this will break from the recvfrom loop gracefully
 			// this will cause LocalClient::stop() to be called from the main (rendering) thread
 			break;
 
 		case C_TERMINATE:
-			onScreenLog::print("Client:Received C_TERMINATE from self. Stopping.\n");
+			PRINT("Client:Received C_TERMINATE from self. Stopping.\n");
 			LocalClient::request_shutdown();
 			break;
 	
@@ -342,17 +342,17 @@ void LocalClient::Listen::handle_current_packet() {
 			copy_from_buffer(&id, sizeof(id), PTCL_HEADER_LENGTH);
 			auto it = peers.find(id);
 			if (it == peers.end()) {
-				//onScreenLog::print( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
+				//PRINT( "Warning: received S_CLIENT_DISCONNECT with unknown id %u.\n", id);
 			}
 			else {
-				onScreenLog::print( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
+				PRINT( "Client %s (id %u) disconnected.\n", it->second.info.name.c_str(), id);
 				peers.erase(id);
 			}
 			break;
 		}
 	
 		default:
-			onScreenLog::print("Warning: received unknown command char %u from server.\n", cmd);
+			PRINT("Warning: received unknown command char %u from server.\n", cmd);
 			break;
 	}
 
@@ -374,7 +374,7 @@ void LocalClient::Listen::update_positions() {
 		auto it = peers.find(id);
 		
 		if (it == peers.end()) {
-			onScreenLog::print( "update_positions: unknown peer id included in peer list (%u)\n", id);
+			PRINT( "update_positions: unknown peer id included in peer list (%u)\n", id);
 		}
 		else {
 			size_t offset = PTCL_HEADER_LENGTH + i*PTCL_POS_DATA_SIZE + sizeof(id);
@@ -470,7 +470,7 @@ void LocalClient::parse_user_input(const std::string s) {
 			it->second(input);
 		}
 		else {
-			onScreenLog::print("%s: command not found. See /help for a list of available commands.\n", input[0].c_str());
+			PRINT("%s: command not found. See /help for a list of available commands.\n", input[0].c_str());
 		}
 		
 	}
@@ -496,9 +496,9 @@ int LocalClient::send_data_to_server(const char* buffer, size_t size) {
 void LocalClient::set_name(const std::string &nick) {
 	if (!_connected) {
 		preferred_name = nick;
-		onScreenLog::print("Name set to %s.\n", nick.c_str());
+		PRINT("Name set to %s.\n", nick.c_str());
 	} else {
-		onScreenLog::print("set_name: cannot change name while connected to server.\n");
+		PRINT("set_name: cannot change name while connected to server.\n");
 	}
 }
 
@@ -507,15 +507,15 @@ void LocalClient::Listen::construct_peer_list() {
 	std::vector<struct peer_info_t> peer_list = process_peer_list_string(buffer + PTCL_HEADER_LENGTH + 1);
 		
 	for (auto &it : peer_list) {
-		//onScreenLog::print( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());
+		//PRINT( "peer data: id = %u, name = %s, ip_string = %s\n", it.id, it.name.c_str(), it.ip_string.c_str());
 		auto map_iter = peers.find(it.id);
 		if (map_iter == peers.end()) {
 			peers.insert(std::make_pair(it.id, struct Peer(it.id, it.name, it.ip_string, it.color)));
-			onScreenLog::print("Client \"%s\" (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
+			PRINT("Client \"%s\" (id %u) connected from %s.\n", it.name.c_str(), it.id, it.ip_string.c_str());
 		}
 		else {
 			if (!(map_iter->second.info == it)) {
-				onScreenLog::print( "warning: peer was found in the peer list, but peer_info_t discrepancies were discovered.\n");
+				PRINT( "warning: peer was found in the peer list, but peer_info_t discrepancies were discovered.\n");
 			}
 		}
 	}

@@ -30,8 +30,8 @@ extern void messagebox_error(const std::string &msg);
 //typedef bool (APIENTRY *PFNWGLSWAPINTERVALEXTPROC) (int interval);
 //extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
-extern float WINDOW_WIDTH;
-extern float WINDOW_HEIGHT;
+extern unsigned WINDOW_WIDTH;
+extern unsigned WINDOW_HEIGHT;
 extern float PROJ_FOV_RADIANS;
 extern float PROJ_Z_FAR;
 

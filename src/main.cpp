@@ -115,8 +115,8 @@ void control()
 	if (mouse_locked) {
 		GetCursorPos(cursorPos);	// these are screen coordinates, ie. absolute coordinates. it's fine though
 		SetCursorPos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
-		dx = (HALF_WINDOW_WIDTH - cursorPos->x);
-		dy = -(HALF_WINDOW_HEIGHT - cursorPos->y);
+		dx = ((LONG)HALF_WINDOW_WIDTH - cursorPos->x);
+		dy = -((LONG)HALF_WINDOW_HEIGHT - cursorPos->y);
 	}
 	
 	if (WM_KEYDOWN_KEYS['W']) { c_vel_fwd += fwd_modifier; }
@@ -139,7 +139,7 @@ void control()
 	if (WM_KEYDOWN_KEYS['V']) {
 		vsync ^= 1;
 		wglSwapIntervalEXT(vsync);
-		onScreenLog::print("vsync: %d\n", vsync);
+		PRINT("vsync: %d\n", vsync);
 		WM_KEYDOWN_KEYS['V'] = false;
 	}
 
@@ -245,7 +245,7 @@ static void init_minkowski_buffers() {
 
 #define uniform_assert_warn(uniform) do {\
 if (uniform == -1) { \
-	onScreenLog::print("(warning: uniform optimized away by GLSL compiler: %s at %d:%d\n", #uniform, __FILE__, __LINE__);\
+	PRINT("(warning: uniform optimized away by GLSL compiler: %s at %d:%d\n", #uniform, __FILE__, __LINE__);\
 }\
 } while(0)
 
@@ -258,7 +258,11 @@ int initGL(void)
 	glCullFace(GL_BACK);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	text_shader = new ShaderProgram("shaders/text_shader");
+	std::unordered_map<GLuint, std::string> text_attrib_bindings;
+	text_attrib_bindings.insert(std::make_pair<GLuint, std::string>(TEXT_ATTRIB_ALL, std::string("ALL_ATTRIBS_PACKED")));	
+
+
+	text_shader = new ShaderProgram("shaders/text_shader", text_attrib_bindings);
 	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
 
 	onScreenLog::init();
@@ -266,19 +270,17 @@ int initGL(void)
 	
 	glEnable(GL_DEPTH_TEST);
 
-	GLushort *indices = generateIndices();
-	glGenBuffers(1, &IBOid);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)sizeof(GLushort)*(0xFFFF), indices, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	delete [] indices;	
+	PRINT("OpenGL version: %s\n", glGetString(GL_VERSION));
+	PRINT("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	
+	std::unordered_map<GLuint, std::string> default_attrib_bindings;
+	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_POSITION, std::string("Position_VS_in")));
+	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_NORMAL, std::string("Normal_VS_in")));
+	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_TEXCOORD, std::string("TexCoord_VS_in")));
 
-	onScreenLog::print("OpenGL version: %s\n", glGetString(GL_VERSION));
-	onScreenLog::print("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-		
-	regular_shader = new ShaderProgram("shaders/regular"); 
-	racetrack_shader = new ShaderProgram("shaders/racetrack");
-	skybox_shader = new ShaderProgram("shaders/skybox");
+	regular_shader = new ShaderProgram("shaders/regular", default_attrib_bindings); 
+	racetrack_shader = new ShaderProgram("shaders/racetrack", default_attrib_bindings);
+	skybox_shader = new ShaderProgram("shaders/skybox", default_attrib_bindings);
 
 	if (regular_shader->is_bad() ||
 		text_shader->is_bad() ||
@@ -289,7 +291,7 @@ int initGL(void)
 		return 0; 
 	}
 	
-	onScreenLog::print( "Loading all sorts of stuff...\n");
+	PRINT( "Loading all sorts of stuff...\n");
 
 	onScreenLog::draw();
 	window_swapbuffers();
@@ -305,12 +307,12 @@ int initGL(void)
 		return 0; 
 	}
 
-	onScreenLog::print( "done.\n");
+	PRINT( "done.\n");
 	
-	onScreenLog::print( "Loading textures...");
+	PRINT( "Loading textures...");
 	terrain_texId = TextureBank::add(Texture("textures/grass.jpg", GL_LINEAR_MIPMAP_LINEAR));
 	skybox_texId = TextureBank::add(Texture("textures/skybox.jpg", GL_NEAREST));
-	onScreenLog::print( "done.\n");
+	PRINT( "done.\n");
 	
 	if (!TextureBank::validate()) {
 		messagebox_error("Error: failed to validate TextureBank (fatal).\n");
@@ -319,7 +321,7 @@ int initGL(void)
 
 	map = new HeightMap("textures/heightmap_grayscale.png", map_scale, 2.7475, -2.7475); // the top/bottom values were calculated by blender
 	if (map->bad()) {
-		onScreenLog::print("heightmap failure. .\n");
+		PRINT("heightmap failure. .\n");
 	}
 
 
@@ -497,18 +499,35 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	}
 }
 
+static void draw_everything() {
+		drawSkybox();
+		//drawCubes();
+
+		if (LocalClient::connected()) {
+			double t = LocalClient::time_since_last_posupd_ms();
+			LocalClient::interpolate_positions();
+			drawCars(LocalClient::get_peers());
+			
+		}
+
+		drawTerrain();
+		onScreenLog::draw();
+		VarTracker::draw();
+
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-	
-	/*if(AllocConsole()) {
+#ifdef PRINT_STDERR
+	if(AllocConsole()) {
 	 // for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		FILE *dummy;
 		freopen_s(&dummy, "CONOUT$", "wt", stderr);
 
 		SetConsoleTitle("debug output");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-	} */
-
+	} 
+#endif
 	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
 	if (!initGL()) {
 		return 1; 
@@ -516,7 +535,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	int k = timeBeginPeriod(1);
 	
-	onScreenLog::print("timeBeginPeriod(1) returned %s\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR (good!)" : "TIMERR_NOCANDO (bad.)" );
+	PRINT("timeBeginPeriod(1) returned %s\n", k == TIMERR_NOERROR ? "TIMERR_NOERROR (good!)" : "TIMERR_NOCANDO (bad.)" );
 
 	long wait = 0;
 	static double time_per_frame_ms = 0;
@@ -531,15 +550,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::string cpustr(checkCPUCapabilities());
 	if (cpustr.find("ERROR") != std::string::npos) { MessageBox(NULL, cpustr.c_str(), "Fatal error.", MB_OK); return -1; }
 	
-	onScreenLog::print("%s\n", cpustr.c_str());
+	PRINT("%s\n", cpustr.c_str());
 	
 	char name_buf[UNLEN+1];
 	DWORD len = UNLEN+1;
 	GetUserName(name_buf, &len);
 
 	LocalClient::set_name(std::string(name_buf));
-	onScreenLog::print("\nUse /connect <ip>:<port> to connect to a server, or /startserver to start one.\n");
-	onScreenLog::print("(/connect without an argument will connect to localhost:50000.)\n");
+	PRINT("\nUse /connect <ip>:<port> to connect to a server, or /startserver to start one.\n");
+	PRINT("(/connect without an argument will connect to localhost:50000.)\n");
 	
 	_timer fps_timer;
 	fps_timer.begin();
@@ -553,7 +572,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			if(msg.message == WM_QUIT)
 			{
-				onScreenLog::print("Sending quit message (C_QUIT) to server.\n");
+				PRINT("Sending quit message (C_QUIT) to server.\n");
 				LocalClient::quit();
 				stop_main_loop();
 			}
@@ -578,34 +597,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			// stop must be explicitly called from a thread that's not involved with all the net action (ie. this one)
 			LocalClient::stop();
 		}
-		
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		drawSkybox();
 
 		control();
 		update_c_pos();
-
-		drawCubes();
-		
+				
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
-		
-		if (LocalClient::connected()) {
-			//double t = LocalClient::time_since_last_posupd_ms();
-			LocalClient::interpolate_positions();
-			drawCars(LocalClient::get_peers());
-			
-		}
-		
-		drawTerrain();
-		onScreenLog::draw();
-		VarTracker::draw();
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		draw_everything();
 
 		wait = 16.666 - fps_timer.get_ms();
 
 		if (!vsync) { // then we'll do a "half-busy" wait :P
-			if (wait > 3) { Sleep(wait-1); }
+			if (wait > 3) { Sleep((DWORD)(wait-1)); }
 			while(fps_timer.get_ms() < 16.7);	// this is the (more) accurate, ie. busy, part
 		}
 		

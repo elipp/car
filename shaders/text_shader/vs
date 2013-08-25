@@ -1,19 +1,76 @@
 #version 150 core 
 
-in vec2 Position_VS_in;
-in vec2 TexCoord_VS_in;
+in uint ALL_ATTRIBS_PACKED;
 
 uniform mat4 Projection;
 uniform mat4 ModelView;
+vec2 upper_left_corner = vec2(0.0, 0.0);
 
-//out vec2 vpos;	// not really needed
-out vec2 TexCoord_FS_in;
+#define NUM_CHARS_PER_ROW (14U)
+#define NUM_ROWS (7U)
+
+#define DINA_ALL_TEXTURE_DIM (128.0)
+#define char_spacing_vert (13.0)
+#define char_spacing_horiz (7.0)
+#define char_dim_vert (12.0)
+#define char_dim_horiz (6.0)
+
+#define U_incr (char_spacing_horiz/DINA_ALL_TEXTURE_DIM)	// U_incr uses char_SPACING_vert in the vs, gs uses char_DIM_vert
+#define V_incr (char_spacing_vert/DINA_ALL_TEXTURE_DIM)
+
+out vec2 TexCoord_ULCORNER_GS_in;
+out vec4 Color_GS_in;
+
+// colors: enum { TEXT_COLOR_FG = 0, TEXT_COLOR_RED, TEXT_COLOR_GREEN, TEXT_COLOR_BLUE, TEXT_COLOR_YELLOW, TEXT_COLOR_PURPLE, TEXT_COLOR_TURQ };
+
+#define C_HI 0.89
+#define C_lo 0.15
+#define NUM_COLORS 7U
+const vec4 colors[NUM_COLORS] = {
+	vec4(C_HI, C_HI, C_HI, 1.0),
+	vec4(C_HI, C_lo, C_lo, 1.0),
+	vec4(C_lo, C_HI, C_lo, 1.0),
+	vec4(C_lo, C_lo, C_HI, 1.0),
+	vec4(C_HI, C_HI, C_lo, 1.0),
+	vec4(C_HI, C_lo, C_HI, 1.0),
+	vec4(C_lo, C_HI, C_HI, 1.0)
+};
+
+vec4 get_char_actual_position(uvec2 xy) {	// in pixels
+	return vec4(upper_left_corner.x + xy.x*char_spacing_horiz, upper_left_corner.y + xy.y*char_spacing_vert, 0.0, 1.0);
+}
+
+vec2 get_texcoord_ULCORNER_from_index(uint index) {
+	float row = index/NUM_CHARS_PER_ROW;
+	float col = mod(index, NUM_CHARS_PER_ROW);
+	return vec2(col*U_incr, row*V_incr);
+}
+
+//	uint length = to - from;
+//  uint mask = (((0x1 << length) - 1)) << from;
+//	return (packed & mask) >> from;
+	
+
+#define EXTRACT_BIT_RANGE(packed, from, to) (((packed) & ((((0x1U << (to - from)) - 1U)) << from)) >> from)
+
+uvec4 unpack(uint packed) {
+// layout: first 7 bits: pos_x (-> 7)
+//		   next 14 bits: pos_y (-> 21)
+//		   next 7 bits: char_index (-> 28)
+//		   next 4 bits: color_index (-> 32)
+
+return uvec4(EXTRACT_BIT_RANGE(packed, 0U, 7U),
+			 EXTRACT_BIT_RANGE(packed, 7U, 21U),
+			 EXTRACT_BIT_RANGE(packed, 21U, 28U),
+			 EXTRACT_BIT_RANGE(packed, 28U, 32U));
+
+}
 
 void main(void) {
-
-	vec4 transformed = Projection*ModelView*vec4(Position_VS_in, 0.0, 1.0);
-//	vpos = real_pos.xy;
-	gl_Position = transformed;
-	TexCoord_FS_in = TexCoord_VS_in;
-
+	uvec4 unpacked = unpack(ALL_ATTRIBS_PACKED);
+	gl_Position = get_char_actual_position(unpacked.xy); // the transformation will be issued in the GS.
+	
+	TexCoord_ULCORNER_GS_in = get_texcoord_ULCORNER_from_index(unpacked.z);
+	uint col_index = unpacked.w;
+	Color_GS_in = colors[col_index < NUM_COLORS ? col_index : 0U];
 }

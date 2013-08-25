@@ -29,19 +29,19 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 	/*std::ifstream infile(filename, std::ios::binary | std::ios::in);
 	
 	if (!infile.is_open()) { 
-		fprintf(stderr, "Model: failed loading file %s\n", filename.c_str()); 
+		PRINT "Model: failed loading file %s\n", filename.c_str()); 
 		_bad = true;
 		return;
 	}*/
 	
-	onScreenLog::print(".bobjloader: loading file %s\n", filename.c_str());
+	PRINT(".bobjloader: loading file %s\n", filename.c_str());
 
 	char *decompressed;
 	size_t decompressed_size;
 
 	int res = LZMA_decode(filename, &decompressed, &decompressed_size);	// this also allocates the memory
 	if (res != 0) {
-		fprintf(stderr, "LZMA decoder: an error occurred. Aborting.\n"); 
+		PRINT("LZMA decoder: an error occurred. Aborting.\n"); 
 		_bad = true; 
 		return; 
 	}
@@ -53,24 +53,7 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 	unsigned int vcount;
 	memcpy(&vcount, iter, sizeof(vcount));
 
-	unsigned total_facecount = vcount / 3;
-	unsigned num_VBOs = total_facecount/NUM_FACES_PER_VBO_MAX + 1;
-	unsigned num_excess_last = total_facecount%NUM_FACES_PER_VBO_MAX;
-
-	vdata.VBOids.resize(num_VBOs);
-	vdata.VAOids.resize(num_VBOs);
-	vdata.num_faces.resize(num_VBOs);
-	
-	for (int i = 0; i < num_VBOs-1; ++i) {
-		vdata.num_faces[i] = NUM_FACES_PER_VBO_MAX;
-	}
-	vdata.num_faces[num_VBOs-1] = num_excess_last; 
-	glGenVertexArrays(num_VBOs, &vdata.VAOids[0]);
-	glGenBuffers(num_VBOs, &vdata.VBOids[0]);
-
-	vdata.size = num_VBOs;
-
-	onScreenLog::print("# vcount = %u => faces = %u => num_VBOs = %u, num_excess_last = %u\n", vcount, total_facecount, num_VBOs, num_excess_last);
+	num_faces = vcount / 3;
 	
 	vertex* vertices = new vertex[vcount];
 	
@@ -78,35 +61,32 @@ Model::Model(const std::string &filename, ShaderProgram *const prog) : id_string
 	memcpy(vertices, iter, vcount*8*sizeof(float));
 	delete [] decompressed;	// no longer needed
 	
-	size_t offset = 0;
-	for (int i = 0; i < num_VBOs; i++) {
-		glBindVertexArray(vdata.VAOids[i]);
+	glGenVertexArrays(1, &VAOid);
+	glGenBuffers(1, &VBOid);
 
-		glEnableVertexAttribArray(ATTRIB_POSITION);
-		glEnableVertexAttribArray(ATTRIB_NORMAL);
-		glEnableVertexAttribArray(ATTRIB_TEXCOORD);
+	glBindVertexArray(VAOid);
 
-		glBindBuffer(GL_ARRAY_BUFFER, vdata.VBOids[i]);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertex)*vdata.num_faces[i]*3, vertices + offset, GL_STATIC_DRAW);
-
-		glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
-		glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
-		glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOid);
-		glBindVertexArray(0);
-		
-		glDisableVertexAttribArray(ATTRIB_POSITION);
-		glDisableVertexAttribArray(ATTRIB_NORMAL);
-		glDisableVertexAttribArray(ATTRIB_TEXCOORD);
-		
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		
-		offset += vdata.num_faces[i]*3;
-	}
+	glEnableVertexAttribArray(ATTRIB_POSITION);
+	glEnableVertexAttribArray(ATTRIB_NORMAL);
+	glEnableVertexAttribArray(ATTRIB_TEXCOORD);
 	
-	onScreenLog::print("Successfully loaded file %s.\n\n", filename.c_str(), vcount);
+	glBindBuffer(GL_ARRAY_BUFFER, VBOid);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertex)*num_faces*3, vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(0));
+	glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(3*sizeof(float)));
+	glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), BUFFER_OFFSET(6*sizeof(float)));
+
+	glBindVertexArray(0);
+		
+	glDisableVertexAttribArray(ATTRIB_POSITION);
+	glDisableVertexAttribArray(ATTRIB_NORMAL);
+	glDisableVertexAttribArray(ATTRIB_TEXCOORD);
+		
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+		
+	PRINT("Successfully loaded file %s.\n\n", filename.c_str(), vcount);
 	delete [] vertices;
 	
 	_bad = false;
@@ -135,11 +115,10 @@ void Model::draw() {
 	program->update_uniform_mat4("ModelView", this->ModelView);
 	program->update_uniform_mat4("Projection", projection);
 
-	for (int i = 0; i < vdata.size; ++i) {
-		glBindVertexArray(vdata.VAOids[i]);
-		glDrawElements(GL_TRIANGLES, vdata.num_faces[i]*3, GL_UNSIGNED_SHORT, BUFFER_OFFSET(0)); 
-		glBindVertexArray(0);
-	}
+	glBindVertexArray(VAOid);
+	glDrawArrays(GL_TRIANGLES, 0, num_faces*3);
+	glBindVertexArray(0);
+	
 	
 }
 

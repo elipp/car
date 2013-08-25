@@ -27,7 +27,7 @@ void *MyAlloc(size_t size)
   #ifdef _SZ_ALLOC_DEBUG
   {
     void *p = malloc(size);
-    fprintf(stderr, "\nAlloc %10d bytes, count = %10d,  addr = %8X", size, g_allocCount++, (unsigned)p);
+    PRINT "\nAlloc %10d bytes, count = %10d,  addr = %8X", size, g_allocCount++, (unsigned)p);
     return p;
   }
   #else
@@ -39,7 +39,7 @@ void MyFree(void *address)
 {
   #ifdef _SZ_ALLOC_DEBUG
   if (address != 0)
-    fprintf(stderr, "\nFree; count = %10d,  addr = %8X", --g_allocCount, (unsigned)address);
+    PRINT "\nFree; count = %10d,  addr = %8X", --g_allocCount, (unsigned)address);
   #endif
   free(address);
 }
@@ -51,7 +51,7 @@ void *MidAlloc(size_t size)
   if (size == 0)
     return 0;
   #ifdef _SZ_ALLOC_DEBUG
-  fprintf(stderr, "\nAlloc_Mid %10d bytes;  count = %10d", size, g_allocCountMid++);
+  PRINT "\nAlloc_Mid %10d bytes;  count = %10d", size, g_allocCountMid++);
   #endif
   return VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
 }
@@ -60,7 +60,7 @@ void MidFree(void *address)
 {
   #ifdef _SZ_ALLOC_DEBUG
   if (address != 0)
-    fprintf(stderr, "\nFree_Mid; count = %10d", --g_allocCountMid);
+    PRINT "\nFree_Mid; count = %10d", --g_allocCountMid);
   #endif
   if (address == 0)
     return;
@@ -97,7 +97,7 @@ void *BigAlloc(size_t size)
   if (size == 0)
     return 0;
   #ifdef _SZ_ALLOC_DEBUG
-  fprintf(stderr, "\nAlloc_Big %10d bytes;  count = %10d", size, g_allocCountBig++);
+  PRINT "\nAlloc_Big %10d bytes;  count = %10d", size, g_allocCountBig++);
   #endif
   
   #ifdef _7ZIP_LARGE_PAGES
@@ -116,7 +116,7 @@ void BigFree(void *address)
 {
   #ifdef _SZ_ALLOC_DEBUG
   if (address != 0)
-    fprintf(stderr, "\nFree_Big; count = %10d", --g_allocCountBig);
+    PRINT "\nFree_Big; count = %10d", --g_allocCountBig);
   #endif
   
   if (address == 0)

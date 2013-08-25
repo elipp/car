@@ -39,7 +39,7 @@ typedef enum {
 
 #define set_bad() do {\
 	bad = true;\
-	onScreenLog::print("Program %s: bad flag set @ %s:%d\n", id_string.c_str(), __FILE__, __LINE__);\
+	PRINT("Program %s: bad flag set @ %s:%d\n", id_string.c_str(), __FILE__, __LINE__);\
 } while(0)\
 	
 class ShaderProgram {
@@ -52,7 +52,7 @@ class ShaderProgram {
 public:
 	GLuint getProgramHandle() const { return programHandle; }
 	
-	ShaderProgram(const std::string &name_base); // extensions are appended to the name base, see shader.cpp
+	ShaderProgram(const std::string &name_base, const std::unordered_map<GLuint, std::string> &bindattrib_loc_names_map); // extensions are appended to the name base, see shader.cpp
 
 	void printStatus() const;
 	GLint checkShaderCompileStatus_all();

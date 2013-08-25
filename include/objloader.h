@@ -10,18 +10,11 @@
 
 static const int bobj = 0x6a626f62;
 
-struct vertex_data {
-	std::vector<GLuint> VBOids;
-	std::vector<GLuint> VAOids;
-	std::vector<GLuint> num_faces;
-	size_t size;
-};
-
 __declspec(align(16))
 class Model {
 	mat4 ModelView;
 	std::string id_string;
-	vertex_data vdata;
+	GLuint VBOid, VAOid, num_faces;
 	GLuint texId;
 	ShaderProgram *program;
 	bool has_texture;

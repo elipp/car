@@ -4,16 +4,16 @@
 const std::unordered_map<std::string, const client_funcptr> funcs = create_func_map();
 
 int help (const std::vector<std::string> &args) {
-	onScreenLog::print("List of available commands:\n");
+	PRINT("List of available commands:\n");
 	for (auto &it : funcs) {
-		onScreenLog::print(" %s\n", it.first.c_str());
+		PRINT(" %s\n", it.first.c_str());
 	}
 	return 1;
 }
 int connect(const std::vector<std::string> &args) {
 	// if properly formatted, we should find ip_port_string at position 1
 	if (LocalClient::connected()) {
-		onScreenLog::print("connect: already connected!\n");
+		PRINT("connect: already connected!\n");
 		return 0;
 	}
 	if (args.size() == 1) {
@@ -42,9 +42,9 @@ int set_name(const std::vector<std::string> &args) {
 int disconnect(const std::vector<std::string> &args) {
 	if (LocalClient::connected()) {	
 		LocalClient::stop();
-		onScreenLog::print("Disconnected from server.\n");
+		PRINT("Disconnected from server.\n");
 	} else {
-		onScreenLog::print("/disconnect: not connected.\n");
+		PRINT("/disconnect: not connected.\n");
 	}
 
 	return 1;
@@ -61,14 +61,14 @@ int startserver(const std::vector<std::string> &args) {
 		return Server::init(50000);
 	}
 	else {
-		onScreenLog::print("Local server already running on port %u! Use /stopserver to stop.\n", Server::get_port());
+		PRINT("Local server already running on port %u! Use /stopserver to stop.\n", Server::get_port());
 		return 0;
 	}
 }
 
 int stopserver(const std::vector<std::string> &args) {
 	if (Server::running()) {
-		onScreenLog::print("Client: stopping local server.\n");
+		PRINT("Client: stopping local server.\n");
 		Server::shutdown();	// should look for a way to do this without blocking the rendering thread
 	}
 	return 1;

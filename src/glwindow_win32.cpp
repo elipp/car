@@ -26,8 +26,8 @@ static HINSTANCE hInstance;
 
 static HWND hWnd_child = NULL;
 
-float WINDOW_WIDTH = 1280;
-float WINDOW_HEIGHT = 960;
+unsigned WINDOW_WIDTH = 1280;
+unsigned WINDOW_HEIGHT = 960;
 
 bool fullscreen = false;
 bool active = TRUE;
@@ -354,7 +354,7 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
 	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
 	onScreenLog::input_field.update_position();
-	onScreenLog::update_overlay_pos();
+	//onScreenLog::update_overlay_pos();
 	VarTracker::update_position();
 
 }

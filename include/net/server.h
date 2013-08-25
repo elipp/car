@@ -8,11 +8,11 @@
 #include "net/taskthread.h"
 
 #ifdef SERVER_CLI
-#define SERVER_PRINT(fmt, ... ) fprintf(stderr, fmt, __VA_ARGS__)
+#define SERVER_PRINT(fmt, ... ) PRINT fmt, __VA_ARGS__)
 #else
 #include "net/client.h"
 #include "text.h"
-#define SERVER_PRINT(fmt, ...) onScreenLog::print(fmt, __VA_ARGS__)
+#define SERVER_PRINT(fmt, ...) PRINT(fmt, __VA_ARGS__)
 #endif
 
 typedef std::unordered_map<unsigned short, struct Client> id_client_map;
