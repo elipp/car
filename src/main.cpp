@@ -269,9 +269,8 @@ int initGL(void)
 	text_shader = new ShaderProgram("shaders/text_shader", text_attrib_bindings);
 	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
 	
-	// the overlay_shader doesn't have actual vertex attributes; uniforms are used to generate a solid-color quad
 	std::unordered_map<GLuint, std::string> overlay_attrib_bindings;
-	ADD_ATTRIB(overlay_attrib_bindings, OVERLAY_ATTRIB_POS, "dummy");
+	ADD_ATTRIB(overlay_attrib_bindings, OVERLAY_ATTRIB_POS, "attribs_packed");
 	overlay_shader = new ShaderProgram("shaders/overlay", overlay_attrib_bindings);
 
 	onScreenLog::init();
