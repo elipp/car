@@ -356,7 +356,7 @@ if (!enabled_) { return; }
 	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)InputField_modelview.rawData());
 	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
 	
-	glDrawArrays(GL_POINTS, 0, input_buffer.length()+1);
+	glDrawArrays(GL_POINTS, 0, input_buffer.length()+1);	// +1 for the cursor ^^
 	glBindVertexArray(0);
 }
 
