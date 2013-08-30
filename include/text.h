@@ -13,6 +13,7 @@
 #include "precalculated_texcoords.h"
 #include "shader.h"
 
+
 //#define PRINT_BOTH
 
 #ifdef PRINT_STDERR
@@ -31,13 +32,18 @@
 #endif
 
 enum { TEXT_ATTRIB_ALL = 0 };
+enum { OVERLAY_ATTRIB_POS = 0 };
 
 extern void text_set_Projection(const mat4 &proj);
 extern GLuint text_texId;
+
 extern ShaderProgram *text_shader;
+extern ShaderProgram *overlay_shader;
 
 extern float char_spacing_vert;
 extern float char_spacing_horiz;
+
+extern void draw_overlays(const vec4 &color);
 
 #define BLANK_GLYPH (0x20)
 
@@ -61,26 +67,27 @@ struct char_object {
 #define _RGB(r,g,b) ((r)/255.0), ((g)/255.0), ((b)/255.0)
 #define _RGBA(r,g,b,a) ((r)/255.0), ((g)/255.0), ((b)/255.0), ((a)/255.0)
 
-#define OSL_BUFFER_SIZE 8096	// only the GLushort-based index buffer poses a limit to this
+#define OSL_BUFFER_SIZE 8096
 #define OSL_LINE_LEN 96
 
 class onScreenLog {
 public:	
-#define INPUT_FIELD_BUFFER_SIZE 256
+#define INPUT_FIELD_BUFFER_SIZE 256	
+
 	static class InputField {
 		std::string input_buffer;
 		char_object IF_char_object_buffer[INPUT_FIELD_BUFFER_SIZE];
 		int cursor_pos;
 
-		bool _enabled;
+		bool enabled_;
 		void update_VBO();
-		bool _changed;
+		bool changed_;
 	public:
 		
 		GLuint IF_VBOid;
 		float textfield_pos_y;
 
-		bool enabled() const { return _enabled; }
+		bool enabled() const { return enabled_; }
 		void enable();
 		void disable();
 		
@@ -113,26 +120,31 @@ private:
 		void add(const std::string &s);
 		PrintQueue() { 	queue.reserve(OSL_BUFFER_SIZE); queue.clear();	}
 	} print_queue;
+
 	static char_object OSL_char_object_buffer[OSL_BUFFER_SIZE];
-	static float pos_x, pos_y;	// ze upper left corner
 	static mat4 modelview;
 	static GLuint OSL_VBOid;
-	static unsigned line_length;
-	static unsigned num_lines_displayed;
-	static unsigned current_index;
-	static unsigned current_line_num;
-	static unsigned num_characters_drawn;
+	static int line_length;
+	static int num_lines_displayed;
+	static int current_index;
+	static int current_line_num;
+	static int num_characters_drawn;
+	static int scroll_pos;	// a scroll_pos of 0 means the lowest line displayed is the most recent one, 1 for the second most recent one, 2 for the third etc
+
 	static void update_VBO(const std::string &buffer);
-	static bool _visible;
-	static bool _autoscroll;
-	static void set_y_translation(float new_y);
+	static bool visible_;
+	static bool autoscroll_;
+	static void update_modelview();
 	
 public:
-	static void update_overlay_pos();
+	static GLint OSL_upper_left_corner_pos[2]; // to be passed as a 2xGL_INT (ivec2) 
 	static void print_string(const std::string &s);
-	static void toggle_visibility() { _visible = !_visible; }
-	static void scroll(float ds);
+	static void toggle_visibility() { visible_ = !visible_; }
+	static void scroll(int d);
 	static void print(const char* format, ...);
+	static int get_line_length() { return line_length; }
+	static int get_lines_displayed() { return num_lines_displayed; }
+	static void update_position();
 	static void clear();
 	static void draw();
 	static int init();
@@ -185,22 +197,26 @@ public:
 class VarTracker {
 #define TRACKED_MAX 16
 #define TRACKED_LEN_MAX 64
-	static float pos_x, pos_y;
+#define TRACKER_LINE_LEN 36
 	static int cur_total_length;
 
 	static char_object VT_char_object_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
 	static GLuint VT_VBOid;
 	static std::vector<const TrackableBase* const> tracked;
 	static void update_VBO(const std::string &buffer);
+	static bool has_changed_;
 
-public:
+public:	
+	static GLint VT_upper_left_corner_pos[2];
+
 	static void init();
-	static void update();
 	static void draw();
-	static void update_position();	// according to window geometry changes
+	static void update();
 	static void track(const TrackableBase *const var);
 	static void untrack(const void *const data_ptr);
-
+	static size_t get_num_tracked() { return tracked.size(); }
+	static bool has_changed() { return has_changed_; }
+	static void update_position();
 };
 
 

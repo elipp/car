@@ -349,12 +349,11 @@ GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 	WINDOW_WIDTH = width;
 	WINDOW_HEIGHT = height;
 
-	glViewport(0,0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
+	glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
 
 	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
-	projection = mat4::proj_persp(PROJ_FOV_RADIANS, (WINDOW_WIDTH/WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
+	projection = mat4::proj_persp(PROJ_FOV_RADIANS, ((float)WINDOW_WIDTH/(float)WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
+	onScreenLog::update_position();
 	onScreenLog::input_field.update_position();
-	//onScreenLog::update_overlay_pos();
 	VarTracker::update_position();
-
 }

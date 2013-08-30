@@ -1,0 +1,8 @@
+#version 150 core
+
+out vec4 out_frag_color;
+uniform vec4 overlay_color;
+
+void main() {
+	out_frag_color = overlay_color;
+}

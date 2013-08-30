@@ -5,11 +5,10 @@ Model::Model(float m, float s, GLuint _VBOid, GLuint texId, GLuint _facecount, b
 	
 		model_matrix = mat4::identity();
 		model_matrix = scale*model_matrix;
-		model_matrix(3, 3) = 1.0;
 		// no need to initialize Quaternion rotation, because
 		// default constructor initializes it to QUAT_NO_ROTATION.
 		// The same applies to vec4, it's all zeroes by default.
-		position(3) = 1.0;
+		position = vec4(0.0, 0.0, 0.0, 1.0);
 
 
 		// SPHERE SPECIFIC

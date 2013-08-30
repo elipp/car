@@ -1,0 +1,13 @@
+#version 150 core
+
+in ivec4 attribs_packed;
+out ivec2 rect_dimensions;
+
+void main() {
+	rect_dimensions = attribs_packed.zw;
+	gl_Position = vec4(attribs_packed.xy, -0.1, 1.0);	
+	// the z-value (-0.1) is really important here; this puts
+	// the overlay ever-so-slightly behind the text elements,
+	// so that there's no need to a) clear the depth buffer bit
+	// or b) disable depth testing
+}

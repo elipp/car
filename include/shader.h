@@ -49,6 +49,9 @@ class ShaderProgram {
 	GLuint programHandle;
 	GLuint shaderObjIDs[5]; 	// [0] => VS_id, [1] => TCS_id, [2] => TES_id, [3] => GS_id, [4] => FS_id
 	bool bad;
+
+	bool ShaderProgram::active_uniform(const std::string &name, std::unordered_map<std::string,GLuint>::iterator *iter);
+
 public:
 	GLuint getProgramHandle() const { return programHandle; }
 	
@@ -62,6 +65,7 @@ public:
 	void construct_uniform_map();
 	void update_uniform_mat4(const std::string &uniform_name, const mat4 &m);
 	void update_uniform_vec4(const std::string &uniform_name, const vec4 &v);
+	void update_uniform_ivec2(const std::string &uniform_name, const GLint *GLint_doublet);
 	void update_uniform_1f(const std::string &uniform_name, GLfloat value);
 	void update_uniform_1i(const std::string &uniform_name, GLint value);	// just wrappers around the glapi calls
 

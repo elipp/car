@@ -54,7 +54,6 @@ static ShaderProgram *regular_shader = NULL,
 					 *normal_plot_shader = NULL,
 					 *racetrack_shader = NULL,
 					 *skybox_shader = NULL;
-
 mat4 view;
 Quaternion viewq;
 mat4 projection;
@@ -147,11 +146,11 @@ void control()
 
 	// these are active regardless of mouse_locked status
 	if (WM_KEYDOWN_KEYS[VK_PRIOR]) {
-		onScreenLog::scroll(char_spacing_vert);
+		onScreenLog::scroll(1);
 		WM_KEYDOWN_KEYS[VK_PRIOR] = false;
 	}
 	if (WM_KEYDOWN_KEYS[VK_NEXT]) {
-		onScreenLog::scroll(-char_spacing_vert);	
+		onScreenLog::scroll(-1);	
 		WM_KEYDOWN_KEYS[VK_NEXT] = false;
 	}
 	if (WM_CHAR_KEYS['L']) {
@@ -257,13 +256,23 @@ int initGL(void)
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_BLEND);
+#define ADD_ATTRIB(map, attrib_id, attrib_name) do {\
+	(map).insert(std::make_pair<GLuint, std::string>((attrib_id), std::string(attrib_name)));\
+	} while(0)
 
 	std::unordered_map<GLuint, std::string> text_attrib_bindings;
-	text_attrib_bindings.insert(std::make_pair<GLuint, std::string>(TEXT_ATTRIB_ALL, std::string("ALL_ATTRIBS_PACKED")));	
-
+	ADD_ATTRIB(text_attrib_bindings, TEXT_ATTRIB_ALL, "ALL_ATTRIBS_PACKED");
 
 	text_shader = new ShaderProgram("shaders/text_shader", text_attrib_bindings);
 	text_texId = TextureBank::add(Texture("textures/dina_all.png", GL_NEAREST));
+	
+	// the overlay_shader doesn't have actual vertex attributes; uniforms are used to generate a solid-color quad
+	std::unordered_map<GLuint, std::string> overlay_attrib_bindings;
+	ADD_ATTRIB(overlay_attrib_bindings, OVERLAY_ATTRIB_POS, "dummy");
+	overlay_shader = new ShaderProgram("shaders/overlay", overlay_attrib_bindings);
 
 	onScreenLog::init();
 	VarTracker::init();
@@ -274,24 +283,26 @@ int initGL(void)
 	PRINT("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	
 	std::unordered_map<GLuint, std::string> default_attrib_bindings;
-	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_POSITION, std::string("Position_VS_in")));
-	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_NORMAL, std::string("Normal_VS_in")));
-	default_attrib_bindings.insert(std::make_pair<GLuint, std::string>(ATTRIB_TEXCOORD, std::string("TexCoord_VS_in")));
-
+	ADD_ATTRIB(default_attrib_bindings, ATTRIB_POSITION, "Position_VS_in");
+	ADD_ATTRIB(default_attrib_bindings, ATTRIB_NORMAL, "Normal_VS_in");
+	ADD_ATTRIB(default_attrib_bindings, ATTRIB_TEXCOORD, "TexCoord_VS_in");
+	
 	regular_shader = new ShaderProgram("shaders/regular", default_attrib_bindings); 
 	racetrack_shader = new ShaderProgram("shaders/racetrack", default_attrib_bindings);
 	skybox_shader = new ShaderProgram("shaders/skybox", default_attrib_bindings);
 
+
 	if (regular_shader->is_bad() ||
 		text_shader->is_bad() ||
 		racetrack_shader->is_bad() ||
-		skybox_shader->is_bad() ) { 
+		skybox_shader->is_bad() ||
+		overlay_shader->is_bad()) { 
 
 		messagebox_error("Error: shader error. See shader.log.\n");
 		return 0; 
 	}
 	
-	PRINT( "Loading all sorts of stuff...\n");
+	PRINT("Loading stuff...\n");
 
 	onScreenLog::draw();
 	window_swapbuffers();
@@ -307,12 +318,12 @@ int initGL(void)
 		return 0; 
 	}
 
-	PRINT( "done.\n");
+	PRINT("done.\n");
 	
-	PRINT( "Loading textures...");
+	PRINT("Loading textures...");
 	terrain_texId = TextureBank::add(Texture("textures/grass.jpg", GL_LINEAR_MIPMAP_LINEAR));
 	skybox_texId = TextureBank::add(Texture("textures/skybox.jpg", GL_NEAREST));
-	PRINT( "done.\n");
+	PRINT("done.\n");
 	
 	if (!TextureBank::validate()) {
 		messagebox_error("Error: failed to validate TextureBank (fatal).\n");
@@ -460,7 +471,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		regular_shader->update_uniform_vec4("paint_color", wheel_color);
 	
 		// front wheels
-		static const mat4 front_left_wheel_translation = mat4::translate(vec4(-2.2, -0.6, 0.9, 1.0));
+		static const mat4 front_left_wheel_translation = mat4::translate(-2.2, -0.6, 0.9);
 		mv = modelview;
 		mv *= front_left_wheel_translation;
 		mv *= mat4::rotate(M_PI - car.state.front_wheel_angle, 0.0, 1.0, 0.0);
@@ -469,7 +480,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		wheel->use_ModelView(mv);
 		wheel->draw();
 
-		static const mat4 front_right_wheel_translation = mat4::translate(vec4(-2.2, -0.6, -0.9, 1.0));
+		static const mat4 front_right_wheel_translation = mat4::translate(-2.2, -0.6, -0.9);
 		mv = modelview;
 		mv *= front_right_wheel_translation;
 		mv *= mat4::rotate(-car.state.front_wheel_angle, 0.0, 1.0, 0.0);
@@ -479,7 +490,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		wheel->draw();
 	
 		// back wheels
-		static const mat4 back_left_wheel_translation = mat4::translate(vec4(1.3, -0.6, 0.9, 1.0));
+		static const mat4 back_left_wheel_translation = mat4::translate(1.3, -0.6, 0.9);
 		mv = modelview;
 		mv *= back_left_wheel_translation;
 		mv *= mat4::rotate(car.state.wheel_rot, 0.0, 0.0, 1.0);
@@ -488,7 +499,7 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 		wheel->use_ModelView(mv);
 		wheel->draw();
 	
-		static const mat4 back_right_wheel_translation = mat4::translate(vec4(1.3, -0.6, -0.9, 1.0));
+		static const mat4 back_right_wheel_translation = mat4::translate(1.3, -0.6, -0.9);
 
 		mv = modelview;
 		mv *= back_right_wheel_translation;
@@ -499,20 +510,35 @@ void drawCars(const std::unordered_map<unsigned short, struct Peer> &peers) {
 	}
 }
 
+static void draw_text() {
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	//glDisable(GL_DEPTH_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
+	draw_overlays(vec4(0.05, 0.05, 0.05, 0.76));
+//	glClear(GL_DEPTH_BUFFER_BIT);
+	onScreenLog::draw();
+	VarTracker::draw();
+	glDisable(GL_BLEND);
+
+}
+
 static void draw_everything() {
-		drawSkybox();
-		//drawCubes();
 
-		if (LocalClient::connected()) {
-			double t = LocalClient::time_since_last_posupd_ms();
-			LocalClient::interpolate_positions();
-			drawCars(LocalClient::get_peers());
-			
-		}
 
-		drawTerrain();
-		onScreenLog::draw();
-		VarTracker::draw();
+	drawSkybox();	
+	glEnable(GL_DEPTH_TEST);
+	drawCubes();
+
+	if (LocalClient::connected()) {
+		double t = LocalClient::time_since_last_posupd_ms();
+		LocalClient::interpolate_positions();
+		drawCars(LocalClient::get_peers());
+	} 
+
+	drawTerrain();	
+	draw_text();
 
 }
 

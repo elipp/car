@@ -2,13 +2,32 @@
 
 #include "net/client.h"
 
+extern std::string get_timestamp();
+
 mat4 text_Projection; 
 GLuint text_texId;
 
 ShaderProgram *text_shader = NULL;
+ShaderProgram *overlay_shader = NULL;
 
 static GLuint text_VAOids[2];
 enum { text_VAOid_log = 0, text_VAOid_inputfield = 1 };
+
+static GLuint overlay_VAOid;
+
+struct overlay_rect {
+	GLshort UL_corner_pos[2];
+	GLshort dim[2];
+	overlay_rect() {};
+	overlay_rect(GLshort ulc_x, GLshort ulc_y, GLshort dim_x, GLshort dim_y) {
+		UL_corner_pos[0] = ulc_x;
+		UL_corner_pos[1] = ulc_y;
+		dim[0] = dim_x;
+		dim[1] = dim_y;
+	}
+};
+
+static GLuint overlay_VBOid;
 
 static GLuint text_shared_IBOid;
 static GLuint vartracker_VAOid;
@@ -25,20 +44,25 @@ onScreenLog::PrintQueue onScreenLog::print_queue;
 
 #define CURSOR_GLYPH 0x7F	// is really DEL though in utf8
 
-float onScreenLog::pos_x = 7.0, onScreenLog::pos_y = HALF_WINDOW_HEIGHT - 6;
 mat4 onScreenLog::modelview;
 GLuint onScreenLog::OSL_VBOid = 0;
 
-unsigned onScreenLog::line_length = OSL_LINE_LEN;
-unsigned onScreenLog::num_lines_displayed = 32;
-unsigned onScreenLog::current_index = 0;
-unsigned onScreenLog::current_line_num = 0;
+int onScreenLog::line_length = OSL_LINE_LEN;
+int onScreenLog::num_lines_displayed = 32;
+int onScreenLog::current_index = 0;
+int onScreenLog::current_line_num = 0;
 char_object onScreenLog::OSL_char_object_buffer[OSL_BUFFER_SIZE];
-bool onScreenLog::_visible = true;
-bool onScreenLog::_autoscroll = true;
-unsigned onScreenLog::num_characters_drawn = 1;
+bool onScreenLog::visible_ = true;
+bool onScreenLog::autoscroll_ = true;
+int onScreenLog::num_characters_drawn = 1;	
+int onScreenLog::scroll_pos = 0;
+
+
+GLint onScreenLog::OSL_upper_left_corner_pos[2] = { 7, WINDOW_HEIGHT - onScreenLog::num_lines_displayed * char_spacing_vert };
+GLint VarTracker::VT_upper_left_corner_pos[2] = { WINDOW_WIDTH - TRACKER_LINE_LEN * char_spacing_horiz, 5 };
 
 static float log_bottom_margin = char_spacing_vert*1.55;
+
 
 #define IS_PRINTABLE_CHAR(c) ((c) >= 0x20 && (c) <= 0x7F)
 
@@ -66,66 +90,67 @@ static GLuint generate_empty_VBO(size_t size, GLint FLAG) {
 	return VBOid;
 }
 
-void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
-	if (input_buffer.length() < INPUT_FIELD_BUFFER_SIZE) {
-		if (c == VK_BACK) {
-			delete_char_before_cursor_pos();
-		}
-		else {
-			input_buffer.insert(input_buffer.begin() + cursor_pos, c);
-			move_cursor(1);
-		}
-	}
-	refresh();
-	_changed = true;
+
+static void setup_overlays() {
+	glGenVertexArrays(1, &overlay_VAOid);
+
+	overlay_VBOid = generate_empty_VBO(2*sizeof(overlay_rect), GL_DYNAMIC_DRAW);
+
+	struct overlay_rect rects[2];
+	rects[0] = overlay_rect(onScreenLog::OSL_upper_left_corner_pos[0], onScreenLog::OSL_upper_left_corner_pos[1], 
+							onScreenLog::get_line_length(), onScreenLog::get_lines_displayed());
+
+	rects[1] = overlay_rect(VarTracker::VT_upper_left_corner_pos[0], VarTracker::VT_upper_left_corner_pos[1],
+							TRACKER_LINE_LEN, VarTracker::get_num_tracked());		
+
+
+	glBindVertexArray(overlay_VAOid);
+
+	glEnableVertexAttribArray(OVERLAY_ATTRIB_POS);
+	glBindBuffer(GL_ARRAY_BUFFER, overlay_VBOid);
+	glBufferData(GL_ARRAY_BUFFER, 2*sizeof(overlay_rect), rects, GL_DYNAMIC_DRAW);
+	glVertexAttribIPointer(OVERLAY_ATTRIB_POS, 4, GL_SHORT, sizeof(overlay_rect), BUFFER_OFFSET(0));
+
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glDisableVertexAttribArray(OVERLAY_ATTRIB_POS);
+
 }
 
-void onScreenLog::InputField::refresh() {
-	if (_enabled && _changed) {
-		update_VBO();
-		_changed = false;
-	}
-}
-
-void onScreenLog::InputField::delete_char_before_cursor_pos() {
-	if (cursor_pos < 1) { return; }
-	input_buffer.erase(input_buffer.begin() + (cursor_pos-1));
-	move_cursor(-1);
-	_changed = true;
-}
-
-void onScreenLog::InputField::move_cursor(int amount) {
-	cursor_pos += amount;
-	cursor_pos = max(cursor_pos, 0);
-	cursor_pos = min(cursor_pos, input_buffer.length());
-	_changed = true;
-}
-
-void onScreenLog::InputField::update_VBO() {
-
-	GLushort x_offset = 0;
-	int i = 0;
-	for (; i < input_buffer.length(); ++i) {
-		IF_char_object_buffer[i] = char_object_from_char(x_offset, 0, input_buffer[i], 0);
-		++x_offset;
-	}
-
-	IF_char_object_buffer[i] = char_object_from_char(x_offset, 0, CURSOR_GLYPH, 3);
+void draw_overlays(const vec4 &color) {
 	
-	glBindBuffer(GL_ARRAY_BUFFER, onScreenLog::InputField::IF_VBOid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(char_object), (const GLvoid*)&IF_char_object_buffer[0]);
+	glUseProgram(overlay_shader->getProgramHandle());
+	glEnableVertexAttribArray(OVERLAY_ATTRIB_POS);
+	
+	GLint dummy = 0;
+	glBindVertexArray(overlay_VAOid);
+	overlay_shader->update_uniform_mat4("Projection", text_Projection);
+	overlay_shader->update_uniform_mat4("ModelView", mat4::identity());
+	overlay_shader->update_uniform_vec4("overlay_color", color);
+
+	glDrawArrays(GL_POINTS, 0, 2);
+	
+	glBindVertexArray(0);
+}
+
+void update_overlays() {
+	
+	struct overlay_rect rects[2];
+	rects[0] = overlay_rect(onScreenLog::OSL_upper_left_corner_pos[0] - char_spacing_horiz, onScreenLog::OSL_upper_left_corner_pos[1] - char_spacing_vert, 
+							onScreenLog::get_line_length() + 1, onScreenLog::get_lines_displayed() + 1);
+
+	rects[1] = overlay_rect(VarTracker::VT_upper_left_corner_pos[0] - char_spacing_horiz, VarTracker::VT_upper_left_corner_pos[1] - char_spacing_vert,
+							TRACKER_LINE_LEN + 1, 3 + 3*VarTracker::get_num_tracked() + 1);	
+	glBindBuffer(GL_ARRAY_BUFFER, overlay_VBOid);
+	glBufferData(GL_ARRAY_BUFFER, 2*sizeof(overlay_rect), rects, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+
 void onScreenLog::draw() {
 	
-	if (!_visible) { return; }
+	if (!visible_) { return; }
 	
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_DEPTH_TEST);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-
 	glUseProgram(text_shader->getProgramHandle());
 	glBindVertexArray(text_VAOids[text_VAOid_log]);
 	
@@ -133,79 +158,26 @@ void onScreenLog::draw() {
 	glBindTexture(GL_TEXTURE_2D, text_texId);
 	text_shader->update_uniform_1i("texture_color", 0);
 	
-	//static const vec4 overlay_rect_color(0.02, 0.02, 0.02, 0.6);
-	//static const vec4 log_text_color(0.91, 0.91, 0.91, 1.0);
-
-	static const mat4 overlay_modelview = mat4::identity();
-
 	text_shader->update_uniform_mat4("Projection", text_Projection);
-
-	//text_shader->update_uniform_vec4("text_color", log_text_color);
 	text_shader->update_uniform_mat4("ModelView", onScreenLog::modelview);
 
-	//glEnable(GL_SCISSOR_TEST);
-	//glScissor(0, (GLint)1.5*char_spacing_vert, (GLsizei) WINDOW_WIDTH, (GLsizei) num_lines_displayed * char_spacing_vert + 2);
+	// the scissor area origin is at the "bottom left corner of the screen".
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(0, (GLint)1.5*char_spacing_vert, (GLsizei) WINDOW_WIDTH, (GLsizei) num_lines_displayed * char_spacing_vert + 2);
+	const int OSL_CHARACTERS_PER_VIEW_MAX = OSL_LINE_LEN * num_lines_displayed;
 
-	glDrawArrays(GL_POINTS, 0, (num_characters_drawn-1));
-	//fprintf(stderr, "num_chars drawn: %lld\n", (long long)(num_characters_drawn - 1));
-	//glDisable(GL_SCISSOR_TEST);
+	glDrawArrays(GL_POINTS, 0, current_index);
+	fprintf(stderr, "num_chars drawn: %lld\n", (long long)(num_characters_drawn - 1));
+	glDisable(GL_SCISSOR_TEST);
 
 	glBindVertexArray(0);
 
 	input_field.draw();	// it's only drawn if its enabled
-	glDisable(GL_BLEND);
+
 }
 
 
-void onScreenLog::InputField::draw() const {
-if (!_enabled) { return; }
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_DEPTH_TEST);
-	
-	glUseProgram(text_shader->getProgramHandle());
-	glBindVertexArray(text_VAOids[text_VAOid_inputfield]);
-	
-	//static const vec4 input_field_text_color(_RGB(243, 248, 111), 1.0);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, text_texId);
-	text_shader->update_uniform_1i("texture_color", 0);
-	//text_shader->update_uniform_vec4("text_color", input_field_text_color);
-
-	static const mat4 InputField_modelview = mat4::translate(vec4(0.0, WINDOW_HEIGHT-char_spacing_vert, 0.0, 1.0));
-
-	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)InputField_modelview.rawData());
-	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
-	
-	glDrawArrays(GL_POINTS, 0, input_buffer.length()+1);
-	glBindVertexArray(0);
-}
-
-void onScreenLog::InputField::clear() {
-	input_buffer.clear();
-	cursor_pos = 0;
-	IF_char_object_buffer[0] = char_object_from_char(0, 0, CURSOR_GLYPH, 0);
-	update_VBO();
-}
-
-void onScreenLog::InputField::enable() {
-	if (_enabled == false) {
-		clear();
-		refresh();
-	}
-	_enabled=true;
-}
-void onScreenLog::InputField::disable() {
-	if (_enabled == true) {
-		clear();
-	}
-	_enabled = false;
-}
-
-void onScreenLog::InputField::submit_and_parse() {
-	LocalClient::parse_user_input(input_buffer);
-	clear();
-}
 
 void onScreenLog::PrintQueue::add(const std::string &s) {
 	int excess = queue.length() + s.length() - OSL_BUFFER_SIZE;
@@ -227,6 +199,10 @@ void onScreenLog::dispatch_print_queue() {
 int onScreenLog::init() {
 	text_Projection = mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0);
 	onScreenLog::modelview = mat4::identity();
+	
+	onScreenLog::OSL_upper_left_corner_pos[0] = 7;
+	onScreenLog::OSL_upper_left_corner_pos[1] = WINDOW_HEIGHT - onScreenLog::num_lines_displayed * char_spacing_vert;
+
 	OSL_VBOid = generate_empty_VBO(OSL_BUFFER_SIZE*sizeof(char_object), GL_DYNAMIC_DRAW);	
 
 	glGenVertexArrays(2, text_VAOids);
@@ -254,10 +230,18 @@ int onScreenLog::init() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDisableVertexAttribArray(TEXT_ATTRIB_ALL);
 
+	setup_overlays();
+
 	return 1;
 }
 
-
+void onScreenLog::update_position() {
+	onScreenLog::OSL_upper_left_corner_pos[0] = 7;
+	onScreenLog::OSL_upper_left_corner_pos[1] = WINDOW_HEIGHT - onScreenLog::num_lines_displayed * char_spacing_vert;
+}
+void onScreenLog::update_modelview() {
+	onScreenLog::modelview = mat4::translate(1, onScreenLog::OSL_upper_left_corner_pos[1] - (current_line_num - num_lines_displayed - scroll_pos + 1)*char_spacing_vert, 0.0);
+}
 
 void onScreenLog::update_VBO(const std::string &buffer) {
 
@@ -282,6 +266,8 @@ void onScreenLog::update_VBO(const std::string &buffer) {
 	
 	}
 	
+	// TODO: add check to see if line_num > 64k -> translate everything up by an offset :P
+
 	unsigned prev_current_index = current_index;
 	current_index += length;
 	
@@ -298,12 +284,7 @@ void onScreenLog::update_VBO(const std::string &buffer) {
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	/*if (_autoscroll) {
-		float d = (y_pos + pos_y + log_bottom_margin) - WINDOW_HEIGHT;
-		if (d > onScreenLog::modelview(3,1)) { 
-			set_y_translation(-d);
-		}
-	}*/
+
 
 }
 
@@ -334,49 +315,137 @@ void onScreenLog::print(const char* fmt, ...) {
 
 void onScreenLog::print_string(const std::string &s) {
 	update_VBO(s);
+	update_modelview();
 }
 
-void onScreenLog::scroll(float ds) {
-	float y_adjustment = current_line_num * char_spacing_vert;
-	float bottom_scroll_displacement = y_adjustment + log_bottom_margin + pos_y - WINDOW_HEIGHT;
-	
-	onScreenLog::modelview.assign(3, 1, onScreenLog::modelview(3,1) + ds);
-	
-	if (bottom_scroll_displacement + onScreenLog::modelview(3,1) >= 0) {
-		_autoscroll = false;
-
+void onScreenLog::scroll(int d) {
+	scroll_pos += d;
+	if (scroll_pos < 0) {
+		scroll_pos = 0;
 	}
-	else {		
-		set_y_translation(-bottom_scroll_displacement);
-		_autoscroll = true;
+	else if (scroll_pos == 0) {
+		autoscroll_ = true;
+	} else if (scroll_pos >= (current_line_num - num_lines_displayed)) {
+		scroll_pos = current_line_num - num_lines_displayed;
 	}
-
-}
-
-void onScreenLog::set_y_translation(float new_y) {
-	onScreenLog::modelview.assign(3, 1, new_y);
+	update_modelview();
 }
 
 void onScreenLog::clear() {
-	current_index = 1;
+	current_index = 0;
 	current_line_num = 0;
-	num_characters_drawn = 1;	// there's the overlay glyph at the beginning of the vbo =)
+	num_characters_drawn = 0;	
 	onScreenLog::modelview = mat4::identity();
 }
 
+void onScreenLog::InputField::draw() const {
+if (!enabled_) { return; }
+	
+	glUseProgram(text_shader->getProgramHandle());
+	glBindVertexArray(text_VAOids[text_VAOid_inputfield]);
+	
+	//static const vec4 input_field_text_color(_RGB(243, 248, 111), 1.0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, text_texId);
+	text_shader->update_uniform_1i("texture_color", 0);
+	//text_shader->update_uniform_vec4("text_color", input_field_text_color);
+
+	const mat4 InputField_modelview = mat4::translate(7, WINDOW_HEIGHT-char_spacing_vert, 0.1);
+
+	text_shader->update_uniform_mat4("ModelView", (const GLfloat*)InputField_modelview.rawData());
+	text_shader->update_uniform_mat4("Projection", (const GLfloat*)text_Projection.rawData());
+	
+	glDrawArrays(GL_POINTS, 0, input_buffer.length()+1);
+	glBindVertexArray(0);
+}
+
+void onScreenLog::InputField::clear() {
+	input_buffer.clear();
+	cursor_pos = 0;
+	IF_char_object_buffer[0] = char_object_from_char(0, 0, CURSOR_GLYPH, 0);
+	update_VBO();
+}
+
+void onScreenLog::InputField::enable() {
+	if (enabled_ == false) {
+		clear();
+		refresh();
+	}
+	enabled_=true;
+}
+
+void onScreenLog::InputField::disable() {
+	if (enabled_ == true) {
+		clear();
+	}
+	enabled_ = false;
+}
+
+void onScreenLog::InputField::submit_and_parse() {
+	LocalClient::parse_user_input(input_buffer);
+	clear();
+}
+
+void onScreenLog::InputField::insert_char_to_cursor_pos(char c) {
+	if (input_buffer.length() < INPUT_FIELD_BUFFER_SIZE) {
+		if (c == VK_BACK) {
+			delete_char_before_cursor_pos();
+		}
+		else {
+			input_buffer.insert(input_buffer.begin() + cursor_pos, c);
+			move_cursor(1);
+		}
+	}
+	refresh();
+	changed_ = true;
+}
+
+void onScreenLog::InputField::refresh() {
+	if (enabled_ && changed_) {
+		update_VBO();
+		changed_ = false;
+	}
+}
+
+void onScreenLog::InputField::delete_char_before_cursor_pos() {
+	if (cursor_pos < 1) { return; }
+	input_buffer.erase(input_buffer.begin() + (cursor_pos-1));
+	move_cursor(-1);
+	changed_ = true;
+}
+
+void onScreenLog::InputField::move_cursor(int amount) {
+	cursor_pos += amount;
+	cursor_pos = max(cursor_pos, 0);
+	cursor_pos = min(cursor_pos, input_buffer.length());
+	changed_ = true;
+}
+
+void onScreenLog::InputField::update_VBO() {
+
+	GLushort x_offset = 0;
+	int i = 0;
+	for (; i < input_buffer.length(); ++i) {
+		IF_char_object_buffer[i] = char_object_from_char(x_offset, 0, input_buffer[i], 0);
+		++x_offset;
+	}
+
+	IF_char_object_buffer[i] = char_object_from_char(x_offset, 0, CURSOR_GLYPH, TEXT_COLOR_YELLOW);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, onScreenLog::InputField::IF_VBOid);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, (input_buffer.length()+1)*sizeof(char_object), (const GLvoid*)&IF_char_object_buffer[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 
  // *** STATIC VAR DEFS FOR VARTRACKER ***
 
 GLuint VarTracker::VT_VBOid;
 std::vector<const TrackableBase* const> VarTracker::tracked;
 
-static int tracker_width_chars = 36;
-
-float VarTracker::pos_x = WINDOW_WIDTH - tracker_width_chars*char_spacing_horiz;
-float VarTracker::pos_y = 7;
 int VarTracker::cur_total_length = 0;
-char_object VarTracker::VT_char_object_buffer[TRACKED_MAX*TRACKED_LEN_MAX];
-
+char_object VarTracker::VT_char_object_buffer[TRACKED_MAX*TRACKED_LEN_MAX];	
+bool VarTracker::has_changed_ = false;
 
 void VarTracker::init() {
 	VarTracker::VT_VBOid = generate_empty_VBO(TRACKED_MAX * TRACKED_LEN_MAX * sizeof(char_object), GL_DYNAMIC_DRAW);
@@ -394,9 +463,14 @@ void VarTracker::init() {
 }
 
 void VarTracker::update() {
+	if (has_changed_) {
+		update_overlays();
+		has_changed_ = false;
+	}
+	VarTracker::VT_upper_left_corner_pos[0] = WINDOW_WIDTH - TRACKER_LINE_LEN*char_spacing_horiz;
 	std::string collect = "Tracked variables:\n";	// probably faster to just construct a new string  
 							// every time, instead of clear()ing a static one
-	static const std::string separator = "\n" + std::string(tracker_width_chars - 1, '-') + "\n";
+	static const std::string separator = "\n" + std::string(TRACKER_LINE_LEN - 1, '-') + "\n";
 	collect.reserve(TRACKED_MAX*TRACKED_LEN_MAX);
 	for (auto &it : tracked) {
 		collect += separator + it->name + ":\n" + it->print();
@@ -415,11 +489,11 @@ void VarTracker::update_VBO(const std::string &buffer) {
 	int length = buffer.length();
 	int current_line_num = 0;
 
-	for (i = 1; i < length+1; ++i) {
+	for (i = 0; i < length; ++i) {
 
-		char c = buffer[i-1];
+		char c = buffer[i];
 
-		if (c == '\n' || i - line_beg_index >= tracker_width_chars) {
+		if (c == '\n' || i - line_beg_index >= TRACKER_LINE_LEN) {
 			++current_line_num;
 			y_pos = current_line_num;
 			x_pos = -1;	// workaround, is incremented at the bottom of the lewp
@@ -430,7 +504,7 @@ void VarTracker::update_VBO(const std::string &buffer) {
 		++x_pos;
 	}		
 	
-	VarTracker::cur_total_length = buffer.length() + 1;
+	VarTracker::cur_total_length = buffer.length();
 	glBindBuffer(GL_ARRAY_BUFFER, VarTracker::VT_VBOid);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, VarTracker::cur_total_length*(sizeof(char_object)), (const GLvoid*)VT_char_object_buffer);
 
@@ -439,11 +513,6 @@ void VarTracker::update_VBO(const std::string &buffer) {
 void VarTracker::draw() {
 	
 	VarTracker::update();
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_DEPTH_TEST);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
 
 	glUseProgram(text_shader->getProgramHandle());
 	glBindVertexArray(vartracker_VAOid);
@@ -455,7 +524,7 @@ void VarTracker::draw() {
 	static const vec4 tracker_overlay_color(0.02, 0.02, 0.02, 0.6);
 	static const vec4 tracker_text_color(0.91, 0.91, 0.91, 1.0);
 	
-	static mat4 tracker_modelview = mat4::translate(vec4(WINDOW_WIDTH-tracker_width_chars*char_spacing_horiz-2, 0, 0, 1.0));
+	mat4 tracker_modelview = mat4::translate(WINDOW_WIDTH - TRACKER_LINE_LEN*char_spacing_horiz, 5.0, 0.0);
 
 	text_shader->update_uniform_mat4("Projection", text_Projection);
 	text_shader->update_uniform_vec4("text_color", tracker_overlay_color);
@@ -464,7 +533,7 @@ void VarTracker::draw() {
 	text_shader->update_uniform_vec4("text_color", tracker_text_color);
 	glDrawArrays(GL_POINTS, 0, VarTracker::cur_total_length);
 	glBindVertexArray(0);
-	glDisable(GL_BLEND);
+
 }
 
 void VarTracker::track(const TrackableBase *const var) {
@@ -478,6 +547,7 @@ void VarTracker::track(const TrackableBase *const var) {
 		++iter;
 	}
 	VarTracker::tracked.push_back(var);
+	has_changed_ = true;
 	//PRINT("Tracker: added %s with value %s.\n", var->name.c_str(), var->print().c_str());
 }
 
@@ -496,8 +566,11 @@ void VarTracker::untrack(const void *const data_ptr) {
 }
 
 void VarTracker::update_position() {
-	VarTracker::pos_x = WINDOW_WIDTH - tracker_width_chars*char_spacing_horiz;
+	VarTracker::VT_upper_left_corner_pos[0] = WINDOW_WIDTH - char_spacing_horiz * TRACKER_LINE_LEN;
+	has_changed_ = true;
+	update_overlays();
 }
+
 
 
 

@@ -1,0 +1,32 @@
+#version 150 core
+
+layout(points) in;
+layout(triangle_strip, max_vertices = 4) out;
+
+#define char_spacing_horiz (7)
+#define char_spacing_vert (13)
+
+in ivec2 rect_dimensions[];
+
+uniform mat4 Projection;
+uniform mat4 ModelView;	// identity :P
+
+ivec2 rect_dim = rect_dimensions[0];
+
+vec4 translations[4] = {
+	vec4(0.0, 0.0, 0.0, 0.0),
+	vec4(0.0, rect_dim.y*char_spacing_vert, 0.0, 0.0),
+	vec4(rect_dim.x*char_spacing_horiz, 0.0, 0.0, 0.0),
+	vec4(rect_dim.x*char_spacing_horiz, rect_dim.y*char_spacing_vert, 0.0, 0.0)
+
+};
+
+void main() {
+	vec4 upper_leftc_pos = gl_in[0].gl_Position;
+	for (int i = 0; i < 4; ++i) {
+		gl_Position = Projection*ModelView*(upper_leftc_pos + translations[i]);
+		EmitVertex();
+	}
+	EndPrimitive();
+
+}
