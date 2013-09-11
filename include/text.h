@@ -15,6 +15,11 @@
 
 
 //#define PRINT_BOTH
+#define ENABLE_CONSOLE
+
+#if defined(PRINT_BOTH) || defined(PRINT_STDERR)
+#define ENABLE_CONSOLE
+#endif
 
 #ifdef PRINT_STDERR
 #define PRINT(fmt, ...) do {\
@@ -51,11 +56,13 @@ enum { TEXT_COLOR_FG = 0, TEXT_COLOR_RED, TEXT_COLOR_GREEN, TEXT_COLOR_BLUE, TEX
 
 extern std::string get_timestamp();
 
+#define OSL_TEXT_MAX_LINE_NUM ((0x1U << 15) - 1)
+
 struct char_object {
 	union {
 		struct {
 			unsigned pos_x : 7;	 // pos_x maximum is OSL_LINE_LEN (atm 96; representable in 7 bits).
-			unsigned pos_y : 14;
+			unsigned pos_y : 14; // -> 0->32767 (OSL_TEXT_MAX_LINE_NUM)
 			unsigned char_index : 7;
 			unsigned color : 4;
 		} bitfields;
@@ -126,7 +133,8 @@ private:
 	static GLuint OSL_VBOid;
 	static int line_length;
 	static int num_lines_displayed;
-	static int current_index;
+	static long current_char_index;	// the raw number of chars printed so far
+	static int current_cobuf_index;	// offset into the co_buffer
 	static int current_line_num;
 	static int num_characters_drawn;
 	static int scroll_pos;	// a scroll_pos of 0 means the lowest line displayed is the most recent one, 1 for the second most recent one, 2 for the third etc
@@ -135,9 +143,10 @@ private:
 	static bool visible_;
 	static bool autoscroll_;
 	static void update_modelview();
-	
+	static void translate_glyph_buffer(int offset);
+
 public:
-	static GLint OSL_upper_left_corner_pos[2]; // to be passed as a 2xGL_INT (ivec2) 
+	static GLint OSL_upper_left_corner_pos[2]; 
 	static void print_string(const std::string &s);
 	static void toggle_visibility() { visible_ = !visible_; }
 	static void scroll(int d);

@@ -79,11 +79,47 @@ float PROJ_Z_FAR = 2000.0;
 static int vsync = 1;
 
 static float height_sample_under_car = 0.0;
-static vec4 car_pos;
+static vec4 car_pos;	
+static vec4 penetration_depth;
 
 static OBB OBBa, OBBb;
 static Quaternion OBBaQ, OBBbQ;
 
+static bool spam_test = false;
+
+void handle_WM_KEYDOWN(WPARAM wParam) {
+
+		if (onScreenLog::input_field.enabled()) {
+			if (wParam == VK_RETURN) {
+				
+				onScreenLog::input_field.submit_and_parse();
+				onScreenLog::input_field.disable();
+			}
+			else if (wParam == VK_ESCAPE) {
+				onScreenLog::input_field.disable();
+			}
+			else if (wParam == VK_LEFT) {
+				onScreenLog::input_field.move_cursor(-1);
+			}
+			else if (wParam == VK_RIGHT) {
+				onScreenLog::input_field.move_cursor(1);
+			}
+			
+		}
+		else if (wParam == VK_RETURN) {
+			onScreenLog::input_field.enable();
+		} else {
+			WM_KEYDOWN_KEYS[wParam]=TRUE;
+		}
+}
+
+void handle_WM_CHAR(WPARAM wParam) {
+	if (onScreenLog::input_field.enabled()) {
+		if (wParam != VK_RETURN) {
+			onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
+		}
+	}
+}
 void rotateview(float modx, float mody) {
 	static float qx = 0;
 	static float qy = 0;
@@ -189,10 +225,29 @@ void control()
 		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.03);
 	}
 
+	if (WM_KEYDOWN_KEYS['0']) {
+		spam_test = !spam_test;
+		WM_KEYDOWN_KEYS['0'] = FALSE;
+	}
 
 	camera_position = -view_position;
 	camera_position.assign(V::z, camera_position(V::z)*(-1));
 
+}
+
+void resize_GL_scene(GLsizei width, GLsizei height)	{
+	height = MAXIMUM(height, 1);
+
+	WINDOW_WIDTH = width;
+	WINDOW_HEIGHT = height;
+
+	glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);	
+
+	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
+	projection = mat4::proj_persp(PROJ_FOV_RADIANS, ((float)WINDOW_WIDTH/(float)WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
+	onScreenLog::update_position();
+	onScreenLog::input_field.update_position();
+	VarTracker::update_position();
 }
 
 inline double rand01() {
@@ -251,14 +306,15 @@ if (uniform == -1) { \
 int initGL(void)
 {	
 
-	ResizeGLScene(WINDOW_WIDTH, WINDOW_HEIGHT);
+	resize_GL_scene(WINDOW_WIDTH, WINDOW_HEIGHT);
 	
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glDisable(GL_BLEND);
+	glDisable(GL_BLEND);	
+	
 #define ADD_ATTRIB(map, attrib_id, attrib_name) do {\
 	(map).insert(std::make_pair<GLuint, std::string>((attrib_id), std::string(attrib_name)));\
 	} while(0)
@@ -368,6 +424,13 @@ static vertex vec4_to_vertex(const vec4 &v) {
 void drawCubes() {	
 	GJKSession GJKsess(OBBa, OBBb);
 	int are_intersecting = GJKsess.collision_test();
+	penetration_depth = vec4(0, 0, 0, 0);
+	if (are_intersecting) {
+		int r = GJKsess.EPA_penetration(&penetration_depth);
+		if (r != EPA_SUCCESS) {
+			PRINT("EPA_penetration returned error %x!\n", r);
+		}
+	}
 	
 	OBBa.rotate(OBBaQ);
 	OBBb.rotate(OBBbQ);
@@ -543,7 +606,7 @@ static void draw_everything() {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {	
-#ifdef PRINT_STDERR
+#ifdef ENABLE_CONSOLE
 	if(AllocConsole()) {
 	 // for debugging those early-program fatal erreurz. this will screw up our framerate though.
 		FILE *dummy;
@@ -569,6 +632,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	VarTracker_track(float, height_sample_under_car);
 	VarTracker_track(vec4, camera_position);
 	VarTracker_track(vec4, car_pos);
+	VarTracker_track(vec4, penetration_depth);
 	//VarTracker_track(mat4, view);
 
 	
@@ -625,7 +689,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		control();
 		update_c_pos();
-				
+		if (spam_test) {
+			static int spamcounter = 0;
+			PRINT("SPAM MESSAGE #%d!!!!\na\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\no", spamcounter);
+			++spamcounter;
+		}
+		
 		onScreenLog::dispatch_print_queue();
 		onScreenLog::input_field.refresh();
 

@@ -5,7 +5,7 @@
 #include "lin_alg.h"
 #include <cstdlib>
 
-_BEGIN_ALIGN16
+BEGIN_ALIGN16
 class Model {
 public:	
 	// apparently, the default allocator can still return misaligned addresses, need to overload
@@ -31,7 +31,7 @@ public:
 	void translate(const vec4 &vec);
 	void updatePosition();
 
-	_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
+	DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 	
 private:
 	GLuint VBOid;
@@ -40,6 +40,6 @@ private:
 	bool is_a_lightsrc;
 	bool fixed_pos;
 
-} _END_ALIGN16;
+} END_ALIGN16;
 
 #endif

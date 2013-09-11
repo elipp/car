@@ -101,7 +101,7 @@ public:
 		return double(1000000*(_timer::get_s()));
 	}
 	_timer() {
-		if (!init()) { PRINT("_timer error.\n"); }
+		if (!init()) { fprintf(stderr, "_timer error.\n"); }
 	}
 };
 

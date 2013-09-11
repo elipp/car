@@ -17,37 +17,37 @@
 #include <ostream>
 
 #ifdef _WIN32
-#define _BEGIN_ALIGN16 __declspec(align(16))
-#define _END_ALIGN16
-#define _ALIGNED_MALLOC16(ptr, size) do { ptr = (decltype(ptr))_aligned_malloc((size), 16); } while(0)
-#define _ALIGNED_FREE(ptr) do { _aligned_free(ptr); } while(0)
+#define BEGIN_ALIGN16 __declspec(align(16))
+#define END_ALIGN16
+#define ALIGNED_MALLOC16(ptr, size) do { ptr = (decltype(ptr))_aligned_malloc((size), 16); } while(0)
+#define ALIGNED_FREE(ptr) do { _aligned_free(ptr); } while(0)
 
 #elif __linux__
-#define _BEGIN_ALIGN16
-#define _END_ALIGN16 __attribute__((aligned(16)))
+#define BEGIN_ALIGN16
+#define END_ALIGN16 __attribute__((aligned(16)))
 #define _ALIGNED_MALLOC16(ptr, size) do { posix_memalign((void**)&(ptr), 16, (size)); } while(0)
 #define _ALIGNED_FREE(ptr) do { free(ptr); } while(0)
 #endif
 
-#define _ALIGNED16(decl) _BEGIN_ALIGN16 decl _END_ALIGN16
+#define ALIGNED16(decl) BEGIN_ALIGN16 decl END_ALIGN16
 
-#define _DEFINE_ALIGNED_MALLOC_FREE_MEMBERS \
+#define DEFINE_ALIGNED_MALLOC_FREE_MEMBERS \
 	void *operator new(size_t size)\
 	{\
 		void *p;\
-		_ALIGNED_MALLOC16(p, size);\
+		ALIGNED_MALLOC16(p, size);\
 		return p;\
 	}\
 	void *operator new[](size_t size) {\
 		void *p;\
-		_ALIGNED_MALLOC16(p, size);\
+		ALIGNED_MALLOC16(p, size);\
 		return p;\
 	}\
 		void operator delete(void *p) {\
-		_ALIGNED_FREE(p);\
+		ALIGNED_FREE(p);\
 	}\
 		void operator delete[](void *p) {\
-		_ALIGNED_FREE(p);\
+		ALIGNED_FREE(p);\
 	}\
 
 
@@ -57,7 +57,7 @@ class Quaternion;
 
 inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
 	char buffer[128];
-	_ALIGNED16(float tmp[4]);
+	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, m);
 	sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
 //	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
@@ -104,14 +104,14 @@ namespace V {
 
 // microsoft says the __m128 union fields shouldn't be accessed directly as in __m128::m128_f32[n], so.. here we go.
 inline void assign_to_field(__m128 &a, int index, float val) {
-	_ALIGNED16(float tmp[4]);
+	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, a);
 	tmp[index] = val;
 	a = _mm_load_ps(tmp);
 }
 
 inline float get_field(const __m128 &a, int index) {
-	_ALIGNED16(float tmp[4]);
+	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, a);
 	return tmp[index];
 }
@@ -125,7 +125,7 @@ __m128 dot3x4_notranspose(const mat4 &M, const vec4 &v);
 
 __m128 dot4x4_notranspose(const mat4 &M, const vec4 &v);
 
-_BEGIN_ALIGN16
+BEGIN_ALIGN16
 class vec4 {		
 public:
 	__m128 data;
@@ -164,6 +164,8 @@ public:
 
 	float length3() const;
 	float length4() const;
+	float length3_squared() const;
+	float length4_squared() const;
 
 	void normalize();
 	vec4 normalized() const;
@@ -186,7 +188,7 @@ public:
 	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
 }
-_END_ALIGN16;
+END_ALIGN16;
 
 vec4 operator*(float scalar, const vec4& v);	// convenience overload :P
 
@@ -198,7 +200,7 @@ vec4 abs(const vec4 &a);
 vec4 cross(const vec4 &a,  const vec4 &b);	// not really vec4, since cross product for such vectors isn't defined
 
 
-_BEGIN_ALIGN16 
+BEGIN_ALIGN16 
 class mat4 {	// column major 
 	
 public:
@@ -244,7 +246,6 @@ public:
 	mat4 inverted() const;
 	
 	void *rawData() const;	// returns a column-major float[16]
-	void printRaw() const;	// prints elements in actual memory order.
 		
 	friend mat4 abs(const mat4 &m); // perform fabs on all elements of argument matrix
 	friend mat4 operator*(float scalar, const mat4& m);
@@ -252,7 +253,7 @@ public:
 
 	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
-} _END_ALIGN16;
+} END_ALIGN16;
 
 mat4 abs(const mat4 &m);
 mat4 operator*(float scalar, const mat4& m);
@@ -265,7 +266,7 @@ namespace Q {
 	enum {x = 0, y = 1, z = 2, w = 3};
 };
 
-_BEGIN_ALIGN16 
+BEGIN_ALIGN16 
 class Quaternion {
 public:
 	__m128 data;
@@ -302,15 +303,15 @@ public:
 
 	//_DEFINE_ALIGNED_MALLOC_FREE_MEMBERS;
 
-} _END_ALIGN16;
+} END_ALIGN16;
 
 Quaternion operator*(float scalar, const Quaternion &q);
 
 // these are pretty useful for when there's need to manipulate many of the data fields in a __m128
 
-_BEGIN_ALIGN16
+BEGIN_ALIGN16
 struct float_arr_vec4 {
-	_ALIGNED16(float f[4]);
+	ALIGNED16(float f[4]);
 	inline void operator=(const vec4 &v) {
 		_mm_store_ps(f, v.getData());
 	}
@@ -319,11 +320,11 @@ struct float_arr_vec4 {
 	}
 	inline float operator()(int col) const { return f[col]; }
 	vec4 as_vec4() const { return vec4(_mm_load_ps(f)); }
-} _END_ALIGN16;
+} END_ALIGN16;
 
-_BEGIN_ALIGN16 
+BEGIN_ALIGN16 
 struct float_arr_mat4 {
-	_ALIGNED16(float f[16]);
+	ALIGNED16(float f[16]);
 	inline void operator=(const mat4 &m) {
 		memcpy(f, m.rawData(), 16*sizeof(float));
 	}
@@ -335,7 +336,7 @@ struct float_arr_mat4 {
 	mat4 as_mat4() const { 
 		return mat4(f);
 	}
-} _END_ALIGN16;
+} END_ALIGN16;
 
 
 #endif

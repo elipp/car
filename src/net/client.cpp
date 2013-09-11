@@ -256,7 +256,7 @@ void LocalClient::send_chat_message(const std::string &msg) {
 	}
 	static char chat_msg_buffer[PACKET_SIZE_MAX];
 	
-	uint8_t message_len = min(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
+	uint8_t message_len = MINIMUM(msg.length(), PACKET_SIZE_MAX - PTCL_HEADER_LENGTH - 1);
 
 	PTCLHEADERDATA CHAT_HEADER 
 		= protocol_make_header( client.seq_number, client.info.id, C_CHAT_MESSAGE, message_len);

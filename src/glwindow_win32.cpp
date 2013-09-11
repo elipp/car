@@ -86,36 +86,11 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_CHAR:
-		if (onScreenLog::input_field.enabled()) {
-			if (wParam != VK_RETURN) { // is handled in the WM_KEYDOWN -caseblock
-				onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
-			}
-		}
+		handle_WM_CHAR(wParam);
 		break;
 		
 	case WM_KEYDOWN:
-		if (onScreenLog::input_field.enabled()) {
-			if (wParam == VK_RETURN) {
-				
-				onScreenLog::input_field.submit_and_parse();
-				onScreenLog::input_field.disable();
-			}
-			else if (wParam == VK_ESCAPE) {
-				onScreenLog::input_field.disable();
-			}
-			else if (wParam == VK_LEFT) {
-				onScreenLog::input_field.move_cursor(-1);
-			}
-			else if (wParam == VK_RIGHT) {
-				onScreenLog::input_field.move_cursor(1);
-			}
-			
-		}
-		else if (wParam == VK_RETURN) {
-			onScreenLog::input_field.enable();
-		} else {
-			WM_KEYDOWN_KEYS[wParam]=TRUE;
-		}
+		handle_WM_KEYDOWN(wParam);
 		break;
 
 	case WM_KEYUP:
@@ -123,7 +98,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_SIZE:
-		ResizeGLScene(LOWORD(lParam), HIWORD(lParam));
+		resize_GL_scene(LOWORD(lParam), HIWORD(lParam));
 		break;
 	
 	default:
@@ -340,20 +315,4 @@ static std::string *convertLF_to_CRLF(const char *buf) {
         start_pos += LF.length()+1; // +1 to avoid the new \n we just created :P
     }
 	return buffer;
-}
-
-GLvoid ResizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize The GL Window
-{
-	height = max(height, 1);
-
-	WINDOW_WIDTH = width;
-	WINDOW_HEIGHT = height;
-
-	glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);						// Reset The Current Viewport
-
-	text_set_Projection(mat4::proj_ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0));
-	projection = mat4::proj_persp(PROJ_FOV_RADIANS, ((float)WINDOW_WIDTH/(float)WINDOW_HEIGHT), 4.0, PROJ_Z_FAR);
-	onScreenLog::update_position();
-	onScreenLog::input_field.update_position();
-	VarTracker::update_position();
 }

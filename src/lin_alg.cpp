@@ -250,6 +250,14 @@ float vec4::length3() const {
 
 float vec4::length4() const {
 	return sqrt(MM_DPPS_XYZW(this->data, this->data));
+}	
+
+float vec4::length3_squared() const {
+	return MM_DPPS_XYZ(this->data, this->data);
+}
+
+float vec4::length4_squared() const {
+	return MM_DPPS_XYZW(this->data, this->data);
 }
 
 // this should actually include all components, but given the application, this won't :P
@@ -358,7 +366,7 @@ mat4 mat4::operator* (const mat4& R) const {
 	mat4 ret;
 #pragma loop(hint_parallel(4))
 	for (int i = 0; i < 4; i++) {
-		_ALIGNED16(float tmp[4]);	// represents a temporary column
+		ALIGNED16(float tmp[4]);	// represents a temporary column
 		for (int j = 0; j < 4; j++) {
 			tmp[j] = MM_DPPS_XYZW(L.data[j], R.data[i]);
 		}
@@ -387,7 +395,7 @@ vec4 mat4::operator* (const vec4& R) const {
 	// result: performs better (with optimizations disabled at least)
 	//const mat4 M = (*this).transposed();
 	const mat4 M = (*this);
-/*	_ALIGNED16(float tmp[4]);	// represents a temporary column
+/*	ALIGNED16(float tmp[4]);	// represents a temporary column
 
 	for (int i = 0; i < 4; i++) {
 		tmp[i] = MM_DPPS_XYZW(M.data[i], R.getData());
@@ -850,7 +858,7 @@ mat4 Quaternion::toRotationMatrix() const {
 	
 	/*
 	const Quaternion &q = *this;
-	_ALIGNED16(float tmp[4]);
+	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, this->data);
 	const float x2 = tmp[Q::x]*tmp[Q::x];
 	const float y2 = tmp[Q::y]*tmp[Q::y];

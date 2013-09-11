@@ -49,13 +49,14 @@ GLuint onScreenLog::OSL_VBOid = 0;
 
 int onScreenLog::line_length = OSL_LINE_LEN;
 int onScreenLog::num_lines_displayed = 32;
-int onScreenLog::current_index = 0;
+long onScreenLog::current_char_index = 0;
 int onScreenLog::current_line_num = 0;
 char_object onScreenLog::OSL_char_object_buffer[OSL_BUFFER_SIZE];
 bool onScreenLog::visible_ = true;
 bool onScreenLog::autoscroll_ = true;
 int onScreenLog::num_characters_drawn = 1;	
-int onScreenLog::scroll_pos = 0;
+int onScreenLog::scroll_pos = 0;	
+int onScreenLog::current_cobuf_index = 0;
 
 
 GLint onScreenLog::OSL_upper_left_corner_pos[2] = { 7, WINDOW_HEIGHT - onScreenLog::num_lines_displayed * char_spacing_vert };
@@ -136,8 +137,8 @@ void draw_overlays(const vec4 &color) {
 void update_overlays() {
 	
 	struct overlay_rect rects[2];
-	rects[0] = overlay_rect(onScreenLog::OSL_upper_left_corner_pos[0] - char_spacing_horiz, onScreenLog::OSL_upper_left_corner_pos[1] - char_spacing_vert, 
-							onScreenLog::get_line_length() + 1, onScreenLog::get_lines_displayed() + 1);
+	rects[0] = overlay_rect(onScreenLog::OSL_upper_left_corner_pos[0] - char_spacing_horiz, onScreenLog::OSL_upper_left_corner_pos[1] - char_spacing_vert - 4, 
+							onScreenLog::get_line_length() + 1, onScreenLog::get_lines_displayed() + 2);
 
 	rects[1] = overlay_rect(VarTracker::VT_upper_left_corner_pos[0] - char_spacing_horiz, VarTracker::VT_upper_left_corner_pos[1] - char_spacing_vert,
 							TRACKER_LINE_LEN + 1, 3 + 3*VarTracker::get_num_tracked() + 1);	
@@ -163,11 +164,10 @@ void onScreenLog::draw() {
 
 	// the scissor area origin is at the "bottom left corner of the screen".
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(0, (GLint)1.5*char_spacing_vert, (GLsizei) WINDOW_WIDTH, (GLsizei) num_lines_displayed * char_spacing_vert + 2);
+	glScissor(0, (GLint)1.5*char_spacing_vert, (GLsizei) WINDOW_WIDTH, (GLsizei) num_lines_displayed * char_spacing_vert);
 	const int OSL_CHARACTERS_PER_VIEW_MAX = OSL_LINE_LEN * num_lines_displayed;
 
-	glDrawArrays(GL_POINTS, 0, current_index);
-	fprintf(stderr, "num_chars drawn: %lld\n", (long long)(num_characters_drawn - 1));
+	glDrawArrays(GL_POINTS, 0, MINIMUM(current_char_index, OSL_BUFFER_SIZE));
 	glDisable(GL_SCISSOR_TEST);
 
 	glBindVertexArray(0);
@@ -175,9 +175,6 @@ void onScreenLog::draw() {
 	input_field.draw();	// it's only drawn if its enabled
 
 }
-
-
-
 
 void onScreenLog::PrintQueue::add(const std::string &s) {
 	int excess = queue.length() + s.length() - OSL_BUFFER_SIZE;
@@ -243,46 +240,64 @@ void onScreenLog::update_modelview() {
 	onScreenLog::modelview = mat4::translate(1, onScreenLog::OSL_upper_left_corner_pos[1] - (current_line_num - num_lines_displayed - scroll_pos + 1)*char_spacing_vert, 0.0);
 }
 
+void onScreenLog::translate_glyph_buffer(int offset) {
+	// a sensible+safe offset arg would be -(32k - OSL_BUFFER_SIZE). 
+	for (int i = 0; i < OSL_BUFFER_SIZE; ++i) {
+		onScreenLog::OSL_char_object_buffer[i].co_union.bitfields.pos_y += offset;
+	}
+	current_line_num += offset;
+	onScreenLog::update_modelview();
+}
+
 void onScreenLog::update_VBO(const std::string &buffer) {
+	
+	static char_object object_buf[OSL_BUFFER_SIZE];	// enough room to print any string ^_^
+
+	// the proper way to do this would be to precalculate the number of lines occupied by the
+	// string to be printed (^ buffer); instead we're using a arbitrary constant (1K)
 
 	const size_t length = buffer.length();
 
-	int i = 0;
+	size_t i = 0;
 	static int x_pos = -1, y_pos = 0;
 	static int line_beg_index = 0;
+
+	int prev_current_cobuf_index = current_cobuf_index;
+	int prev_current_char_index = current_char_index;
 
 	for (i = 0; i < length; ++i) {
 		++x_pos;
 		char c = buffer[i];
 
-		if (c == '\n' || ((current_index+i)-line_beg_index) >= OSL_LINE_LEN) {
+		int char_index = prev_current_char_index + i;
+
+		if (c == '\n' || (char_index-line_beg_index) >= OSL_LINE_LEN) {
 			++current_line_num;
 			y_pos = current_line_num;
 			x_pos = 0;	
-			line_beg_index = (current_index+i);
+			line_beg_index = char_index;
 		}
-
-		OSL_char_object_buffer[i] = char_object_from_char(x_pos, y_pos, c, 0);
-	
+		object_buf[i] = char_object_from_char(x_pos, y_pos, c, 0);
 	}
-	
-	// TODO: add check to see if line_num > 64k -> translate everything up by an offset :P
+	current_char_index += length;
 
-	unsigned prev_current_index = current_index;
-	current_index += length;
+	int excess = ((current_cobuf_index + length) - OSL_BUFFER_SIZE);
+	excess = MAXIMUM(0, excess);
+	int fitting = length - excess;
 	
-	glBindBuffer(GL_ARRAY_BUFFER, OSL_VBOid);
-	if (current_index >= OSL_BUFFER_SIZE - 1) {
-		// the excessive part will be flushed to the beginning of the VBO :P
-		unsigned excess = current_index - OSL_BUFFER_SIZE + 1;
-		unsigned fitting = buffer.length() - excess;
-		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(char_object), fitting*sizeof(char_object), (const GLvoid*)OSL_char_object_buffer);
-		glBufferSubData(GL_ARRAY_BUFFER, 0, excess*sizeof(char_object), (const GLvoid*)(OSL_char_object_buffer + fitting));
-	}
-	else {
-		glBufferSubData(GL_ARRAY_BUFFER, prev_current_index*sizeof(char_object), length*(sizeof(char_object)), (const GLvoid*)OSL_char_object_buffer);
-	}
-
+	memcpy(&onScreenLog::OSL_char_object_buffer[prev_current_cobuf_index], &object_buf[0], fitting*sizeof(char_object));
+	memcpy(&onScreenLog::OSL_char_object_buffer[0], &object_buf[fitting], excess*sizeof(char_object));
+	current_cobuf_index = excess > 0 ? excess : current_cobuf_index + fitting;
+	
+	if (current_line_num >= OSL_BUFFER_SIZE*2) {		
+		int amount_to_translate = -(int)OSL_BUFFER_SIZE;
+		fprintf(stderr, "current_line_num = %lld, translating by %d\n", (long long)current_line_num, amount_to_translate);
+		translate_glyph_buffer(amount_to_translate);	
+		// this will work even should the current buffer be composed of 8k newline characters
+	} 
+	
+	glBindBuffer(GL_ARRAY_BUFFER, OSL_VBOid);		
+	glBufferSubData(GL_ARRAY_BUFFER, 0, OSL_BUFFER_SIZE*sizeof(char_object), onScreenLog::OSL_char_object_buffer);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 
@@ -332,7 +347,8 @@ void onScreenLog::scroll(int d) {
 }
 
 void onScreenLog::clear() {
-	current_index = 0;
+	current_char_index = 0;
+	current_cobuf_index = 0;
 	current_line_num = 0;
 	num_characters_drawn = 0;	
 	onScreenLog::modelview = mat4::identity();
@@ -417,15 +433,15 @@ void onScreenLog::InputField::delete_char_before_cursor_pos() {
 
 void onScreenLog::InputField::move_cursor(int amount) {
 	cursor_pos += amount;
-	cursor_pos = max(cursor_pos, 0);
-	cursor_pos = min(cursor_pos, input_buffer.length());
+	cursor_pos = MAXIMUM(cursor_pos, 0);
+	cursor_pos = MINIMUM(cursor_pos, (int)input_buffer.length());
 	changed_ = true;
 }
 
 void onScreenLog::InputField::update_VBO() {
 
 	GLushort x_offset = 0;
-	int i = 0;
+	size_t i = 0;
 	for (; i < input_buffer.length(); ++i) {
 		IF_char_object_buffer[i] = char_object_from_char(x_offset, 0, input_buffer[i], 0);
 		++x_offset;

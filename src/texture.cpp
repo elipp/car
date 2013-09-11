@@ -299,14 +299,14 @@ float HeightMap::lookup(float x, float y) {
 	float R2 = xf_r * z12 + xf * z22;
 	float r = (yf_r * R1 + yf * R2)/255.0;
 /*	
-	_ALIGNED16(float zs[4]) = { get_pixel(xi, yi), 
+	ALIGNED16(float zs[4]) = { get_pixel(xi, yi), 
 				   get_pixel(xi+1, yi), 
 				   get_pixel(xi, yi+1), 
 				   get_pixel(xi+1, yi+1) };
 
 	const __m128 z = _mm_load_ps(zs);
 
-	_ALIGNED16(float weights[4]) = { xf_r * yf_r, 
+	ALIGNED16(float weights[4]) = { xf_r * yf_r, 
 					   xf * yf_r, 
 					   xf_r * yf, 
 					   xf * yf };

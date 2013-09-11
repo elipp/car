@@ -1,35 +1,6 @@
 #include "physics/OBB.h"
 #include <stdint.h>
-
-static vec4 simplex_points[4];
-static int simplex_current_num_points = 0;
-
-static void simplex_add(const vec4 &v) {
-	simplex_points[simplex_current_num_points] = v;
-	++simplex_current_num_points;
-}
-static void simplex_clear() {
-	simplex_current_num_points = 0;
-}
-
-static void simplex_assign(const vec4 &a) {
-	simplex_current_num_points = 1;
-	simplex_points[0] = a;
-}
-
-static void simplex_assign(const vec4 &a, const vec4 &b) {
-	simplex_current_num_points = 2;
-	simplex_points[0] = b;
-	simplex_points[1] = a;
-}
-
-static void simplex_assign(const vec4 &a, const vec4 &b, const vec4 &c) {
-	simplex_current_num_points = 3;
-	simplex_points[0] = c;
-	simplex_points[1] = b;
-	simplex_points[2] = a;
-}
-
+#include <limits>
 
 inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
 	// use the identity (a x b) x c = -(c . b)a + (c . a)b (http://en.wikipedia.org/wiki/Vector_triple_product#Vector_triple_product)
@@ -80,11 +51,11 @@ inline __m128i __mm_blend_epi32_emul(__m128i a, __m128i b, int mask) {
 
 inline int find_hi_index_ps(__m128i indices, __m128 floats) {
 
-	_ALIGNED16(int ind[4]);
+	ALIGNED16(int ind[4]);
 	_mm_store_si128((__m128i*)&ind[0], indices);
 	int highest_i = ind[0];
 
-	_ALIGNED16(float f[4]);
+	ALIGNED16(float f[4]);
 	_mm_store_ps(f, floats);
 	float highest_f = f[0];
 
@@ -315,17 +286,17 @@ vec4 GJKSession::support(const vec4 &D) {
 #define SAMEDIRECTION(va, vb) ((dot3((va), (vb))) > 0)
 #define POINTS_TOWARDS_ORIGIN(va) (SAMEDIRECTION(va, AO))
 
-typedef bool (*simplexfunc_t)(vec4*);
+typedef bool (*simplexfunc_t)(simplex*, vec4*);
 
 // THE PURPOSE OF A "SIMPLEXFUNC" IS TO
 // a) FIND THE FEATURE OF THE CURRENT SIMPLEX THAT'S CLOSEST TO THE ORIGIN 
 // (EDGE, TRIANGLE FACE), AND SET THAT AS THE NEW SIMPLEX (WITH APPROPRIATE WINDING)
 // b) UPDATE SEARCH DIRECTION ACCORDINGLY
 
-static bool null_simplexfunc(vec4 *dir) { return false; }	
-static bool line_simplexfunc(vec4 *dir) {
-	const vec4 AO = -simplex_points[1];		// -A
-	const vec4 AB = simplex_points[0] + AO;	// essentially B - A
+static bool null_simplexfunc(simplex *s, vec4 *dir) { return false; }	
+static bool line_simplexfunc(simplex *s, vec4 *dir) {
+	const vec4 AO = -s->points[1];		// -A
+	const vec4 AB = s->points[0] + AO;	// essentially B - A
 	*dir = triple_cross_1x2x1(AB, AO);	// use this edge as next simplex
 	
 	// the conclusion of the discussion in https://mollyrocket.com/forums/viewtopic.php?t=271&postdays=0&postorder=asc&start=15
@@ -335,11 +306,11 @@ static bool line_simplexfunc(vec4 *dir) {
 	return false;
 }
 
-static bool triangle_simplexfunc(vec4 *dir) {
+static bool triangle_simplexfunc(simplex *s, vec4 *dir) {
 		// gets a tad more complicated here :P
-		const vec4 A = simplex_points[2];
-		const vec4 B = simplex_points[1];
-		const vec4 C = simplex_points[0];
+		const vec4 A = s->points[2];
+		const vec4 B = s->points[1];
+		const vec4 C = s->points[0];
 
 		const vec4 AO = -A;
 		const vec4 AB = B-A;
@@ -355,12 +326,12 @@ static bool triangle_simplexfunc(vec4 *dir) {
 
 		if (POINTS_TOWARDS_ORIGIN(ABCxAC)) {
 			// then use edge AC
-			simplex_assign(A, C);
+			s->assign(A, C);
 			*dir = triple_cross_1x2x1(AC, AO);	// a direction perpendicular to the edge, and pointing towards the origin
 		}
 		else if (POINTS_TOWARDS_ORIGIN(ABxABC)) {
 			// use edge AB
-			simplex_assign(A, B);
+			s->assign(A, B);
 			*dir = triple_cross_1x2x1(AB, AO);
 		}
 		else if (POINTS_TOWARDS_ORIGIN(ABC)) {
@@ -369,8 +340,8 @@ static bool triangle_simplexfunc(vec4 *dir) {
 		}
 		else {
 			// a permutation of the points B & C is in order to give consistent 
-			// triangle winding (-> cross products) in the tetrahedral simplex processing
-			simplex_assign(A, C, B);
+			// triangle winding (-> cross products) in the tetrahedral simplex processing phase
+			s->assign(A, C, B);
 			*dir = -ABC;
 		}
 
@@ -378,11 +349,11 @@ static bool triangle_simplexfunc(vec4 *dir) {
 
 }
 
-static bool tetrahedron_simplexfunc(vec4 *dir) {
-	const vec4 A = simplex_points[3];
-	const vec4 B = simplex_points[2];
-	const vec4 C = simplex_points[1];
-	const vec4 D = simplex_points[0];
+static bool tetrahedron_simplexfunc(simplex *s, vec4 *dir) {
+	const vec4 A = s->points[3];
+	const vec4 B = s->points[2];
+	const vec4 C = s->points[1];
+	const vec4 D = s->points[0];
 
 	// redundant, but easy to read
 	
@@ -422,13 +393,13 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 		break;
 	case 1:
 		// only in front of triangle ABC
-		simplex_assign(A, B, C);
-		return triangle_simplexfunc(dir); // because we still need to figure out which feature of the triangle simplex is closest to the origin
+		s->assign(A, B, C);
+		return triangle_simplexfunc(s, dir); // because we still need to figure out which feature of the triangle simplex is closest to the origin
 		break;
 	case 2:
 		// only in front of triangle ACD
-		simplex_assign(A, C, D);
-		return triangle_simplexfunc(dir);
+		s->assign(A, C, D);
+		return triangle_simplexfunc(s, dir);
 		break;
 	case 3: {
 		// in front of both ABC and ACD -> differentiate the closest feature of all of the involved points, edges, or faces
@@ -437,29 +408,29 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 				// there's actually another plane test after this in Casey's implementation, but
 				// as said a million times already, the point A can't be closest to the origin
 				//if (SAMEDIRECTION(AC, AO)) { // USE [A,C] } else { use [A] } // <- all of that is unnecessary
-				simplex_assign(A, C);
+				s->assign(A, C);
 				*dir = triple_cross_1x2x1(AC, AO);
 	
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ACD, AD))) {
-				simplex_assign(A, D);	// edge AD
+				s->assign(A, D);	// edge AD
 				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else {
-				simplex_assign(A, C, D);	// the triangle A,C,D.
+				s->assign(A, C, D);	// the triangle A,C,D.
 				*dir = ACD;	
 			}
 		}
 		else if (POINTS_TOWARDS_ORIGIN(cross(AB, ABC))) {
 			// again, differentiating between whether the edge AB is closer to the origin than the point A is unnecessary, so just skip
 			// if (SAMEDIRECTION(AB, AO)) {
-				simplex_assign(A, B);
+				s->assign(A, B);
 				*dir = triple_cross_1x2x1(AB, AO);
 			//}
-			// else { simplex_assign(A); }
+			// else { s->assign(A); }
 		}
 		else {
-			simplex_assign(A, B, C);
+			s->assign(A, B, C);
 			*dir = ABC;
 		}
 
@@ -467,33 +438,33 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 		}
 	case 4:
 		// only in front of ADB
-		simplex_assign(A, D, B);
-		return triangle_simplexfunc(dir);
+		s->assign(A, D, B);
+		return triangle_simplexfunc(s, dir);
 		break;
 	case 5: {
 		// in front of ABC & ADB
 		if (POINTS_TOWARDS_ORIGIN(cross(ADB, AB))) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AB, ABC))) {
-				simplex_assign(A, B);
+				s->assign(A, B);
 				*dir = triple_cross_1x2x1(AB, AO);
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ABC, AC))) {
-				simplex_assign(A, C);
+				s->assign(A, C);
 				*dir = triple_cross_1x2x1(AC, AO);
 			}
 			else {
-				simplex_assign(A, B, C);
+				s->assign(A, B, C);
 				*dir = ABC;
 			}
 		}
 		else {
 			if (POINTS_TOWARDS_ORIGIN(cross(AD, ADB))) {
 				// there would be a gratuitous check for SAMEDIRECTION(AD, AO)
-				simplex_assign(A, D);
+				s->assign(A, D);
 				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else {
-				simplex_assign(A, D, B);
+				s->assign(A, D, B);
 				*dir = ADB;
 			}
 		}
@@ -505,25 +476,25 @@ static bool tetrahedron_simplexfunc(vec4 *dir) {
 		if (POINTS_TOWARDS_ORIGIN(cross(ACD, AD))) {
 			if (POINTS_TOWARDS_ORIGIN(cross(AD, ADB))) {
 				// if SAMEDIRECTION(AD, AO), not needed!
-				simplex_assign(A, D);
+				s->assign(A, D);
 				*dir = triple_cross_1x2x1(AD, AO);
 			}
 			else if (POINTS_TOWARDS_ORIGIN(cross(ADB, AB))) {
-				simplex_assign(A, B);
+				s->assign(A, B);
 				*dir = triple_cross_1x2x1(AB, AO);
 			}
 			else {
-				simplex_assign(A, D, B);
+				s->assign(A, D, B);
 				*dir = ADB;
 			}
 		}
 		else if (POINTS_TOWARDS_ORIGIN(cross(AC, ACD))) {
 			// if SAMEDIRECTION(AC, AO), not needed!
-			simplex_assign(A, C);
+			s->assign(A, C);
 			*dir = triple_cross_1x2x1(AC, AO);
 		}
 		else {
-			simplex_assign(A, C, D);
+			s->assign(A, C, D);
 			*dir = ACD;
 		}
 		break;
@@ -549,9 +520,9 @@ static const simplexfunc_t simplexfuncs[5] = {
 
 
 
-static bool DoSimplex(vec4 *D) {
+static bool do_simplex(simplex *s, vec4 *D) {
 	//std::cerr << "calling simplexfuncs[" << simplex_current_num_points << "] with dir = " << *D << ".\n";
-	return simplexfuncs[simplex_current_num_points](D);
+	return simplexfuncs[s->current_num_points](s, D);
 }
 
 void OBB::compute_box_vertices(vec4 *vertices_out) const {
@@ -600,10 +571,9 @@ int GJKSession::collision_test() {
 	vec4 S = support(D);
 	D = -S;
 
-	simplex_assign(S);
+	current_simplex.assign(S);
 
 	// perhaps add a hard limit to the number of iterations to avoid infinite looping
-	enum { GJK_INCONCLUSIVE = -1, GJK_NOCOLLISION = 0, GJK_COLLISION = 1 };
 #define ITERATIONS_MAX 20
 	int i = 0;
 	while (i < ITERATIONS_MAX) {
@@ -614,8 +584,8 @@ int GJKSession::collision_test() {
 			// we can conclude that there can be no intersection between the two shapes (boxes)
 			return GJK_NOCOLLISION;
 		}
-		simplex_add(A);
-		if (DoSimplex(&D)) { // updates our simplex and the search direction in a way that allows us to close in on the origin efficiently
+		current_simplex.add(A);
+		if (do_simplex(&this->current_simplex, &D)) { // updates our simplex and the search direction in a way that allows us to close in on the origin efficiently
 			return GJK_COLLISION;
 		}
 		++i;
@@ -638,41 +608,203 @@ inline int find_hi_index_float4(float *f4) {
 	return cur_hi_index;
 }
 
-vec4 GJKSession::EPA_penetration() {
-	// start with the final simplex returned by GJK (tetrahedron)
-	
-	// find closest triangle face.
-	
-	const vec4 A = simplex_points[3];
-	const vec4 B = simplex_points[2];
-	const vec4 C = simplex_points[1];
-	const vec4 D = simplex_points[0];
-		
-	const vec4 AO = -A;
-	const vec4 AB = B-A;
-	const vec4 AC = C-A;
-	const vec4 AD = D-A;
-	const vec4 BC = C-B;
-	const vec4 BD = D-B;
+bool triangle_face::is_visible_from(const vec4 &p) {
+	return (dot3((p - this->points[0]->p), this->normal) > 0); // the result should be same (similar) for this->points[1]-> & this->points[2]->p
+}
 
-	// OUTWARD-FACING (outward from the tetrahedron) triangle normals.
-	const vec4 normals[4] = {
-		cross(AB, AC),
-		cross(AC, AD),
-		cross(AD, AB),
-		cross(BD, BC)
-	};
-	
-	_ALIGNED16(float distances[4]) = 
-	{ dot3(normals[0], A),	// any of the involved triangle vertices (A, B, C) should give the same dot product
-	  dot3(normals[1], A),
-	  dot3(normals[2], A),
-	  dot3(normals[3], B) };
+bool triangle_face::contains_point(const vec4 &p) {
+	// assuming ccw winding
+	// counting on some heavy compiler optimizations here :D
+	const vec4 A = this->points[0]->p;
+	const vec4 B = this->points[1]->p;
+	const vec4 C = this->points[2]->p;
 
-	vec4 search_direction = normals[find_hi_index_float4(distances)];
+	const vec4 AB = B - A;
+	const vec4 AC = C - A;
+	const vec4 BC = C - B;
 
-	vec4 new_p = support(search_direction);
+	// outward-pointing in-plane edge normals
+	const vec4 ABxABC = cross(AB, this->normal);
+	const vec4 ABCxAC = cross(this->normal, AC);	
+	const vec4 BCxABC = cross(BC, this->normal);
 
-	return new_p;
+	float d1 = dot3(p - A, ABxABC);
+	float d2 = dot3(p - A, ABCxAC);
+	float d3 = dot3(p - B, BCxABC);
+
+	return (d1 < 0) && (d2 < 0) && (d3 < 0);
 
 }
+
+bool triangle_face::contains_origin_proj() {
+	const vec4 A = this->points[0]->p;
+	const vec4 B = this->points[1]->p;
+	const vec4 C = this->points[2]->p;
+
+	const vec4 AB = B - A;
+	const vec4 AC = C - A;
+	const vec4 BC = C - B;
+
+	// outward-pointing in-plane edge normals
+	const vec4 ABxABC = cross(AB, this->normal);
+	const vec4 ABCxAC = cross(this->normal, AC);	
+	const vec4 BCxABC = cross(BC, this->normal);
+
+	return (dot3(A, ABxABC) > 0) && (dot3(A, ABCxAC) > 0) && (dot3(B, BCxABC) > 0);
+}
+
+int GJKSession::EPA_penetration(vec4 *outv) {
+	// start with the final simplex returned by GJK (tetrahedron)
+	
+	convex_hull hull;
+
+	hull.add_point(current_simplex.points[3]);
+	hull.add_point(current_simplex.points[2]);
+	hull.add_point(current_simplex.points[1]);
+	hull.add_point(current_simplex.points[0]);
+	
+	hull.add_face(0, 1, 2);	// ABC
+	hull.add_face(0, 2, 3);	// ACD
+	hull.add_face(0, 3, 1);	// ADB
+	hull.add_face(1, 3, 2);	// BDC
+
+	// manually specifying initial adjacency information. See struct triangle_face definition @ OBB.h
+	hull.faces[0].adjacents[0] = &hull.faces[2];
+	hull.faces[0].adjacents[1] = &hull.faces[3];
+	hull.faces[0].adjacents[2] = &hull.faces[1];
+
+	hull.faces[1].adjacents[0] = &hull.faces[0];
+	hull.faces[1].adjacents[1] = &hull.faces[3];
+	hull.faces[1].adjacents[2] = &hull.faces[2];
+
+	hull.faces[2].adjacents[0] = &hull.faces[1];
+	hull.faces[2].adjacents[1] = &hull.faces[3];
+	hull.faces[2].adjacents[2] = &hull.faces[0];
+
+	hull.faces[3].adjacents[0] = &hull.faces[2];	
+	hull.faces[3].adjacents[1] = &hull.faces[1];
+	hull.faces[3].adjacents[2] = &hull.faces[0];
+
+
+	hull.active_faces.push_back(&hull.faces[0]);
+	hull.active_faces.push_back(&hull.faces[1]);
+	hull.active_faces.push_back(&hull.faces[2]);
+	hull.active_faces.push_back(&hull.faces[3]);
+
+	vec4 new_p;
+	float terminating_margin = std::numeric_limits<float>::max();
+
+	const int EPA_MAX_ITERATIONS = 32;
+
+	for (int i = 0; i < EPA_MAX_ITERATIONS; ++i) {
+		
+		std::sort(hull.active_faces.begin(), hull.active_faces.end(), 
+			[](triangle_face const * a, triangle_face const * b) {
+					return (a->orthog_distance_from_origin < b->orthog_distance_from_origin); 
+			}
+		);
+
+		auto best_iter = hull.active_faces.begin();
+		while (!(*best_iter)->origin_proj_within_triangle) {
+			++best_iter;
+			if (best_iter == hull.active_faces.end()) {
+				fprintf(stderr, "WARNING! none of the triangles contained the origin projection (this shouldn't be happening!)\n");
+				best_iter = hull.active_faces.begin(); 
+				break; 
+			}
+		}
+		
+		triangle_face *best = *best_iter;
+		vec4 search_direction = best->normal;
+
+		new_p = support(search_direction); // the search_direction vec4 (ie. best->normal) is normalized
+
+		float new_margin = dot3(search_direction, new_p);
+
+		if (fabs(new_margin - terminating_margin) < 0.000001) {
+			// the algorithm has converged
+			vec4 penetration_depth = best->orthog_distance_from_origin * best->normal;
+			*outv = penetration_depth;
+			fprintf(stderr, "EPA_pen: returning EPA_SUCCESS!\n\n");
+			fprintf(stderr, "penetration depth = %s\n", print_vec4(best->normal*best->orthog_distance_from_origin).c_str());
+			return EPA_SUCCESS;
+		}
+		terminating_margin = new_margin;	
+
+		// else proceed to the convex hull computation part
+		int obsolete_count = 0;
+		auto &iter = hull.active_faces.begin();
+
+		// remove faces visible from the new point (new_p)
+		while (iter != hull.active_faces.end()) {
+			triangle_face *face = (*iter);
+			if (face->is_visible_from(new_p)) {
+				// the triangle is obsolete
+				face->obsolete = 1;
+				iter = hull.active_faces.erase(iter);
+				++obsolete_count;
+			}
+			else {
+				face->obsolete = 0;
+				++iter;
+			}
+		}
+		
+		if (obsolete_count < 1) {
+			// the point to be added was enclosed by the shape (or already was included in the convex hull)
+			// this can easily happen with two discrete (polygonal) shapes
+			fprintf(stderr, "WARNING: nothing to delete (the point-to-be-added was enclosed by the shape!)\n");
+			// actually, this implies EPA_SUCCESS, since the next iteration will be identical to 
+			// this one (same search direction->same support point->same margin->termination)
+			continue;
+		}
+
+		int new_index = hull.add_point(new_p);
+
+		std::vector<triangle_face*> new_faces;
+		
+		// figure out the horizon line loop, add the new faces to the master list
+		for (auto &face : hull.active_faces) { // obsolete faces have already been removed
+			int edge_mask = 0;
+			for (int i = 0; i < 3; ++i) {
+				if (face->adjacents[i]->obsolete != 0) {
+					int v_index0 = face->points[i%3] - &hull.points[0];
+					int v_index1 = face->points[(i+1)%3] - &hull.points[0];
+					auto p = hull.faces.push_back(triangle_face(hull.points, v_index1, v_index0, new_index));	// <- note, permutation (1, 0, n) to preserve winding
+					
+					p->adjacents[0] = face; // the shared two points comprise edge p0->p1 of the new face
+					face->adjacents[i] = p;
+					new_faces.push_back(p);
+				}
+			}
+			
+		}
+
+		// figure out adjacency status for the new faces
+
+		// this part could use some serious commentary.
+		for (auto &face_a : new_faces) {
+			// adjacents[0] is never NULL, see above loop. adjacents[2] are on the other hand covered by the loop (edges are resolved reciprocally for adj triangles)
+				for (auto &face_b : new_faces) { // i'd still say roughly O(n) despite double looping
+					if (face_a == face_b) { continue; }
+					// adjacent new_faces will always share an edge involving the new_index point (always at index 2). This can easily be verified geometrically.
+					// the edge we're checking against consists of pa_1 & pa_2 (there's a strong guarantee that pa_2 == pb_2, ie. the newly added point, so no need to check for that).
+					// given ccw winding and the fact that the new faces all share the point new_p, stored at new_index (found at index 2 of all faces),
+					// the only case where the triangles share an edge is where pa_1 (the point in face_a "counter-clockwise right before the shared point") 
+					// equals pb_0 (the point "counter-clockwise right AFTER the shared point")
+					else if (face_a->points[1] == face_b->points[0]) {
+							face_a->adjacents[1] = face_b;
+							face_b->adjacents[2] = face_a;
+					}
+				}
+
+		}
+
+		hull.active_faces.insert(hull.active_faces.end(), new_faces.begin(), new_faces.end());
+
+	}
+		
+	return EPA_INCONCLUSIVE;
+}
+	
+

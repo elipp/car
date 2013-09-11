@@ -50,7 +50,7 @@ public:
 	static bool validate();
 };
 
-#define LIMIT_VALUE_BETWEEN(VAL, MIN, MAX) max((MIN), min((VAL), (MAX)))
+#define LIMIT_VALUE_BETWEEN(VAL, MIN, MAX) MAXIMUM((MIN), MINIMUM((VAL), (MAX)))
 
 class HeightMap {
 	int img_dim_pixels;	// pixels

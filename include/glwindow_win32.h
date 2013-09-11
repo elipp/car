@@ -5,6 +5,11 @@
 #pragma warning(disable: 4244) // double -> const float conversion warning
 #pragma warning(disable: 4305) // double -> const float trunc warning
 
+#define NOMINMAX	// this prevents minwindef.h from defining those name-clashing min/max macros (std::numeric_limits<>::max)
+
+#define MINIMUM(a, b) (((a) < (b)) ? (a) : (b))
+#define MAXIMUM(a, b) (((a) > (b)) ? (a) : (b))
+
 
 #include <Winsock2.h>
 #include <Windows.h>
@@ -22,6 +27,9 @@ extern bool WM_KEYDOWN_KEYS[];
 extern bool WM_CHAR_KEYS[];
 
 extern void stop_main_loop();
+extern void handle_WM_CHAR(WPARAM wParam);
+extern void handle_WM_KEYDOWN(WPARAM wParam);
+extern void resize_GL_scene(GLsizei width, GLsizei height);
 extern bool main_loop_running();
 extern void messagebox_error(const std::string &msg);
 
@@ -47,6 +55,5 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
 BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE hInstance, int nCmdShow);
 void KillGLWindow(void);
-GLvoid ResizeGLScene(GLsizei width, GLsizei height);
 
 #endif
