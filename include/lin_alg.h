@@ -199,6 +199,10 @@ vec4 abs(const vec4 &a);
 
 vec4 cross(const vec4 &a,  const vec4 &b);	// not really vec4, since cross product for such vectors isn't defined
 
+inline bool roughly_equal(const vec4 &a, const vec4 &b, float margin) {
+	return ((a - b).length4_squared() < margin);
+}
+
 
 BEGIN_ALIGN16 
 class mat4 {	// column major 

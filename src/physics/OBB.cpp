@@ -1,6 +1,7 @@
 #include "physics/OBB.h"
 #include <stdint.h>
 #include <limits>
+#include <algorithm>
 
 inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
 	// use the identity (a x b) x c = -(c . b)a + (c . a)b (http://en.wikipedia.org/wiki/Vector_triple_product#Vector_triple_product)
@@ -653,6 +654,52 @@ bool triangle_face::contains_origin_proj() {
 	return (dot3(A, ABxABC) > 0) && (dot3(A, ABCxAC) > 0) && (dot3(B, BCxABC) > 0);
 }
 
+
+int convex_hull::purge_triangles_visible_from_point(const vec4 &p) {
+	
+
+	/*
+	while (iter != active_faces.end()) {
+		triangle_face *face = (*iter);
+		if (face->is_visible_from(p)) {
+			// the triangle is obsolete
+			face->obsolete = 1;	
+			--face->points[0]->refcount;
+			--face->points[1]->refcount;
+			--face->points[2]->refcount;
+			iter = active_faces.erase(iter);
+			++obsolete_count;
+		}
+		else {
+			face->obsolete = 0;
+			++iter;
+		}
+	}*/
+
+	int prev_size = active_faces.size();
+
+	active_faces.erase(
+		std::remove_if(active_faces.begin(), active_faces.end(), 
+		[&p](triangle_face* f) { 
+			if (f->is_visible_from(p)) {
+				f->obsolete = 1;
+				--f->points[0]->refcount;
+				--f->points[1]->refcount;
+				--f->points[2]->refcount;
+				return true;
+			}
+			else {
+				f->obsolete = 0;
+				return false;
+			}
+
+		}), active_faces.end());
+	
+	return prev_size - (int)active_faces.size();
+		
+}
+
+
 int GJKSession::EPA_penetration(vec4 *outv) {
 	// start with the final simplex returned by GJK (tetrahedron)
 	
@@ -697,27 +744,22 @@ int GJKSession::EPA_penetration(vec4 *outv) {
 	const int EPA_MAX_ITERATIONS = 32;
 
 	for (int i = 0; i < EPA_MAX_ITERATIONS; ++i) {
-		
-		std::sort(hull.active_faces.begin(), hull.active_faces.end(), 
-			[](triangle_face const * a, triangle_face const * b) {
-					return (a->orthog_distance_from_origin < b->orthog_distance_from_origin); 
-			}
-		);
 
-		auto best_iter = hull.active_faces.begin();
-		while (!(*best_iter)->origin_proj_within_triangle) {
-			++best_iter;
-			if (best_iter == hull.active_faces.end()) {
-				fprintf(stderr, "WARNING! none of the triangles contained the origin projection (this shouldn't be happening!)\n");
-				best_iter = hull.active_faces.begin(); 
-				break; 
-			}
+		triangle_face *best = hull.get_closest_valid();
+		if (!best) {
+			fprintf(stderr, "EPA: WARNING! A best triangle face couldn't be determined. Returning EPA_FAIL.\n");
+			return EPA_FAIL;
 		}
-		
-		triangle_face *best = *best_iter;
 		vec4 search_direction = best->normal;
 
 		new_p = support(search_direction); // the search_direction vec4 (ie. best->normal) is normalized
+
+		if (hull.has_dupe_in_active(new_p)) {	
+			fprintf(stderr, "EPA: WARNING! The new point to be added was dangerously close to another (is indicative of convergence)\n");
+			vec4 penetration_depth = best->orthog_distance_from_origin*best->normal;
+			*outv = penetration_depth;	// we have converged to the penetration depth.
+			return EPA_SUCCESS;
+		}
 
 		float new_margin = dot3(search_direction, new_p);
 
@@ -732,31 +774,17 @@ int GJKSession::EPA_penetration(vec4 *outv) {
 		terminating_margin = new_margin;	
 
 		// else proceed to the convex hull computation part
-		int obsolete_count = 0;
-		auto &iter = hull.active_faces.begin();
-
-		// remove faces visible from the new point (new_p)
-		while (iter != hull.active_faces.end()) {
-			triangle_face *face = (*iter);
-			if (face->is_visible_from(new_p)) {
-				// the triangle is obsolete
-				face->obsolete = 1;
-				iter = hull.active_faces.erase(iter);
-				++obsolete_count;
-			}
-			else {
-				face->obsolete = 0;
-				++iter;
-			}
-		}
-		
-		if (obsolete_count < 1) {
+		int num_obsolete = hull.purge_triangles_visible_from_point(new_p);
+	
+		if (num_obsolete < 1) {
 			// the point to be added was enclosed by the shape (or already was included in the convex hull)
 			// this can easily happen with two discrete (polygonal) shapes
 			fprintf(stderr, "WARNING: nothing to delete (the point-to-be-added was enclosed by the shape!)\n");
 			// actually, this implies EPA_SUCCESS, since the next iteration will be identical to 
-			// this one (same search direction->same support point->same margin->termination)
-			continue;
+			// this one (same search direction->same support point->same margin->termination)	
+			vec4 penetration_depth = best->orthog_distance_from_origin * best->normal;
+			*outv = penetration_depth;
+			return EPA_SUCCESS;
 		}
 
 		int new_index = hull.add_point(new_p);
@@ -801,6 +829,7 @@ int GJKSession::EPA_penetration(vec4 *outv) {
 		}
 
 		hull.active_faces.insert(hull.active_faces.end(), new_faces.begin(), new_faces.end());
+
 
 	}
 		

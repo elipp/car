@@ -428,7 +428,7 @@ void drawCubes() {
 	if (are_intersecting) {
 		int r = GJKsess.EPA_penetration(&penetration_depth);
 		if (r != EPA_SUCCESS) {
-			PRINT("EPA_penetration returned error %x!\n", r);
+			// anal gay :D
 		}
 	}
 	
