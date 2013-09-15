@@ -1,10 +1,5 @@
 #include "common.h"
 
-const float PI_PER_TWO = M_PI/2;
-
-const float PI_PER_180 = (M_PI/180.0);
-const float _180_PER_PI = (180.0/M_PI);
-
 static std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
     std::stringstream ss(s);
     std::string item;

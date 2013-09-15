@@ -1,13 +1,16 @@
 #ifndef LIN_ALG_H
 #define LIN_ALG_H
 
+// http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
+
 #ifdef _WIN32
-#include <intrin.h>
 #include <xmmintrin.h>
 #include <smmintrin.h>
+
 #elif __linux__
 #include <x86intrin.h>
 #include <cpuid.h>
+
 #endif
 
 #include <cstdio>
@@ -25,8 +28,8 @@
 #elif __linux__
 #define BEGIN_ALIGN16
 #define END_ALIGN16 __attribute__((aligned(16)))
-#define _ALIGNED_MALLOC16(ptr, size) do { posix_memalign((void**)&(ptr), 16, (size)); } while(0)
-#define _ALIGNED_FREE(ptr) do { free(ptr); } while(0)
+#define ALIGNED_MALLOC16(ptr, size) do { posix_memalign((void**)&(ptr), 16, (size)); } while(0)
+#define ALIGNED_FREE(ptr) do { free(ptr); } while(0)
 #endif
 
 #define ALIGNED16(decl) BEGIN_ALIGN16 decl END_ALIGN16
@@ -59,8 +62,8 @@ inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
 	char buffer[128];
 	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, m);
-	sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
-//	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	//sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
 	out << buffer;
 	return out;
 }
@@ -69,12 +72,6 @@ std::ostream &operator<< (std::ostream& out, const vec4 &v);
 std::ostream &operator<< (std::ostream& out, const mat4 &M);
 std::ostream &operator<< (std::ostream& out, const Quaternion &q);
 
-#ifndef LINALG_STANDALONE
-#include "glwindow_win32.h"
-#include "text.h"
-#endif
-
-// http://stackoverflow.com/questions/11228855/header-files-for-simd-intrinsics
 // (stolen from microsoft :()
 
 #ifndef _MM_TRANSPOSE4_PS

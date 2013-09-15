@@ -616,7 +616,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	} 
 #endif
-	if (!CreateGLWindow("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
+	if (!create_GL_window("car XDDDdddd", WINDOW_WIDTH, WINDOW_HEIGHT)) { return 1; }
 	if (!initGL()) {
 		return 1; 
 	}

@@ -83,6 +83,7 @@ static int find_largest_float_index_8f(__m128 *floats_aligned16) {
 	__m128 cmp = _mm_cmpge_ps(cur, cur_highest);
 	int blendmask = _mm_movemask_ps(cmp);
 	cur_indices = _mm_add_epi32(cur_indices, increment4);
+
 	// pick the floats that were bigger than the corresponding float from the last chunk
 	cur_highest = __mm_blend_ps_emul(cur, cur_highest, blendmask);
 	// use same mask for indices :P
@@ -528,9 +529,9 @@ static bool do_simplex(simplex *s, vec4 *D) {
 
 void OBB::compute_box_vertices(vec4 *vertices_out) const {
 	const float_arr_vec4 extents(e);
-	vec4 precomp_val_A0 = 2*extents(0)*A0;
-	vec4 precomp_val_A1 = 2*extents(1)*A1;
-	vec4 precomp_val_A2 = 2*extents(2)*A2;
+	const vec4 precomp_val_A0 = 2*extents(0)*A0;
+	const vec4 precomp_val_A1 = 2*extents(1)*A1;
+	const vec4 precomp_val_A2 = 2*extents(2)*A2;
 
 	vertices_out[0] = C + extents(0)*A0 + extents(1)*A1 + extents(2)*A2;
 	vertices_out[1] = vertices_out[0] - precomp_val_A2;
@@ -801,8 +802,8 @@ int GJKSession::EPA_penetration(vec4 *outv) {
 					auto p = hull.faces.push_back(triangle_face(hull.points, v_index1, v_index0, new_index));	// <- note, permutation (1, 0, n) to preserve winding
 					
 					p->adjacents[0] = face; // the shared two points comprise edge p0->p1 of the new face
-					face->adjacents[i] = p;
-					new_faces.push_back(p);
+					face->adjacents[i] = &(*p);
+					new_faces.push_back(&(*p));
 				}
 			}
 			

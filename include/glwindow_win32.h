@@ -10,7 +10,6 @@
 #define MINIMUM(a, b) (((a) < (b)) ? (a) : (b))
 #define MAXIMUM(a, b) (((a) > (b)) ? (a) : (b))
 
-
 #include <Winsock2.h>
 #include <Windows.h>
 
@@ -23,8 +22,40 @@
 
 #include <lmcons.h>
 
-extern bool WM_KEYDOWN_KEYS[];
-extern bool WM_CHAR_KEYS[];
+#define KEY_Q 'Q'
+#define KEY_W 'W'
+#define KEY_E 'E'
+#define KEY_R 'R'
+#define KEY_T 'T'
+#define KEY_Y 'Y'
+#define KEY_U 'U'
+#define KEY_I 'I'
+#define KEY_O 'O'
+#define KEY_P 'P'
+#define KEY_A 'A'
+#define KEY_S 'S'
+#define KEY_D 'D'
+#define KEY_F 'F'
+#define KEY_G 'G'
+#define KEY_H 'H'
+#define KEY_J 'J'
+#define KEY_K 'K'
+#define KEY_L 'L'
+#define KEY_M 'M'
+#define KEY_N 'N'
+#define KEY_Z 'Z'
+#define KEY_X 'X'
+#define KEY_C 'C'
+#define KEY_V 'V'
+#define KEY_B 'B'
+#define KEY_N 'N'
+#define KEY_M 'M'
+
+extern struct key_mgr keys;
+
+typedef struct {
+	unsigned x, unsigned y;
+} mouse_pos_t;
 
 extern void stop_main_loop();
 extern void handle_WM_CHAR(WPARAM wParam);
@@ -47,13 +78,14 @@ extern float PROJ_Z_FAR;
 #define HALF_WINDOW_HEIGHT (WINDOW_HEIGHT/2)
 
 extern void set_cursor_relative_pos(int x, int y);
+extern mouse_pos_t get_cursor_pos();
 
 extern void window_swapbuffers();
 extern bool mouse_locked;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
-BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE hInstance, int nCmdShow);
-void KillGLWindow(void);
+int create_GL_window(const char* title, int width, int height);
+void kill_GL_window(void);
 
 #endif

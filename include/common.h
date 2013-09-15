@@ -1,9 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include <Winsock2.h>
-#include <Windows.h>
-
 #include <fstream>
 #include <cmath>
 #include <cstdio>
@@ -13,23 +10,26 @@
 #include <string>
 #include <sstream>
 
-#include "lin_alg.h"
+#ifdef _WIN32
 #include "glwindow_win32.h"
+#elif __linux__
+#include "window_crap.h"
+#endif
+
+#include "lin_alg.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265359
 #endif
 
+#define PI_PER_TWO (M_PI/2.0)
+#define PI_PER_180 (M_PI/180.0)
+#define D180_PER_PI (180.0/M_PI);
+
 extern std::string get_timestamp();
 
-// too bad, constexpr not supported yet, this crap will have to do :(
-extern const float PI_PER_TWO;
-
-extern const float PI_PER_180;
-extern const float _180_PER_PI;
-
 inline float RADIANS(float angle_in_degrees) { return angle_in_degrees*PI_PER_180; }
-inline float DEGREES(float angle_in_radians) { return angle_in_radians*_180_PER_PI; }
+inline float DEGREES(float angle_in_radians) { return angle_in_radians*D180_PER_PI; }
 
 std::vector<std::string> split(const std::string &s, char delim);
 

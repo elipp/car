@@ -14,8 +14,14 @@
 
 #include "common.h"
 
-bool WM_KEYDOWN_KEYS[256] = { false };
-bool WM_CHAR_KEYS[256] = { false };
+struct key_mgr {
+	bool pressed[256];
+	bool& operator[](unsigned char c) {
+		return pressed[c];
+	}
+};
+
+LPPOINT cursosPos = new POINT;
 
 bool mouse_locked = false;
 
@@ -35,7 +41,6 @@ bool active = TRUE;
 extern int initGL();
 extern mat4 projection;
 
-
 static bool _main_loop_running=true;
 bool main_loop_running() { return _main_loop_running; }
 void stop_main_loop() { _main_loop_running = false; }
@@ -48,15 +53,13 @@ void set_cursor_relative_pos(int x, int y) {
     SetCursorPos(pt.x, pt.y);
 }
 
-
 static std::string *convertLF_to_CRLF(const char *buf);
 
 void window_swapbuffers() {
 	SwapBuffers(hDC);
 }
 
-LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
+LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	#define BIT_SET(var,pos) ((var) & (1<<(pos)))
 	switch(uMsg)
 	{
@@ -111,9 +114,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void messagebox_error(const std::string &msg) {
 	MessageBox(NULL, msg.c_str(), "Error (fatal)", MB_OK | MB_ICONEXCLAMATION);
 }
-BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscreenflag, HINSTANCE _hInstance, int nCmdShow)
-{
-	hInstance = _hInstance;
+
+int create_GL_window(const char* title, int width, int height) {
+//	hInstance = _hInstance;
 
 	GLuint PixelFormat;
 	WNDCLASS wc;
@@ -152,7 +155,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	dmScreenSettings.dmSize = sizeof(dmScreenSettings);
 	dmScreenSettings.dmPelsWidth = width;
 	dmScreenSettings.dmPelsHeight = height;
-	dmScreenSettings.dmBitsPerPel = bits;
+	dmScreenSettings.dmBitsPerPel = 32;
 	dmScreenSettings.dmFields= DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 
 	/*
@@ -202,7 +205,7 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 		1,
 		PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
 		PFD_TYPE_RGBA,
-		bits,
+		32,
 		0, 0, 0, 0, 0, 0,
 		0,
 		0,
@@ -268,19 +271,17 @@ BOOL CreateGLWindow(char* title, int width, int height, int bits, bool fullscree
 	return TRUE;
 }
 
-void KillGLWindow(void)
-{
-	if(hRC)
-	{
-		if(!wglMakeCurrent(NULL,NULL))
-		{
+void KillGLWindow(void) {
+
+	if(hRC) {
+		if(!wglMakeCurrent(NULL,NULL)) {
 			MessageBox(NULL, "wglMakeCurrent(NULL,NULL) failed", "erreur", MB_OK | MB_ICONINFORMATION);
 		}
 
-		if (!wglDeleteContext(hRC))
-		{
+		if (!wglDeleteContext(hRC)) {
 			MessageBox(NULL, "RELEASE of rendering context failed.", "error", MB_OK | MB_ICONINFORMATION);
 		}
+
 		hRC=NULL;
 
 		if(hDC && !ReleaseDC(hWnd, hDC))

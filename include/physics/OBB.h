@@ -3,8 +3,10 @@
 
 #include "lin_alg.h"
 #include <iostream>
+#include <vector>
 #include <sstream>
 #include <stdint.h>
+#include <limits>
 
 enum { GJK_INCONCLUSIVE = -1, GJK_NOCOLLISION = 0, GJK_COLLISION = 1 };
 enum { EPA_INCONCLUSIVE = -1, EPA_FAIL = 0, EPA_SUCCESS = 1 };
@@ -116,16 +118,59 @@ public:
 
 template <typename T> 
 struct aligned16_object {
-		__declspec(align(16)) T object;
-		char padding[16-(sizeof(T)%16)];
-		aligned16_object(const T& t) : object(t) {};
-		aligned16_object() {};
+	ALIGNED16(T object);
+	char padding[16-(sizeof(T)%16)];
+	aligned16_object(const T& t) : object(t) {};
+	aligned16_object() {};
 };
 
 // use only for PODs plx
 template <typename T> struct my_aligned16_vector {
 	
 #define TEST_CAPACITY 1024
+
+	class iterator {
+	public:
+		aligned16_object<T> *ptr;		
+
+		T &operator*() const {
+			return ptr->object;
+		}
+		T* operator->() const {
+			return &ptr->object;
+		}
+
+		iterator &operator++() {
+			++ptr;
+			return *this;
+		}
+
+		iterator &operator++(int i) {
+			ptr += i;
+			return *this;
+		}
+
+		bool operator==(const iterator &other) const {
+			return (this->ptr == other.ptr);
+
+		}
+
+		iterator &operator=(const T &t) {
+			ptr->object = t;
+		}
+
+		bool operator!=(const iterator &other) const {
+			return (this->ptr != other.ptr);
+		}
+
+		int operator-(const iterator &other) const {
+			return this->ptr - other.ptr;
+		}
+
+		iterator(aligned16_object<T> &t) {
+			ptr = &t;			
+		}
+	};
 
 	aligned16_object<T> memblock[TEST_CAPACITY];
 	//T *memblock;
@@ -159,13 +204,22 @@ template <typename T> struct my_aligned16_vector {
 		//_aligned_free(memblock);
 	}*/
 
-	T* push_back(const T& t) {
+	iterator push_back(const T& t) {
 		if (current_size >= capacity) {
 			reallocate(2*capacity);
 		}
 		memblock[current_size] = aligned16_object<T>(t);
 		++current_size;
-		return &memblock[current_size - 1].object;
+		return iterator(memblock[current_size - 1]);
+	}
+
+	iterator push_back(const iterator &it) {
+		if (current_size >= capacity) {
+			reallocate(2*capacity);
+		}
+		memblock[current_size] = *it.ptr;
+		++current_size;
+		return iterator(memblock[current_size - 1]);
 	}
 
 	void erase(int index) {
@@ -180,12 +234,12 @@ template <typename T> struct my_aligned16_vector {
 		return memblock[index].object;
 	}
 
-	aligned16_object<T>* begin() {
-		return &memblock[0];
+	iterator begin() {
+		return iterator(memblock[0]);
 	}
 
-	aligned16_object<T>* end() {
-		return &memblock[current_size];
+	iterator end() {
+		return iterator(memblock[current_size]);
 	}
 
 	void append(T* from_beg, T* from_end) {
@@ -304,7 +358,7 @@ struct convex_hull {
 
 	bool has_dupe_in_active(const vec4 &v) { 
 		const float margin = 0.01;
-		for (auto &p : points) {
+		for (auto &p : this->points) {
 			if (p.refcount > 0) {
 				if (roughly_equal(v, p.p, margin)) {
 					// we're not adding duplicate points: 
