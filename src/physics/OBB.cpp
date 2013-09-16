@@ -19,7 +19,8 @@ inline vec4 triple_cross_1x2x1(const vec4 &a, const vec4 &b) {
 
 // perform casts from __m128i -> __m128 -> __m128i without performing any kind of conversion (reinterpret)
 // http://stackoverflow.com/questions/13631951/bitwise-cast-from-m128-to-m128i-on-msvc
-#ifdef WIN32
+
+#ifdef _WIN32
 #define m128i_CAST(m128_var) (_mm_castps_si128(m128_var))	// intrinsics are required on windows :P
 #define m128_CAST(m128i_var) (_mm_castsi128_ps(m128i_var))
 #elif __linux__
@@ -611,7 +612,8 @@ inline int find_hi_index_float4(float *f4) {
 }
 
 bool triangle_face::is_visible_from(const vec4 &p) {
-	return (dot3((p - this->points[0]->p), this->normal) > 0); // the result should be same (similar) for this->points[1]-> & this->points[2]->p
+	static const float margin = 0.01;
+	return (dot3((p - this->points[0]->p), this->normal) > margin); // the result should be same (similar) for this->points[1]-> & this->points[2]->p
 }
 
 bool triangle_face::contains_point(const vec4 &p) {
@@ -657,25 +659,6 @@ bool triangle_face::contains_origin_proj() {
 
 
 int convex_hull::purge_triangles_visible_from_point(const vec4 &p) {
-	
-
-	/*
-	while (iter != active_faces.end()) {
-		triangle_face *face = (*iter);
-		if (face->is_visible_from(p)) {
-			// the triangle is obsolete
-			face->obsolete = 1;	
-			--face->points[0]->refcount;
-			--face->points[1]->refcount;
-			--face->points[2]->refcount;
-			iter = active_faces.erase(iter);
-			++obsolete_count;
-		}
-		else {
-			face->obsolete = 0;
-			++iter;
-		}
-	}*/
 
 	int prev_size = active_faces.size();
 

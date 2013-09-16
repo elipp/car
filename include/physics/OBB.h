@@ -230,6 +230,12 @@ template <typename T> struct my_aligned16_vector {
 		--current_size;
 	}
 
+	int get_index(const T &t) {
+		// the actual Ts are contained within the aligned+padded container, so a ptr-arithmetic trick is in order
+		const aligned16_object<T> *ptr = (const aligned16_object<T> *)&t; // this is assuming the objects actually reside within the container
+		return ptr - memblock;
+	}
+
 	T& operator[](size_t index) {
 		return memblock[index].object;
 	}

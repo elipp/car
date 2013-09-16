@@ -120,7 +120,7 @@ void LocalClient::Keystate::task() {
 	keystate_timer.begin();
 	while (running() && connected()) {
 		if (keystate_timer.get_ms() > KEYSTATE_GRANULARITY_MS) {
-			update_keystate(WM_KEYDOWN_KEYS);
+			update_keystate(keys.pressed);
 			post_keystate();
 			keystate_timer.begin();
 			long wait = KEYSTATE_GRANULARITY_MS - keystate_timer.get_ms();

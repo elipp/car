@@ -1,5 +1,6 @@
 #include "net/socket.h"
 #include "common.h"
+#include "text.h"
 
 #ifdef _WIN32
 static int _initialized = 0;

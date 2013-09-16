@@ -51,15 +51,24 @@
 #define KEY_N 'N'
 #define KEY_M 'M'
 
+
+struct mouse_pos_t {
+	unsigned x;
+	unsigned y;
+};
+
+struct key_mgr {
+	bool pressed[256];	// represents WM_KEYDOWN keys on windows (ie not WM_CHAR)
+	bool& operator[](unsigned char c) {
+		return pressed[c];
+	}
+};
+
 extern struct key_mgr keys;
 
-typedef struct {
-	unsigned x, unsigned y;
-} mouse_pos_t;
-
 extern void stop_main_loop();
-extern void handle_WM_CHAR(WPARAM wParam);
-extern void handle_WM_KEYDOWN(WPARAM wParam);
+extern void handle_key_press(long code);
+extern void handle_char_input(long code);
 extern void resize_GL_scene(GLsizei width, GLsizei height);
 extern bool main_loop_running();
 extern void messagebox_error(const std::string &msg);
@@ -86,6 +95,6 @@ extern bool mouse_locked;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
 int create_GL_window(const char* title, int width, int height);
-void kill_GL_window(void);
+void kill_GL_window();
 
 #endif

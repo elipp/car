@@ -14,14 +14,8 @@
 
 #include "common.h"
 
-struct key_mgr {
-	bool pressed[256];
-	bool& operator[](unsigned char c) {
-		return pressed[c];
-	}
-};
-
-LPPOINT cursosPos = new POINT;
+mouse_pos_t mouse_pos;
+key_mgr keys;
 
 bool mouse_locked = false;
 
@@ -29,6 +23,8 @@ static HGLRC hRC = NULL;
 static HDC hDC	  = NULL;
 static HWND hWnd = NULL;
 static HINSTANCE hInstance;
+
+extern HINSTANCE win_hInstance;
 
 static HWND hWnd_child = NULL;
 
@@ -59,6 +55,8 @@ void window_swapbuffers() {
 	SwapBuffers(hDC);
 }
 
+
+
 LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	#define BIT_SET(var,pos) ((var) & (1<<(pos)))
 	switch(uMsg)
@@ -84,20 +82,20 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		break;
 
 	case WM_CLOSE:
-		KillGLWindow();
+		kill_GL_window();
 		PostQuitMessage(0);
 		break;
 
 	case WM_CHAR:
-		handle_WM_CHAR(wParam);
+		handle_char_input(wParam);
 		break;
 		
 	case WM_KEYDOWN:
-		handle_WM_KEYDOWN(wParam);
+		handle_key_press(wParam);
 		break;
 
 	case WM_KEYUP:
-		WM_KEYDOWN_KEYS[wParam]=FALSE;
+		keys[wParam]=false;
 		break;
 
 	case WM_SIZE:
@@ -116,7 +114,7 @@ void messagebox_error(const std::string &msg) {
 }
 
 int create_GL_window(const char* title, int width, int height) {
-//	hInstance = _hInstance;
+	hInstance = GetModuleHandle(NULL);
 
 	GLuint PixelFormat;
 	WNDCLASS wc;
@@ -130,7 +128,7 @@ int create_GL_window(const char* title, int width, int height) {
 	WindowRect.bottom=(long)height;
 
 
-	fullscreen = fullscreenflag;
+	fullscreen = false;
 
 	//hInstance = GetModuleHandle(NULL);
 	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -193,7 +191,7 @@ int create_GL_window(const char* title, int width, int height) {
 		NULL, NULL, hInstance, NULL);
 
 	if (hWnd == NULL) {
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "window creation error.", "ERROR", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
@@ -221,14 +219,14 @@ int create_GL_window(const char* title, int width, int height) {
 
 	if (!(hDC=GetDC(hWnd)))
 	{
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "CANT CREATE A GL DEVICE CONTEXT.", "ERROR", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
 
 	if (!(PixelFormat = ChoosePixelFormat(hDC, &pfd)))
 	{
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "cant find a suitable pixelformat.", "ERROUE", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
@@ -236,21 +234,21 @@ int create_GL_window(const char* title, int width, int height) {
 
 	if(!SetPixelFormat(hDC, PixelFormat, &pfd))
 	{
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "Can't SET ZE PIXEL FORMAT.", "ERROU", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
 
 	if(!(hRC=wglCreateContext(hDC)))
 	{
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "WGLCREATECONTEXT FAILED.", "ERREUHX", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
 
 	if(!wglMakeCurrent(hDC, hRC))
 	{
-		KillGLWindow();
+		kill_GL_window();
 		MessageBox(NULL, "Can't activate the gl rendering context.", "ERAIX", MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
@@ -264,14 +262,14 @@ int create_GL_window(const char* title, int width, int height) {
 
 //	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress ("wglSwapIntervalEXT");  
 
-	ShowWindow(hWnd, nCmdShow);
+	ShowWindow(hWnd, SW_SHOWDEFAULT);
 	//SetForegroundWindow(hWnd);
 	//SetFocus(hWnd);
 
 	return TRUE;
 }
 
-void KillGLWindow(void) {
+void kill_GL_window() {
 
 	if(hRC) {
 		if(!wglMakeCurrent(NULL,NULL)) {

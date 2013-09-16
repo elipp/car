@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <vector>
 
 #ifdef _WIN32
 #include "glwindow_win32.h"

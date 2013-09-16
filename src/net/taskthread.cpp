@@ -1,5 +1,6 @@
 #include "net/taskthread.h"
 #include "net/protocol.h"
+#include "text.h"
 
 int copy_to_ext_buffer(char *dst_buffer, const void* src, size_t src_size, size_t buffer_offset) {
 	int diff = buffer_offset + src_size - PACKET_SIZE_MAX;

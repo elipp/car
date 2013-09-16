@@ -87,39 +87,40 @@ static Quaternion OBBaQ, OBBbQ;
 
 static bool spam_test = false;
 
-void handle_WM_KEYDOWN(WPARAM wParam) {
+void handle_key_press(long code) {
 
 		if (onScreenLog::input_field.enabled()) {
-			if (wParam == VK_RETURN) {
+			if (code == VK_RETURN) {
 				
 				onScreenLog::input_field.submit_and_parse();
 				onScreenLog::input_field.disable();
 			}
-			else if (wParam == VK_ESCAPE) {
+			else if (code == VK_ESCAPE) {
 				onScreenLog::input_field.disable();
 			}
-			else if (wParam == VK_LEFT) {
+			else if (code == VK_LEFT) {
 				onScreenLog::input_field.move_cursor(-1);
 			}
-			else if (wParam == VK_RIGHT) {
+			else if (code == VK_RIGHT) {
 				onScreenLog::input_field.move_cursor(1);
 			}
 			
 		}
-		else if (wParam == VK_RETURN) {
+		else if (code == VK_RETURN) {
 			onScreenLog::input_field.enable();
 		} else {
-			WM_KEYDOWN_KEYS[wParam]=TRUE;
+			keys[(unsigned char)code] = true;
 		}
 }
 
-void handle_WM_CHAR(WPARAM wParam) {
+void handle_char_input(long code) {
 	if (onScreenLog::input_field.enabled()) {
-		if (wParam != VK_RETURN) {
-			onScreenLog::input_field.insert_char_to_cursor_pos(wParam);
+		if (code != VK_RETURN) {
+			onScreenLog::input_field.insert_char_to_cursor_pos((char)code);
 		}
 	}
 }
+
 void rotateview(float modx, float mody) {
 	static float qx = 0;
 	static float qy = 0;
@@ -154,80 +155,80 @@ void control()
 		dy = -((LONG)HALF_WINDOW_HEIGHT - cursorPos->y);
 	}
 	
-	if (WM_KEYDOWN_KEYS['W']) { c_vel_fwd += fwd_modifier; }
-	if (WM_KEYDOWN_KEYS['S']) { c_vel_fwd -= fwd_modifier; }	
+	if (keys[KEY_W]) { c_vel_fwd += fwd_modifier; }
+	if (keys[KEY_S]) { c_vel_fwd -= fwd_modifier; }	
 	c_vel_fwd *= 0.96;
 
-	if (WM_KEYDOWN_KEYS['A']) { c_vel_side -= side_modifier; }
-	if (WM_KEYDOWN_KEYS['D']) { c_vel_side += side_modifier; }
+	if (keys[KEY_A]) { c_vel_side -= side_modifier; }
+	if (keys[KEY_D]) { c_vel_side += side_modifier; }
 	c_vel_side *= 0.95;
 
-	if (WM_KEYDOWN_KEYS['N']) {
-		WM_KEYDOWN_KEYS['N'] = false;
+	if (keys[KEY_N]) {
+		keys[KEY_N] = false;
 	}
 
-	if (WM_KEYDOWN_KEYS['P']) {
+	if (keys[KEY_P]) {
 		PMODE = (PMODE == GL_FILL ? GL_LINE : GL_FILL);
-		WM_KEYDOWN_KEYS['P'] = false;
+		keys[KEY_P] = false;
 	}
 
-	if (WM_KEYDOWN_KEYS['V']) {
+	if (keys[KEY_V]) {
 		vsync ^= 1;
 		wglSwapIntervalEXT(vsync);
 		PRINT("vsync: %d\n", vsync);
-		WM_KEYDOWN_KEYS['V'] = false;
+		keys[KEY_V] = false;
 	}
 
 	rotateview(mouse_modifier*dx, mouse_modifier*dy);
 
 	// these are active regardless of mouse_locked status
-	if (WM_KEYDOWN_KEYS[VK_PRIOR]) {
+	if (keys[VK_PRIOR]) {
 		onScreenLog::scroll(1);
-		WM_KEYDOWN_KEYS[VK_PRIOR] = false;
+		keys[VK_PRIOR] = false;
 	}
-	if (WM_KEYDOWN_KEYS[VK_NEXT]) {
+	if (keys[VK_NEXT]) {
 		onScreenLog::scroll(-1);	
-		WM_KEYDOWN_KEYS[VK_NEXT] = false;
+		keys[VK_NEXT] = false;
 	}
-	if (WM_CHAR_KEYS['L']) {
+	if (keys[KEY_L]) {
 			onScreenLog::toggle_visibility();
-			WM_KEYDOWN_KEYS['L'] = false;
+			keys[KEY_L] = false;
 	}
 
-	if (WM_KEYDOWN_KEYS['O']) {
+	if (keys[KEY_O]) {
 		OBBa.C.assign(V::x, OBBa.C(V::x) + 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['I']) {
+	if (keys[KEY_I]) {
 		OBBa.C.assign(V::x, OBBa.C(V::x) - 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['K']) { 
+	if (keys[KEY_K]) { 
 		OBBa.C.assign(V::y, OBBa.C(V::y) + 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['J']) {
+	if (keys[KEY_J]) {
 		OBBa.C.assign(V::y, OBBa.C(V::y) - 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['R']) {
+	if (keys[KEY_R]) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.03);
 		OBBaQ.normalize();
 	}
-	if (WM_KEYDOWN_KEYS['T']) {
+	if (keys[KEY_T]) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.03);
 		OBBaQ.normalize();
 	}
-	if (WM_KEYDOWN_KEYS['Y']) {
+	if (keys[KEY_Y]) {
 		OBBb.C.assign(V::z, OBBb.C(V::z) + 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['U']) {
+	if (keys[KEY_U]) {
 		OBBb.C.assign(V::z, OBBb.C(V::z) - 0.03);
 	}
 	
-	if (WM_KEYDOWN_KEYS['F']) {
+	if (keys[KEY_F]) {
 		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.03);
 	}
 
-	if (WM_KEYDOWN_KEYS['0']) {
+	if (keys['0']) {
 		spam_test = !spam_test;
-		WM_KEYDOWN_KEYS['0'] = FALSE;
+		keys['0'] = FALSE;
 	}
 
 	camera_position = -view_position;
@@ -655,10 +656,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	static float running = 0;
 	MSG msg;
 	
-	while(main_loop_running())
-	{
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-		{
+	while(main_loop_running()) {
+
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0) {
 			if(msg.message == WM_QUIT)
 			{
 				PRINT("Sending quit message (C_QUIT) to server.\n");
@@ -671,15 +671,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 		
-		if (WM_KEYDOWN_KEYS[VK_ESCAPE])
-		{
+		if (keys[VK_ESCAPE]) {
 			ShowCursor(mouse_locked);
 			mouse_locked = !mouse_locked;
 
 			if (!mouse_locked) { 
 				set_cursor_relative_pos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
 			}
-			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
+			keys[VK_ESCAPE] = FALSE;
 		}
 
 		if (LocalClient::shutdown_requested()) { // this flag is set by a number of conditions in the client code

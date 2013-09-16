@@ -62,8 +62,8 @@ inline std::ostream &operator<<(std::ostream &out, const __m128 &m) {
 	char buffer[128];
 	ALIGNED16(float tmp[4]);
 	_mm_store_ps(tmp, m);
-	//sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
-	sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	sprintf_s(buffer, sizeof(buffer), "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
+	//sprintf(buffer, "(%4.3f, %4.3f, %4.3f, %4.3f)", tmp[0], tmp[1], tmp[2], tmp[3]);
 	out << buffer;
 	return out;
 }
