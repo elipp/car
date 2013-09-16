@@ -51,7 +51,12 @@ vec2 get_texcoord_ULCORNER_from_index(uint index) {
 //	return (packed & mask) >> from;
 	
 
-#define EXTRACT_BIT_RANGE(packed, from, to) (((packed) & ((((0x1U << (to - from)) - 1U)) << from)) >> from)
+uint EXTRACT_BIT_RANGE(uint packed, uint from, uint to) {
+	uint length = to - from;
+	uint mask = ((0x1U << length) - 1U);
+	uint shifted_mask = mask << from;
+	return ((packed & shifted_mask) >> from) & mask;
+} 
 
 uvec4 unpack(uint packed) {
 // layout: first 7 bits: pos_x (-> 7)
