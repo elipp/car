@@ -54,6 +54,14 @@ my_aligned16_vector<EPA_history_t> EPA_history;
 
 int current_history_index = 0;
 
+void handle_key_press(long code) {
+	keys[code] = true;
+}
+
+void handle_char_input(long code) {
+	// nop for gjk_epa_vis
+}
+
 void rotateview(float modx, float mody) {
 	static float qx = 0;
 	static float qy = 0;
@@ -71,8 +79,7 @@ void update_c_pos() {
 	view = viewq.toRotationMatrix();
 }
 
-void control()
-{
+void control() {
 	static const float fwd_modifier = 0.024;
 	static const float side_modifier = 0.020;
 	static const float mouse_modifier = 0.0009;
@@ -87,21 +94,22 @@ void control()
 		dy = -((LONG)HALF_WINDOW_HEIGHT - cursorPos->y);
 	}
 	
-	if (WM_KEYDOWN_KEYS['W']) { c_vel_fwd += fwd_modifier; }
-	if (WM_KEYDOWN_KEYS['S']) { c_vel_fwd -= fwd_modifier; }	
+	if (keys[KEY_W]) { c_vel_fwd += fwd_modifier; }
+	if (keys[KEY_S]) { c_vel_fwd -= fwd_modifier; }	
 	c_vel_fwd *= 0.96;
 
-	if (WM_KEYDOWN_KEYS['A']) { c_vel_side -= side_modifier; }
-	if (WM_KEYDOWN_KEYS['D']) { c_vel_side += side_modifier; }
+	if (keys[KEY_A]) { c_vel_side -= side_modifier; }
+	if (keys[KEY_D]) { c_vel_side += side_modifier; }
 	c_vel_side *= 0.95;
 
-	if (WM_KEYDOWN_KEYS['E']) {
+	if (keys[KEY_E]) {
 		if (!EPA_vis_in_progress) {
 			gjk_sess = GJKSession(OBBa, OBBb);
 			if (gjk_sess.collision_test() == GJK_COLLISION) {			
 				fprintf(stderr, "---------------------------------------------\n--------------------------------------------\n OBBs overlap -> recording step-wise EPA progress.\n");
 				vec4 dummy;
 				gjk_sess.EPA_penetration_stepwise_record(&dummy);
+				
 				current_history_index = 0;
 				EPA_vis_in_progress = true;
 			}
@@ -111,51 +119,51 @@ void control()
 			current_history_index = 0;
 			EPA_history.clear();
 		}
-		WM_KEYDOWN_KEYS['E'] = FALSE;
+		keys[KEY_E] = false;
 	}
 
-	if (WM_KEYDOWN_KEYS['N']) {
+	if (keys[KEY_N]) {
 		if (EPA_vis_in_progress) {
 			if (current_history_index < EPA_history.size()-1) { ++current_history_index; }
 		}
-		WM_KEYDOWN_KEYS['N'] = FALSE;
+		keys[KEY_N] = FALSE;
 	}
-	if (WM_KEYDOWN_KEYS['B']) {
+	if (keys[KEY_B]) {
 		if (EPA_vis_in_progress) {
 			if (current_history_index > 0) { --current_history_index; }
 		}	
-		WM_KEYDOWN_KEYS['B'] = FALSE;
+		keys[KEY_B] = FALSE;
 	}
 
-	if (WM_KEYDOWN_KEYS['P']) {
+	if (keys[KEY_P]) {
 		use_wireframe = !use_wireframe;
-		WM_KEYDOWN_KEYS['P'] = FALSE;
+		keys[KEY_P] = FALSE;
 	}
 
-	if (WM_KEYDOWN_KEYS['I']) {
+	if (keys[KEY_I]) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(0.0, 1.0, 0.0, 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['O']) {
+	if (keys[KEY_O]) {
 		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['Y']) {
+	if (keys[KEY_Y]) {
 		OBBaQ = OBBaQ*Quaternion::fromAxisAngle(1.0, 0.0, 0.0, 0.03);
 	}
-	if (WM_KEYDOWN_KEYS['H']) {
+	if (keys[KEY_H]) {
 		OBBbQ = OBBbQ*Quaternion::fromAxisAngle(0.0, 0.0, 1.0, 0.03);
 	}
 
-	if (WM_KEYDOWN_KEYS['L']) {
+	if (keys[KEY_L]) {
 		OBBa.C += vec4(0.05, 0.0, 0.0, 0.0);
 	}
-	if (WM_KEYDOWN_KEYS['K']) {
+	if (keys[KEY_K]) {
 		OBBa.C += vec4(-0.05, 0.0, 0.0, 0.0);
 	}
 
-	if (WM_KEYDOWN_KEYS['U']) {
+	if (keys[KEY_U]) {
 		OBBa.C += vec4(0.0, 0.05, 0.0, 0.0);
 	}
-	if (WM_KEYDOWN_KEYS['J']) {
+	if (keys[KEY_J]) {
 		OBBa.C += vec4(0.0, -0.05, 0.0, 0.0);
 	}
 
@@ -166,15 +174,6 @@ void control()
 
 }
 
-void handle_WM_KEYDOWN(WPARAM wParam) {		
-	WM_KEYDOWN_KEYS[wParam]=TRUE;
-	return;
-}
-
-void handle_WM_CHAR(WPARAM wParam) {
-	WM_CHAR_KEYS[wParam] = TRUE;
-	return;
-}
 
 static int initGL() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -290,7 +289,7 @@ int GJKSession::EPA_penetration_stepwise_record(vec4 *outv) {
 
 		fprintf(stderr, "best triangle as per returned by convex_hull::get_closest_valid(): face %d, odist = %f\n", best - &hull.faces[0], best->orthog_distance_from_origin);
 
-		EPA_history.push_back(EPA_history_t(hull.active_faces, new_p, best));
+		//EPA_history.push_back(EPA_history_t(hull.active_faces, new_p, best));
 
 		fprintf(stderr, "BEFORE step execution: face listing:\n");
 		int counter = 0;
@@ -356,13 +355,13 @@ int GJKSession::EPA_penetration_stepwise_record(vec4 *outv) {
 				assert(face->adjacents[i] != NULL);
 
 				if (face->adjacents[i]->obsolete != 0) {
-					int v_index0 = face->points[i%3] - &hull.points[0];
-					int v_index1 = face->points[(i+1)%3] - &hull.points[0];
+					int v_index0 = hull.points.get_index(*face->points[i%3]);
+					int v_index1 = hull.points.get_index(*face->points[(i+1)%3]);
 					auto p = hull.faces.push_back(triangle_face(hull.points, v_index1, v_index0, new_index));	// <- note, permutation (1, 0, n) to preserve winding
 					
 					p->adjacents[0] = face; // the shared two points comprise edge p0->p1 of the new face
-					face->adjacents[i] = p;
-					new_faces.push_back(p);
+					face->adjacents[i] = &(*p);
+					new_faces.push_back(&(*p));
 				}
 			}
 			
@@ -452,18 +451,24 @@ static void calculate_minkowski_hull(const OBB &a, const OBB &b, const simplex &
 			difference[8*i+j] = va[i] - vb[j];
 		}
 	}
-
+	vec4 new_p = difference[0];
 	for (int i = 0; i < 8*8; ++i) {
+		
+		EPA_history.push_back(EPA_history_t(minkowski_hull.active_faces, new_p, minkowski_hull.active_faces[0]));
 
-		vec4 new_p = difference[i];
+		new_p = difference[i];
+
 		if (minkowski_hull.has_dupe_in_active(new_p)) {
+			fprintf(stderr, "point %s has dupe in active, skipping\n", print_vec4(new_p).c_str());
 			continue;
 		}
 
 		int num_obsolete = minkowski_hull.purge_triangles_visible_from_point(new_p);
 	
 		if (num_obsolete < 1) {
-			// was enclosed, continue
+			// was enclosed, continue	
+			fprintf(stderr, "no points are visible from point %s, skipping\n", print_vec4(new_p).c_str());
+
 			continue;
 		}
 	
@@ -478,16 +483,17 @@ static void calculate_minkowski_hull(const OBB &a, const OBB &b, const simplex &
 				
 				if (face->adjacents[i] == NULL) {
 					fprintf(stderr, "a NULL adj has been detected: face %d, i = %d\n", face - &minkowski_hull.faces[0], i);
-					assert(false);
+//					assert(false && "null adjacent :(");
+					return;
 				}
 
 				if (face->adjacents[i]->obsolete != 0) {
-					int v_index0 = face->points[i%3] - &minkowski_hull.points[0];
-					int v_index1 = face->points[(i+1)%3] - &minkowski_hull.points[0];
+					int v_index0 = minkowski_hull.points.get_index(*face->points[i%3]);
+					int v_index1 = minkowski_hull.points.get_index(*face->points[(i+1)%3]);
 					auto p = minkowski_hull.faces.push_back(triangle_face(minkowski_hull.points, v_index1, v_index0, new_index));	// <- note, permutation (1, 0, n) to preserve winding
 					p->adjacents[0] = face; // the shared two points comprise edge p0->p1 of the new face
-					face->adjacents[i] = p;
-					new_faces.push_back(p);
+					face->adjacents[i] = &(*p);
+					new_faces.push_back(&(*p));
 				}
 			}
 			
@@ -663,8 +669,8 @@ static void drawBoxes() {
 }
 
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{	
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {	
+
 #define ENABLE_CONSOLE
 #ifdef ENABLE_CONSOLE
 	if(AllocConsole()) {
@@ -675,7 +681,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	} 
 #endif
-	if (!CreateGLWindow("GJK_EPA_visualization", WINDOW_WIDTH, WINDOW_HEIGHT, 32, FALSE, hInstance, nCmdShow)) { return 1; }
+	if (!create_GL_window("GJK_EPA_visualization", WINDOW_WIDTH, WINDOW_HEIGHT)) { return 1; }
 	if (!initGL()) {
 		return 1; 
 	}
@@ -697,10 +703,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	_timer fps_timer;
 	fps_timer.begin();
 
-	while(main_loop_running())
-	{
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
-		{
+	while(main_loop_running()) {
+
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0) {
 			if(msg.message == WM_QUIT)
 			{
 				stop_main_loop();
@@ -711,15 +716,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 		
-		if (WM_KEYDOWN_KEYS[VK_ESCAPE])
-		{
+		if (keys[VK_ESCAPE]) {
+
 			ShowCursor(mouse_locked);
 			mouse_locked = !mouse_locked;
 
 			if (!mouse_locked) { 
 				set_cursor_relative_pos(HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT);
 			}
-			WM_KEYDOWN_KEYS[VK_ESCAPE] = FALSE;
+			keys[VK_ESCAPE] = FALSE;
 		}
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
